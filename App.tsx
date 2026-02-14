@@ -1459,6 +1459,8 @@ export default function App() {
   const [showExpansionModal, setShowExpansionModal] = useState(false);
   const [showShopModal, setShowShopModal] = useState(false);
   const [showDebugModal, setShowDebugModal] = useState(false);
+  // Streak freeze inventory
+  const [freezeInventory, setFreezeInventory] = useState<{ single: number; all: number }>({ single: 0, all: 0 });
   // Tile interaction modals
   const [skipTileTarget, setSkipTileTarget] = useState<{ row: number; col: number } | null>(null);
   const [plantTarget, setPlantTarget] = useState<{ row: number; col: number } | null>(null);
@@ -1533,6 +1535,36 @@ export default function App() {
     if (!item) return false;
     return gardenState.purchaseTree(treeId, item.price);
   }, [gardenState]);
+
+  // Handle streak freeze purchase
+  const handlePurchaseFreeze = useCallback(async (type: 'single' | 'all', cost: number): Promise<boolean> => {
+    if (prayerState.coins < cost) return false;
+    prayerState.spendCoins(cost);
+    const updated = {
+      ...freezeInventory,
+      [type]: freezeInventory[type] + 1,
+    };
+    setFreezeInventory(updated);
+    try {
+      await AsyncStorage.setItem('@GrowPray:freezeInventory', JSON.stringify(updated));
+    } catch (e) {
+      console.error('Failed to save freeze inventory:', e);
+    }
+    return true;
+  }, [prayerState, freezeInventory]);
+
+  // Load freeze inventory from storage
+  useEffect(() => {
+    AsyncStorage.getItem('@GrowPray:freezeInventory').then((val) => {
+      if (val) {
+        try {
+          setFreezeInventory(JSON.parse(val));
+        } catch (e) {
+          console.error('Failed to load freeze inventory:', e);
+        }
+      }
+    });
+  }, []);
 
   // Check if onboarding is needed
   useEffect(() => {
@@ -2029,6 +2061,8 @@ export default function App() {
         coins={prayerState.coins}
         inventory={gardenState.treeInventory}
         onPurchaseTree={handlePurchaseTree}
+        freezeInventory={freezeInventory}
+        onPurchaseFreeze={handlePurchaseFreeze}
       />
 
       {/* Debug Modal - Decay Testing */}
