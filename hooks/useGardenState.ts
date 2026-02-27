@@ -31,10 +31,15 @@ export interface GardenStateResult {
   currentRecoveryProgress: number; // 0-1 progress toward next tile event
   // Grid expansion
   gridSize: number;
-  gridJustExpanded: boolean;
-  clearExpansionFlag: () => void;
+  canExpand: boolean;
+  pendingGridSize: number;
+  confirmExpansion: () => Promise<void>;
+  gridLimitReached: boolean;
   // Recovery queue
   recoveryQueue: Array<{ row: number; col: number; phase: 'recovering' | 'recovered'; cumulativeXP: number }>;
+  // Tile transitions (for ripple animation)
+  pendingTransitions: TileTransition[];
+  clearTransitions: () => void;
   // Actions
   skipRecoveryWithCoins: (row: number, col: number) => Promise<boolean>;
   getSkipCost: (row: number, col: number) => number;
@@ -53,6 +58,7 @@ export interface GardenStateResult {
   setLastXPTimestamp: (timestamp: number) => Promise<void>;
   daysSinceLastXP: number;
   isDecaying: boolean;
+  lastXPGainTimestamp: number;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -60,23 +66,62 @@ export interface GardenStateResult {
 const STORAGE_KEY = '@GrowPray:gardenState';
 const INVENTORY_STORAGE_KEY = '@GrowPray:treeInventory';
 
-// Starting green tiles: center cross of 5
-const INITIAL_GRID_SIZE = 11;
+// Starting grid: 5×5 with center cross of 5 green tiles (center + 4 cardinal)
+const INITIAL_GRID_SIZE = 5;
 
-// XP cost formula: tileCost(n) = floor(10 + n² * 0.3)
-// Tile 0 costs 10, tile 10 costs 40, tile 20 costs 130, etc.
+// ─── Progressive tier-based costs ─────────────────────────────────────────────
+// Tiles are ordered ring-by-ring from center outward.
+// Initial cross of 5 is skipped. Ring 1 diagonals (4 tiles) come first.
+// Ring 1 diags + Ring 2 (indices 0-19)  = 5×5 tier  → 20 tiles
+// Ring 3 (indices 20-43) = 7×7 tier  → 24 tiles
+// Ring 4 (indices 44-75) = 9×9 tier  → 32 tiles
+// Ring 5 (indices 76-115) = 11×11    → 40 tiles
+// Ring 6 (indices 116-163) = 13×13   → 48 tiles
+// Ring 7 (indices 164-219) = 15×15   → 56 tiles
+// Ring 8 (indices 220-283) = 17×17   → 64 tiles
+// Ring 9 (indices 284-355) = 19×19   → 72 tiles
+// Ring 10 (indices 356+) = 21×21     → 80 tiles
+//
+// Pacing (at ~25 XP/day, 5 on-time prayers):
+//   5×5 → 7×7:  Day 1, 5th prayer (25 XP → 16/20 = 80% recovered)  ← FREE CAP
+//   7×7 → 9×9:  ~Day 4  (premium only)
+//   9×9 → 11×11: ~Day 10
+//   11×11 → 13×13: ~Week 3
+//   Progressive difficulty thereafter
+//
+// First tier split: tiles 0-7 cost 1 XP, tiles 8-19 cost 2 XP
+// This ensures the 16th tile (80% threshold) needs cumulative 24 XP
+// which is only reachable on the 5th on-time prayer (25 XP total).
+
 const tileCostToRecover = (tileIndex: number): number => {
-  return Math.floor(10 + tileIndex * tileIndex * 0.3);
+  if (tileIndex < 8) return 1;        // 5×5 tier (inner): 1 XP to start recovering
+  if (tileIndex < 20) return 2;       // 5×5 tier (outer): 2 XP for slower ramp
+  if (tileIndex < 44) return 2;       // 7×7 tier
+  if (tileIndex < 76) return 3;       // 9×9 tier
+  if (tileIndex < 116) return 5;      // 11×11 tier
+  if (tileIndex < 164) return 8;      // 13×13 tier
+  if (tileIndex < 220) return 14;     // 15×15 tier
+  if (tileIndex < 284) return 22;     // 17×17 tier
+  if (tileIndex < 356) return 32;     // 19×19 tier
+  return 44;                           // 21×21 tier
 };
 
-// Cost to complete recovery is half the initial cost (min 5)
 const tileCostToComplete = (tileIndex: number): number => {
-  return Math.max(5, Math.floor(tileCostToRecover(tileIndex) * 0.5));
+  if (tileIndex < 20) return 0;       // 5×5 tier: instant complete (dead→recovered in one step)
+  if (tileIndex < 44) return 2;       // 7×7 tier
+  if (tileIndex < 76) return 4;       // 9×9 tier
+  if (tileIndex < 116) return 7;      // 11×11 tier
+  if (tileIndex < 164) return 12;     // 13×13 tier
+  if (tileIndex < 220) return 21;     // 15×15 tier
+  if (tileIndex < 284) return 33;     // 17×17 tier
+  if (tileIndex < 356) return 48;     // 19×19 tier
+  return 66;                           // 21×21 tier
 };
 
 // Coin cost to skip a recovering → recovered transition
 const skipCoinCost = (tileIndex: number): number => {
-  return Math.max(10, Math.floor(tileCostToComplete(tileIndex) * 0.8));
+  const completeCost = tileCostToComplete(tileIndex);
+  return Math.max(5, Math.floor(completeCost * 1.5));
 };
 
 // Dead tree removal coin reward
@@ -93,7 +138,7 @@ function generateRecoveryOrder(maxGridSize: number): Array<{ row: number; col: n
   const center = Math.floor(maxGridSize / 2);
   const order: Array<{ row: number; col: number }> = [];
 
-  // Starting recovered tiles (cross of 5) — skip these
+  // Starting recovered tiles (cross of 5: center + 4 cardinal) — skip these
   const isInitialTile = (r: number, c: number) => {
     if (r === center && c === center) return true;
     if (r === center - 1 && c === center) return true;
@@ -181,39 +226,43 @@ function buildRecoverySchedule(maxGridSize: number) {
   return schedule;
 }
 
-// ─── Grid size calculation ───────────────────────────────────────────────────
+// ─── Grid expansion check (single step, non-recursive) ─────────────────────
+// Checks if the grid can expand by one step from currentGridSize.
+// Returns whether expansion is possible and what the next size would be.
 
-function calculateGridSize(
+function canExpandOneStep(
   xp: number,
   schedule: ReturnType<typeof buildRecoverySchedule>,
-  baseGridSize: number,
+  currentGridSize: number,
   maxGridSize: number
-): number {
-  const center = Math.floor(maxGridSize / 2);
-  const half = Math.floor(baseGridSize / 2);
+): { canExpand: boolean; nextSize: number } {
+  if (currentGridSize >= maxGridSize) return { canExpand: false, nextSize: currentGridSize };
 
-  // Count tiles in current grid that have started recovering
+  const center = Math.floor(MAX_GRID_SIZE / 2);
+  const half = Math.floor(currentGridSize / 2);
+
+  // Count tiles in current grid that are fully recovered
   let tilesInGrid = 0;
-  let tilesRecoveringOrBetter = 0;
+  let tilesRecovered = 0;
 
   for (const entry of schedule) {
-    if (entry.phase !== 'recovering') continue; // Count each tile once
+    if (entry.phase !== 'recovered') continue;
     const inGrid = Math.abs(entry.row - center) <= half &&
                    Math.abs(entry.col - center) <= half;
     if (!inGrid) continue;
     tilesInGrid++;
-    if (xp >= entry.cumulativeXP) tilesRecoveringOrBetter++;
+    if (xp >= entry.cumulativeXP) tilesRecovered++;
   }
 
-  // Expand when 80%+ of current grid tiles are at least recovering
-  if (tilesInGrid > 0 && tilesRecoveringOrBetter >= tilesInGrid * 0.8) {
-    const newSize = Math.min(maxGridSize, baseGridSize + GRID_EXPANSION_INCREMENT);
-    if (newSize > baseGridSize) {
-      return calculateGridSize(xp, schedule, newSize, maxGridSize);
+  // Expand when 80%+ of current grid tiles are fully recovered
+  if (tilesInGrid > 0 && tilesRecovered >= tilesInGrid * 0.8) {
+    const newSize = Math.min(maxGridSize, currentGridSize + GRID_EXPANSION_INCREMENT);
+    if (newSize > currentGridSize) {
+      return { canExpand: true, nextSize: newSize };
     }
   }
 
-  return baseGridSize;
+  return { canExpand: false, nextSize: currentGridSize };
 }
 
 // ─── Initial recovered tiles ─────────────────────────────────────────────────
@@ -240,16 +289,27 @@ const DEFAULT_GARDEN: GardenData = {
   lastXPGainTimestamp: Date.now(),
 };
 
-export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount: number) => void): GardenStateResult {
+// Tile transition tracking for ripple animation
+export interface TileTransition {
+  row: number;
+  col: number;
+  from: TileState;
+  to: TileState;
+  ring: number; // Chebyshev distance from center — used for stagger timing
+}
+
+export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount: number) => void, userMaxGridSize?: number): GardenStateResult {
+  const effectiveMaxGrid = userMaxGridSize ?? MAX_GRID_SIZE;
   const [gardenData, setGardenData] = useState<GardenData>(DEFAULT_GARDEN);
   const [loading, setLoading] = useState(true);
-  const [gridJustExpanded, setGridJustExpanded] = useState(false);
+  // Track whether initial catch-up has been done (for migrated users)
+  const [initialSyncDone, setInitialSyncDone] = useState(false);
   const [treeInventory, setTreeInventory] = useState<Record<string, number>>({});
 
   // Pre-compute recovery schedule (never changes)
   const schedule = useMemo(() => buildRecoverySchedule(MAX_GRID_SIZE), []);
 
-  // Initial 5 recovered tiles based on MAX_GRID_SIZE coordinate space
+  // Initial 5 recovered tiles (cross) based on MAX_GRID_SIZE coordinate space
   const initialRecoveredSet = useMemo(() => getInitialRecoveredTiles(MAX_GRID_SIZE), []);
 
   // ─── Decay tracking: auto-update timestamp when XP increases ──────────────
@@ -313,31 +373,78 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     }
   }, []);
 
-  // ─── Dynamic grid size ─────────────────────────────────────────────────────
-  const gridSize = useMemo(() => {
-    return calculateGridSize(xp, schedule, gardenData.gridSize, MAX_GRID_SIZE);
-  }, [xp, schedule, gardenData.gridSize]);
+  // ─── Grid size (clamped to effective max) ───────────────────────────────────
+  // If the user's saved grid exceeds their cap (e.g. free cap lowered from 11→7),
+  // display the capped size. Data stays intact so upgrading restores the full grid.
+  const gridSize = Math.min(gardenData.gridSize, effectiveMaxGrid);
 
-  // Persist grid expansion
+  // ─── Initial catch-up for migrated users ────────────────────────────────────
+  // On first load, silently bring grid size up to what XP supports.
+  // This prevents migrated users (gridSize=5 but high XP) from needing to
+  // tap through many expansion prompts.
   useEffect(() => {
-    if (!loading && gridSize > gardenData.gridSize) {
-      const updated = { ...gardenData, gridSize };
+    if (loading || initialSyncDone) return;
+    setInitialSyncDone(true);
+    let currentSize = gardenData.gridSize;
+    while (currentSize < effectiveMaxGrid) {
+      const { canExpand: can, nextSize } = canExpandOneStep(xp, schedule, currentSize, effectiveMaxGrid);
+      if (!can) break;
+      currentSize = nextSize;
+    }
+    if (currentSize > gardenData.gridSize) {
+      const updated = { ...gardenData, gridSize: currentSize, lastExpansionSize: currentSize };
       setGardenData(updated);
       saveGarden(updated);
     }
-  }, [gridSize, loading]);
+  }, [loading]);
 
-  // Detect expansion for celebration
+  // ─── Premium upgrade catch-up ──────────────────────────────────────────────
+  // When effectiveMaxGrid increases (e.g. free→premium), silently expand
+  // the grid to whatever XP supports, avoiding a barrage of expansion modals.
+  const prevMaxGridRef = useRef(effectiveMaxGrid);
   useEffect(() => {
-    if (!loading && gridSize > gardenData.lastExpansionSize) {
-      setGridJustExpanded(true);
-      const updated = { ...gardenData, lastExpansionSize: gridSize, gridSize };
+    if (loading || !initialSyncDone) return;
+    if (effectiveMaxGrid <= prevMaxGridRef.current) {
+      prevMaxGridRef.current = effectiveMaxGrid;
+      return;
+    }
+    prevMaxGridRef.current = effectiveMaxGrid;
+    let currentSize = gardenData.gridSize;
+    while (currentSize < effectiveMaxGrid) {
+      const { canExpand: can, nextSize } = canExpandOneStep(xp, schedule, currentSize, effectiveMaxGrid);
+      if (!can) break;
+      currentSize = nextSize;
+    }
+    if (currentSize > gardenData.gridSize) {
+      const updated = { ...gardenData, gridSize: currentSize, lastExpansionSize: currentSize };
       setGardenData(updated);
       saveGarden(updated);
     }
-  }, [gridSize, loading]);
+  }, [effectiveMaxGrid, loading, initialSyncDone]);
 
-  const clearExpansionFlag = useCallback(() => setGridJustExpanded(false), []);
+  // ─── Opt-in expansion check ─────────────────────────────────────────────────
+  // Checks if the garden CAN expand by one step (user must confirm)
+  const expansionCheck = useMemo(() => {
+    return canExpandOneStep(xp, schedule, gardenData.gridSize, effectiveMaxGrid);
+  }, [xp, schedule, gardenData.gridSize, effectiveMaxGrid]);
+
+  const canExpand = expansionCheck.canExpand;
+  const pendingGridSize = expansionCheck.nextSize;
+
+  // Check if grid is capped (user would expand further if limit were higher)
+  const gridLimitReached = useMemo(() => {
+    if (gardenData.gridSize < effectiveMaxGrid) return false;
+    const { canExpand: wouldExpand } = canExpandOneStep(xp, schedule, gardenData.gridSize, MAX_GRID_SIZE);
+    return wouldExpand;
+  }, [gardenData.gridSize, effectiveMaxGrid, xp, schedule]);
+
+  // ─── Confirm expansion (user opts in) ──────────────────────────────────────
+  const confirmExpansion = useCallback(async () => {
+    if (!canExpand) return;
+    const updated = { ...gardenData, gridSize: pendingGridSize, lastExpansionSize: pendingGridSize };
+    setGardenData(updated);
+    await saveGarden(updated);
+  }, [canExpand, pendingGridSize, gardenData, saveGarden]);
 
   // ─── Compute tile states from XP + schedule ────────────────────────────────
   const tileStatesFromXP = useMemo(() => {
@@ -348,6 +455,37 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     }
     return states;
   }, [xp, schedule]);
+
+  // ─── Track tile transitions for ripple animation ──────────────────────────
+  const [pendingTransitions, setPendingTransitions] = useState<TileTransition[]>([]);
+  const prevTileStatesRef = useRef<Map<string, TileState>>(new Map());
+
+  useEffect(() => {
+    if (loading) return;
+    const prev = prevTileStatesRef.current;
+    const center = Math.floor(MAX_GRID_SIZE / 2);
+    const transitions: TileTransition[] = [];
+
+    for (const [key, newState] of tileStatesFromXP) {
+      const oldState = prev.get(key) || 'dead';
+      if (oldState !== newState) {
+        const [rowStr, colStr] = key.split(',');
+        const row = parseInt(rowStr, 10);
+        const col = parseInt(colStr, 10);
+        const ring = Math.max(Math.abs(row - center), Math.abs(col - center));
+        transitions.push({ row, col, from: oldState, to: newState, ring });
+      }
+    }
+
+    if (transitions.length > 0) {
+      setPendingTransitions(transitions);
+    }
+
+    // Update ref for next comparison
+    prevTileStatesRef.current = new Map(tileStatesFromXP);
+  }, [tileStatesFromXP, loading]);
+
+  const clearTransitions = useCallback(() => setPendingTransitions([]), []);
 
   // ─── Get tile state (main API) — includes decay ──────────────────────────
   const getTileState = useCallback((row: number, col: number): TileState => {
@@ -383,7 +521,7 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
 
   // ─── Count tiles ──────────────────────────────────────────────────────────
   const { totalRecoveredTiles, totalRecoveringTiles } = useMemo(() => {
-    let recovered = 5; // Initial cross
+    let recovered = 5; // Initial cross of 5
     let recovering = 0;
     const center = Math.floor(MAX_GRID_SIZE / 2);
     const half = Math.floor(gridSize / 2);
@@ -468,16 +606,24 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
 
   const removeDeadTree = useCallback(async (row: number, col: number): Promise<number> => {
     const key = `${row},${col}`;
-    if (gardenData.deadTreesRemoved.includes(key)) return 0;
-
-    const updated = {
-      ...gardenData,
-      deadTreesRemoved: [...gardenData.deadTreesRemoved, key],
-    };
-    setGardenData(updated);
-    await saveGarden(updated);
-    return DEAD_TREE_REMOVAL_REWARD;
-  }, [gardenData, saveGarden]);
+    
+    // Use functional update to avoid stale closure issues when multiple trees removed simultaneously
+    let wasAlreadyRemoved = false;
+    setGardenData(prev => {
+      if (prev.deadTreesRemoved.includes(key)) {
+        wasAlreadyRemoved = true;
+        return prev;
+      }
+      const updated = {
+        ...prev,
+        deadTreesRemoved: [...prev.deadTreesRemoved, key],
+      };
+      saveGarden(updated);
+      return updated;
+    });
+    
+    return wasAlreadyRemoved ? 0 : DEAD_TREE_REMOVAL_REWARD;
+  }, [saveGarden]);
 
   // ─── Tree planting ─────────────────────────────────────────────────────────
   const getPlantedTree = useCallback((row: number, col: number): PlantedTree | null => {
@@ -583,9 +729,13 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     nextRecoveryXP,
     currentRecoveryProgress,
     gridSize,
-    gridJustExpanded,
-    clearExpansionFlag,
+    canExpand,
+    pendingGridSize,
+    confirmExpansion,
+    gridLimitReached,
     recoveryQueue,
+    pendingTransitions,
+    clearTransitions,
     skipRecoveryWithCoins,
     getSkipCost,
     removeDeadTree,
@@ -601,5 +751,6 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     setLastXPTimestamp,
     daysSinceLastXP,
     isDecaying,
+    lastXPGainTimestamp: gardenData.lastXPGainTimestamp,
   };
 }

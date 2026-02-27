@@ -114,7 +114,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             width: i === step ? 24 : 8,
             height: 8,
             borderRadius: 4,
-            backgroundColor: i === step ? '#10b981' : 'rgba(255,255,255,0.2)',
+            backgroundColor: i === step ? '#e8a87c' : 'rgba(255,255,255,0.2)',
             marginHorizontal: 4,
           }}
         />
@@ -123,7 +123,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: '#1a1a2e' }}>
+    <View style={{ flex: 1, backgroundColor: '#0f1526' }}>
       <StatusBar style="light" />
       <SafeAreaView style={{ flex: 1 }} edges={['top', 'bottom']}>
         <KeyboardAvoidingView
@@ -190,9 +190,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                   onSubmitEditing={handleNameSubmit}
                   style={{
                     width: '100%',
-                    backgroundColor: 'rgba(255,255,255,0.08)',
-                    borderWidth: 1,
-                    borderColor: 'rgba(16, 185, 129, 0.3)',
+                    backgroundColor: 'rgba(255,255,255,0.06)',
                     borderRadius: 14,
                     paddingHorizontal: 18,
                     paddingVertical: 14,
@@ -207,7 +205,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                   disabled={name.trim().length === 0}
                   style={{
                     width: '100%',
-                    backgroundColor: name.trim().length > 0 ? '#10b981' : 'rgba(16, 185, 129, 0.3)',
+                    backgroundColor: name.trim().length > 0 ? '#e8a87c' : 'rgba(232, 168, 124, 0.3)',
                     paddingVertical: 16,
                     borderRadius: 14,
                     alignItems: 'center',
@@ -257,7 +255,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                   onPress={handleLocationPermission}
                   style={{
                     width: '100%',
-                    backgroundColor: '#10b981',
+                    backgroundColor: '#e8a87c',
                     paddingVertical: 16,
                     borderRadius: 14,
                     alignItems: 'center',
@@ -315,7 +313,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
                   onPress={handleNotificationPermission}
                   style={{
                     width: '100%',
-                    backgroundColor: '#10b981',
+                    backgroundColor: '#e8a87c',
                     paddingVertical: 16,
                     borderRadius: 14,
                     alignItems: 'center',

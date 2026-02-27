@@ -60,20 +60,20 @@ You: "Implement Task 2.2: Dead Tree Claiming"
 1. ❌ Garden expansion system (5×5 → 7×7 → 9×9 → 11×11)
 4. ❌ Dead tree claiming + tree planting
 5. ❌ Coin economy (earning + spending)
-6. ❌ Shop system (trees, streak freezes, themes)
-7. ❌ Streak freeze mechanic
+6. ✅ Shop system (trees, streak freezes, themes)
+7. ✅ Streak freeze mechanic
 8. ❌ Consistency multiplier (1.0× → 2.0× for perfect days)
-9. ❌ Difficult Day mode (3 uses/month)
+9. ✅ Difficult Day mode (3 uses/month)
 
 **Monetization Features**:
-10. ❌ Premium subscription ($2.99/month)
+10. ✅ Premium subscription ($6.99/month)
 11. ❌ IAP coin purchases
 12. ❌ Premium-gated features (unlimited garden, 2× coins, etc.)
 
 **Engagement Features**:
 13. ❌ Prayer history & stats dashboard
-14. ❌ Weekly challenges system
-15. ❌ Ramadan special mode (2× XP, special content)
+14. ✅ Weekly challenges system
+15. ✅ Ramadan special mode (2× XP, special content)
 
 **Polish Features**:
 16. ❌ Enhanced animations (tree sparkles, confetti, better XP)
@@ -98,8 +98,8 @@ These define the product and can't be cut:
 ### TIER 2: HIGH-VALUE (Strong engagement/monetization)
 Important but could be v1.1 if time runs out:
 7. Consistency multiplier
-8. Streak freeze mechanic
-9. Difficult Day mode
+8. ✅ Streak freeze mechanic
+9. ✅ Difficult Day mode
 10. Weekly challenges
 11. Ramadan mode
 
@@ -340,6 +340,8 @@ Can ship without these:
 **Current**: No shop  
 **Target**: Modal shop with tabs: Trees | Streak Freezes | Boosts
 
+✅ **STATUS: COMPLETED** (Feb 14)
+
 **Files**: `screens/ShopScreen.tsx`, `App.tsx`
 
 **Steps**:
@@ -378,6 +380,8 @@ Implement Task 3.2: Shop UI + Trees
 **Current**: No streak protection  
 **Target**: Buy freezes, auto-protect streak when missed
 
+✅ **STATUS: COMPLETED** (Feb 14)
+
 **Files**: `ShopScreen.tsx`, `App.tsx`, `hooks/useStreakFreezes.ts`
 
 **Steps**:
@@ -408,12 +412,14 @@ Implement Task 3.3: Streak Freezes
 **Current**: No monetization  
 **Target**: Working subscription with RevenueCat/Expo IAP
 
+✅ **STATUS: COMPLETED** (Feb 14)
+
 **Files**: `utils/premiumManager.ts`, `screens/PaywallScreen.tsx`, `App.tsx`
 
 **Steps**:
 1. Install: `expo-in-app-purchases` or `react-native-purchases` (RevenueCat)
 2. Configure:
-   - App Store Connect: Create subscription (Monthly $2.99, Yearly $19.99)
+   - App Store Connect: Create subscription (Monthly $6.99, Yearly $44.99)
    - RevenueCat dashboard setup (if using)
    - Link app bundle ID
 3. Create `PremiumManager`:
@@ -436,7 +442,7 @@ Implement Task 3.3: Streak Freezes
      No freezes        3 free freezes/month
      Common trees      + Premium trees
      ```
-   - Buttons: "Start Free Trial" (7 days) | "Subscribe $2.99/mo"
+   - Buttons: "Start Free Trial" (7 days) | "Subscribe $6.99/mo"
    - "Restore Purchases" link
 5. Integrate premium checks throughout app:
    - Garden expansion beyond 7×7
@@ -456,6 +462,8 @@ Implement Task 4.2: Premium Subscription
 ### Task 4.3: IAP Coin Purchases (4 hours)
 **Current**: Coins only earned  
 **Target**: Can also buy coins
+
+✅ **STATUS: COMPLETED** (Feb 15)
 
 **Files**: `ShopScreen.tsx`, `utils/iapManager.ts`
 
@@ -489,6 +497,8 @@ Implement Task 4.3: IAP Coin Purchases
 **Current**: Flat XP earning  
 **Target**: Bonus XP for consecutive perfect days
 
+✅ **STATUS: COMPLETED** (Feb 15)
+
 **Files**: `App.tsx`, `hooks/useConsistencyMultiplier.ts`
 
 **Steps**:
@@ -515,7 +525,7 @@ Implement Task 5.2: Consistency Multiplier
 
 ---
 
-### Task 5.3: Difficult Day Mode (3 hours)
+### Task 5.3: Difficult Day Mode (3 hours) ✅ COMPLETED (Feb 15)
 **Current**: Fixed grace period  
 **Target**: Special mode with 2-hour grace for tough days
 
@@ -546,7 +556,7 @@ Implement Task 5.3: Difficult Day Mode
 
 ## DAY 9-10: Engagement Features (6 hours)
 
-### Task 6.2: Weekly Challenges (4 hours)
+### Task 6.2: Weekly Challenges (4 hours) ✅ COMPLETED (Feb 15)
 **Current**: No challenges  
 **Target**: 4 weekly goals with coin rewards
 
@@ -579,7 +589,7 @@ Implement Task 6.2: Weekly Challenges
 
 ---
 
-### Task 6.3: Ramadan Mode (2 hours)
+### Task 6.3: Ramadan Mode (2 hours) ✅ COMPLETED (Feb 15)
 **Current**: No special events  
 **Target**: 2× XP during Ramadan
 
@@ -605,7 +615,7 @@ Implement Task 6.3: Ramadan Mode
 
 ## DAY 10-11: Polish & Settings (5 hours)
 
-### Task 7.2: Enhanced Settings Screen (3 hours)
+### Task 7.2: Enhanced Settings Screen (3 hours) ✅ COMPLETED (Feb 16)
 **Current**: Minimal settings  
 **Target**: Full settings with customization
 
@@ -647,7 +657,7 @@ Implement Task 7.2: Enhanced Settings
 
 ---
 
-### Task 7.3: Visual Polish (2 hours)
+### Task 7.3: Visual Polish (2 hours) ✅ COMPLETED (Feb 16)
 **Current**: Basic animations  
 **Target**: Enhanced polish
 
@@ -722,7 +732,7 @@ Implement Task 7.3: Visual Polish
 **Edge Cases**:
 - [ ] Midnight rollover → Missed prayers detected → Streaks break correctly
 - [ ] Rest Period active → Streaks freeze → No penalties
-- [ ] Ramadan mode → 2× XP active
+- [✅] Ramadan mode → 2× XP active
 - [ ] App backgrounding/foregrounding → State persists
 - [ ] No internet → App still functional (offline)
 
@@ -734,7 +744,7 @@ Implement Task 7.3: Visual Polish
 **Steps**:
 1. **App Store Connect Setup**:
    - Create app listing
-   - Configure subscriptions (Monthly $2.99, Yearly $19.99)
+   - Configure subscriptions (Monthly $6.99, Yearly $44.99)
    - Configure IAP coin packages
    - Set up sandbox test users
 2. **Assets**:
@@ -764,18 +774,18 @@ Implement Task 7.3: Visual Polish
 - [✅] Per-prayer streaks (5 separate) ← DONE
 - [✅] Configurable grace period (15/30/45/60) ← DONE
 - [✅] Coin economy (earn + spend) ← DONE
-- [ ] Shop (trees + streak freezes)
+- [✅] Shop (trees + streak freezes)
 - [✅] Garden expansion tiers (5×5 → 7×7 → 9×9 → 11×11)
 - [✅] Dead tree claiming + planting
-- [ ] Premium subscription ($2.99/mo)
-- [ ] IAP coin purchases
+- [✅] Premium subscription ($6.99/mo)
+- [✅] IAP coin purchases
 
 ### ✅ Tier 2 - HIGH VALUE (If time permits)
-- [ ] Consistency multiplier
-- [ ] Difficult Day mode
-- [ ] Weekly challenges
-- [ ] Ramadan mode (2× XP)
-- [ ] Enhanced settings
+- [✅] Consistency multiplier
+- [✅] Difficult Day mode
+- [✅] Weekly challenges
+- [✅] Ramadan mode (2× XP)
+- [✅] Enhanced settings
 
 ### ⏸️ Tier 3 - DEFERRED TO V1.1
 - [ ] Prayer history/stats dashboard (Premium feature)

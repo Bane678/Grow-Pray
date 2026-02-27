@@ -3,6 +3,8 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+import { type PrayerDeadlines } from './usePrayerTimes';
+
 const NOTIFICATIONS_KEY = '@GrowPray:notificationsEnabled';
 
 // Configure how notifications are handled when the app is in foreground
@@ -27,10 +29,12 @@ type PrayerTimings = {
 
 const PRAYER_ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
 
-// Grace period in minutes (must match App.tsx)
-const GRACE_PERIOD_MINUTES = 30;
-// Warning before grace period ends
-const GRACE_WARNING_MINUTES = 10;
+// Warning before prayer deadline ends (minutes)
+const DEADLINE_WARNING_MINUTES = 10;
+
+// Fixed identifiers for decay notifications so we can cancel/replace them by ID
+const DECAY_WARN_ID = 'garden-decay-warn';
+const DECAY_CRITICAL_ID = 'garden-decay-critical';
 
 // Prayer-specific messages
 const PRAYER_MESSAGES: Record<string, { title: string; body: string }> = {
@@ -58,7 +62,10 @@ const PRAYER_MESSAGES: Record<string, { title: string; body: string }> = {
 
 export function useNotifications(
   timings: PrayerTimings | null,
-  completedPrayers: Set<string>
+  completedPrayers: Set<string>,
+  deadlines: PrayerDeadlines | null = null,
+  lastXPGainTimestamp?: number,
+  hasGarden?: boolean,
 ) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
@@ -89,12 +96,22 @@ export function useNotifications(
     };
   }, []);
 
-  // Schedule notifications whenever timings change or prayers are completed
+  // Schedule prayer notifications whenever timings change or prayers are completed
   useEffect(() => {
     if (notificationsEnabled && timings) {
-      schedulePrayerNotifications(timings, completedPrayers);
+      schedulePrayerNotifications(timings, completedPrayers, deadlines);
     }
-  }, [timings, completedPrayers, notificationsEnabled]);
+  }, [timings, deadlines, completedPrayers, notificationsEnabled]);
+
+  // Schedule / reschedule decay notifications whenever last XP timestamp changes
+  useEffect(() => {
+    if (!notificationsEnabled) return;
+    if (lastXPGainTimestamp && hasGarden) {
+      scheduleDecayNotifications(lastXPGainTimestamp);
+    } else {
+      cancelDecayNotifications();
+    }
+  }, [lastXPGainTimestamp, hasGarden, notificationsEnabled]);
 
   const loadNotificationPreference = async () => {
     try {
@@ -130,13 +147,19 @@ export function useNotifications(
         return false;
       }
 
-      // Set up Android notification channel
+      // Set up Android notification channels
       if (Platform.OS === 'android') {
         await Notifications.setNotificationChannelAsync('prayer-reminders', {
           name: 'Prayer Reminders',
           importance: Notifications.AndroidImportance.HIGH,
           vibrationPattern: [0, 250, 250, 250],
           lightColor: '#4ade80',
+          sound: 'default',
+        });
+        await Notifications.setNotificationChannelAsync('garden-decay', {
+          name: 'Garden Decay Alerts',
+          importance: Notifications.AndroidImportance.DEFAULT,
+          lightColor: '#f59e0b',
           sound: 'default',
         });
       }
@@ -150,13 +173,74 @@ export function useNotifications(
     }
   };
 
+  const cancelDecayNotifications = async () => {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(DECAY_WARN_ID).catch(() => {});
+      await Notifications.cancelScheduledNotificationAsync(DECAY_CRITICAL_ID).catch(() => {});
+    } catch (_) {}
+  };
+
+  const scheduleDecayNotifications = async (xpTimestamp: number) => {
+    try {
+      // Cancel existing decay notifications first
+      await cancelDecayNotifications();
+
+      const now = Date.now();
+      const warnTime = xpTimestamp + 24 * 60 * 60 * 1000;  // 24h after last prayer
+      const criticalTime = xpTimestamp + 48 * 60 * 60 * 1000; // 48h after last prayer
+
+      // Only schedule if the trigger is in the future
+      if (warnTime > now) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: DECAY_WARN_ID,
+          content: {
+            title: 'Your garden needs care',
+            body: "You haven't prayed today — your garden will start withering soon.",
+            data: { type: 'decay-warning' },
+            sound: 'default',
+            ...(Platform.OS === 'android' && { channelId: 'garden-decay' }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: new Date(warnTime),
+          },
+        });
+      }
+
+      if (criticalTime > now) {
+        await Notifications.scheduleNotificationAsync({
+          identifier: DECAY_CRITICAL_ID,
+          content: {
+            title: 'Your garden is withering',
+            body: 'A ring of tiles is dying. Pray to restore your garden.',
+            data: { type: 'decay-critical' },
+            sound: 'default',
+            ...(Platform.OS === 'android' && { channelId: 'garden-decay' }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: new Date(criticalTime),
+          },
+        });
+      }
+    } catch (error) {
+      console.error('Error scheduling decay notifications:', error);
+    }
+  };
+
   const schedulePrayerNotifications = async (
     timings: PrayerTimings,
-    completed: Set<string>
+    completed: Set<string>,
+    dl: PrayerDeadlines | null,
   ) => {
     try {
-      // Cancel all existing prayer notifications first
-      await Notifications.cancelAllScheduledNotificationsAsync();
+      // Cancel only prayer-type notifications (leave decay notifications intact)
+      const scheduled = await Notifications.getAllScheduledNotificationsAsync();
+      await Promise.all(
+        scheduled
+          .filter(n => n.content.data?.type !== 'decay-warning' && n.content.data?.type !== 'decay-critical')
+          .map(n => Notifications.cancelScheduledNotificationAsync(n.identifier))
+      );
 
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
@@ -175,33 +259,48 @@ export function useNotifications(
         const [hours, minutes] = timeStr.split(':').map(Number);
         const prayerStartMinutes = hours * 60 + minutes;
 
-        // Calculate when prayer window ends (when next prayer starts)
+        // Use explicit deadlines if available, otherwise derive
         let prayerEndMinutes: number;
-        if (i < PRAYER_ORDER.length - 1) {
-          // Next prayer start time
-          const nextPrayer = PRAYER_ORDER[i + 1];
-          const nextTimeStr = timings[nextPrayer];
-          if (nextTimeStr) {
-            const [nextHours, nextMins] = nextTimeStr.split(':').map(Number);
-            prayerEndMinutes = nextHours * 60 + nextMins;
-          } else {
-            prayerEndMinutes = prayerStartMinutes + 120; // Default 2 hours
+        if (dl && dl[prayer as keyof PrayerDeadlines]) {
+          const dlStr = dl[prayer as keyof PrayerDeadlines];
+          const [dlH, dlM] = dlStr.split(':').map(Number);
+          prayerEndMinutes = dlH * 60 + dlM;
+          // Isha deadline (next Fajr) crosses midnight
+          if (prayer === 'Isha' && prayerEndMinutes < prayerStartMinutes) {
+            prayerEndMinutes += 24 * 60;
           }
         } else {
-          // Isha ends at Fajr next day
-          const fajrTimeStr = timings['Fajr'];
-          if (fajrTimeStr) {
-            const [fajrHours, fajrMins] = fajrTimeStr.split(':').map(Number);
-            prayerEndMinutes = 24 * 60 + fajrHours * 60 + fajrMins; // Next day
+          // Fallback: derive from timings
+          if (prayer === 'Fajr') {
+            const sunriseStr = timings['Sunrise'];
+            if (sunriseStr) {
+              const [sunH, sunM] = sunriseStr.split(':').map(Number);
+              prayerEndMinutes = sunH * 60 + sunM;
+            } else {
+              prayerEndMinutes = prayerStartMinutes + 90;
+            }
+          } else if (i < PRAYER_ORDER.length - 1) {
+            const nextPrayer = PRAYER_ORDER[i + 1];
+            const nextTimeStr = timings[nextPrayer];
+            if (nextTimeStr) {
+              const [nextHours, nextMins] = nextTimeStr.split(':').map(Number);
+              prayerEndMinutes = nextHours * 60 + nextMins;
+            } else {
+              prayerEndMinutes = prayerStartMinutes + 120;
+            }
           } else {
-            prayerEndMinutes = prayerStartMinutes + 180; // Default 3 hours
+            const fajrTimeStr = timings['Fajr'];
+            if (fajrTimeStr) {
+              const [fajrHours, fajrMins] = fajrTimeStr.split(':').map(Number);
+              prayerEndMinutes = 24 * 60 + fajrHours * 60 + fajrMins;
+            } else {
+              prayerEndMinutes = prayerStartMinutes + 180;
+            }
           }
         }
 
-        // Calculate grace period end time
-        const graceEndMinutes = prayerEndMinutes + GRACE_PERIOD_MINUTES;
-        // Warning time is 10 minutes before grace ends
-        const warningMinutes = graceEndMinutes - GRACE_WARNING_MINUTES;
+        // Warning time is 10 minutes before deadline
+        const warningMinutes = prayerEndMinutes - DEADLINE_WARNING_MINUTES;
 
         // Schedule prayer start notification (if prayer time hasn't passed)
         if (prayerStartMinutes > currentMinutes) {
@@ -226,7 +325,7 @@ export function useNotifications(
           console.log(`Scheduled start notification for ${prayer} at ${timeStr}`);
         }
 
-        // Schedule grace period warning notification (10 min before grace ends)
+        // Schedule deadline warning notification (10 min before deadline)
         if (warningMinutes > currentMinutes && warningMinutes < 24 * 60) {
           const warningHours = Math.floor(warningMinutes / 60);
           const warningMins = warningMinutes % 60;
@@ -236,9 +335,9 @@ export function useNotifications(
 
           await Notifications.scheduleNotificationAsync({
             content: {
-              title: `${GRACE_WARNING_MINUTES} min left for ${prayer}`,
+              title: `${DEADLINE_WARNING_MINUTES} min left for ${prayer}`,
               body: `Don't break your streak - complete ${prayer} now!`,
-              data: { prayer, type: 'grace-warning' },
+              data: { prayer, type: 'deadline-warning' },
               sound: 'default',
             },
             trigger: {
@@ -247,7 +346,7 @@ export function useNotifications(
             },
           });
 
-          console.log(`Scheduled grace warning for ${prayer} at ${warningHours}:${warningMins.toString().padStart(2, '0')}`);
+          console.log(`Scheduled deadline warning for ${prayer} at ${warningHours}:${warningMins.toString().padStart(2, '0')}`);
         }
       }
     } catch (error) {
@@ -305,12 +404,12 @@ export function useNotifications(
         },
       });
 
-      // Test grace warning notification (fires in 10 seconds)
+      // Test deadline warning notification (fires in 10 seconds)
       await Notifications.scheduleNotificationAsync({
         content: {
           title: '10 min left for Dhuhr',
           body: 'Don\'t break your streak - complete Dhuhr now!',
-          data: { prayer: 'Dhuhr', type: 'grace-warning' },
+          data: { prayer: 'Dhuhr', type: 'deadline-warning' },
           sound: 'default',
         },
         trigger: {
@@ -319,7 +418,7 @@ export function useNotifications(
         },
       });
 
-      console.log('Test notifications scheduled: Prayer start in 5s, Grace warning in 10s');
+      console.log('Test notifications scheduled: Prayer start in 5s, Deadline warning in 10s');
     } catch (error) {
       console.error('Error sending test notifications:', error);
     }

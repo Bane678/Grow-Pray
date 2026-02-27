@@ -90,11 +90,71 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
     description: 'An ancient, towering cedar from the gardens of paradise.',
     premiumOnly: true,
   },
+  {
+    id: 'Ramadan',
+    name: 'Ramadan Crescent',
+    price: 300,
+    rarity: 'rare',
+    tint: '#c4b5fd',
+    description: '🌙 A special tree that blooms during the holy month of Ramadan.',
+  },
+];
+
+// ─── Coin packages ──────────────────────────────────────────────────────────────
+
+export interface CoinPackage {
+  id: string;
+  name: string;
+  coins: number;
+  price: string;      // Display price
+  productId: string;  // App Store / Google Play product ID
+  icon: string;
+  bestValue?: boolean;
+  bonusPercent?: number;
+}
+
+export const COIN_PACKAGES: CoinPackage[] = [
+  {
+    id: 'handful',
+    name: 'Handful',
+    coins: 500,
+    price: '$0.99',
+    productId: 'jannah_coins_500',
+    icon: '🪙',
+  },
+  {
+    id: 'pouch',
+    name: 'Pouch',
+    coins: 1500,
+    price: '$2.99',
+    productId: 'jannah_coins_1500',
+    icon: '👝',
+    bonusPercent: 1,
+  },
+  {
+    id: 'chest',
+    name: 'Chest',
+    coins: 5000,
+    price: '$7.99',
+    productId: 'jannah_coins_5000',
+    icon: '📦',
+    bonusPercent: 26,
+  },
+  {
+    id: 'treasury',
+    name: 'Treasury',
+    coins: 12000,
+    price: '$14.99',
+    productId: 'jannah_coins_12000',
+    icon: '🏛️',
+    bestValue: true,
+    bonusPercent: 61,
+  },
 ];
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
-type ShopTab = 'trees' | 'freezes' | 'boosts';
+type ShopTab = 'trees' | 'freezes' | 'coins' | 'boosts';
 
 interface ShopModalProps {
   visible: boolean;
@@ -103,9 +163,13 @@ interface ShopModalProps {
   inventory: Record<string, number>; // treeId → count owned
   onPurchaseTree: (treeId: string) => Promise<boolean>;
   isPremium?: boolean;
+  onPremiumTap?: () => void;
   // Streak freezes
   freezeInventory: { single: number; all: number };
   onPurchaseFreeze: (type: 'single' | 'all', cost: number) => Promise<boolean>;
+  // Coin purchases (IAP)
+  onPurchaseCoins?: (packageId: string, coins: number) => Promise<boolean>;
+  asPage?: boolean;
 }
 
 // ─── Rarity badge helpers ───────────────────────────────────────────────────────
@@ -128,12 +192,17 @@ export function ShopModal({
   inventory,
   onPurchaseTree,
   isPremium = false,
+  onPremiumTap,
   freezeInventory,
   onPurchaseFreeze,
+  onPurchaseCoins,
+  asPage = false,
 }: ShopModalProps) {
   const [activeTab, setActiveTab] = useState<ShopTab>('trees');
   const [purchasing, setPurchasing] = useState<string | null>(null);
   const [purchasingFreeze, setPurchasingFreeze] = useState<'single' | 'all' | null>(null);
+  const [purchasingCoinPkg, setPurchasingCoinPkg] = useState<string | null>(null);
+  const [coinPurchaseSuccess, setCoinPurchaseSuccess] = useState<string | null>(null);
 
   const handlePurchase = useCallback(async (item: TreeCatalogItem) => {
     if (purchasing) return;
@@ -149,6 +218,21 @@ export function ShopModal({
     }
     setPurchasing(null);
   }, [purchasing, coins, isPremium, onPurchaseTree]);
+
+  const handlePurchaseCoinPackage = useCallback(async (pkg: CoinPackage) => {
+    if (purchasingCoinPkg || !onPurchaseCoins) return;
+
+    setPurchasingCoinPkg(pkg.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const success = await onPurchaseCoins(pkg.id, pkg.coins);
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setCoinPurchaseSuccess(pkg.id);
+      setTimeout(() => setCoinPurchaseSuccess(null), 2000);
+    }
+    setPurchasingCoinPkg(null);
+  }, [purchasingCoinPkg, onPurchaseCoins]);
 
   const handlePurchaseFreeze = useCallback(async (type: 'single' | 'all', cost: number) => {
     if (purchasingFreeze) return;
@@ -222,9 +306,12 @@ export function ShopModal({
               <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '700' }}>Free</Text>
             </View>
           ) : locked ? (
-            <View style={[styles.buyButton, { backgroundColor: 'rgba(251, 191, 36, 0.15)' }]}>
-              <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '600' }}>Premium</Text>
-            </View>
+            <TouchableOpacity
+              onPress={onPremiumTap}
+              style={[styles.buyButton, { backgroundColor: 'rgba(251, 191, 36, 0.15)' }]}
+            >
+              <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '600' }}>👑 Premium</Text>
+            </TouchableOpacity>
           ) : (
             <TouchableOpacity
               onPress={() => handlePurchase(item)}
@@ -250,16 +337,21 @@ export function ShopModal({
     );
   };
 
+  const Wrapper = asPage
+    ? ({ children }: { children: React.ReactNode }) => (
+        <View style={{ flex: 1, backgroundColor: '#0f1526' }}>
+          <View style={[styles.container, { flex: 1, borderRadius: 0, maxHeight: '100%', maxWidth: '100%' as any, borderWidth: 0 }]}>{children}</View>
+        </View>
+      )
+    : ({ children }: { children: React.ReactNode }) => (
+        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+          <View style={styles.overlay}><View style={styles.container}>{children}</View></View>
+        </Modal>
+      );
+
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <View style={styles.container}>
-          {/* Header */}
+    <Wrapper>
+      {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
               <Text style={{ fontSize: 24 }}>🏪</Text>
@@ -269,19 +361,22 @@ export function ShopModal({
               <View style={styles.coinBadge}>
                 <Text style={styles.coinText}>🪙 {coins}</Text>
               </View>
-              <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-                <MaterialCommunityIcons name="close" size={24} color="#9ca3af" />
-              </TouchableOpacity>
+              {!asPage && (
+                <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+                  <MaterialCommunityIcons name="close" size={24} color="#9ca3af" />
+                </TouchableOpacity>
+              )}
             </View>
           </View>
 
           {/* Tabs */}
           <View style={styles.tabRow}>
-            {(['trees', 'freezes', 'boosts'] as ShopTab[]).map((tab) => {
+            {(['trees', 'freezes', 'coins', 'boosts'] as ShopTab[]).map((tab) => {
               const isActive = activeTab === tab;
               const labels: Record<ShopTab, string> = {
                 trees: '🌳 Trees',
                 freezes: '🛡️ Freezes',
+                coins: '🪙 Coins',
                 boosts: '⚡ Boosts',
               };
               return (
@@ -363,7 +458,7 @@ export function ShopModal({
                   </View>
                   <View style={styles.freezeInfo}>
                     <Text style={styles.freezeName}>All Prayers Freeze</Text>
-                    <Text style={styles.freezeDesc}>Protect all 5 prayer streaks for one day. Perfect for travel or busy days.</Text>
+                    <Text style={styles.freezeDesc}>Protect all 5 prayer streaks for one day. Also keeps your perfect day streak alive! Perfect for travel or busy days.</Text>
                     {freezeInventory.all > 0 && (
                       <Text style={styles.ownedText}>Owned: {freezeInventory.all}</Text>
                     )}
@@ -395,9 +490,79 @@ export function ShopModal({
                   <Text style={styles.freezeInfoTitle}>How Streak Freezes Work</Text>
                   <Text style={styles.freezeInfoText}>
                     • Single freezes protect individual prayers{'\n'}
-                    • All-prayer freezes protect your entire day{'\n'}
+                    • All-prayer freezes protect your entire day + consistency multiplier{'\n'}
                     • You'll be prompted to use them when you miss prayers{'\n'}
                     • Freezes are consumed on use
+                  </Text>
+                </View>
+              </>
+            )}
+
+            {activeTab === 'coins' && (
+              <>
+                <Text style={[styles.sectionTitle, { marginBottom: 4 }]}>Buy Coins</Text>
+                <Text style={{ color: '#9ca3af', fontSize: 12, marginBottom: 12, lineHeight: 16 }}>
+                  Use coins to buy trees, streak freezes, and more.
+                </Text>
+
+                {COIN_PACKAGES.map((pkg) => {
+                  const isProcessing = purchasingCoinPkg === pkg.id;
+                  const justPurchased = coinPurchaseSuccess === pkg.id;
+
+                  return (
+                    <View
+                      key={pkg.id}
+                      style={[
+                        styles.coinPackageCard,
+                        pkg.bestValue && styles.coinPackageBest,
+                      ]}
+                    >
+                      {pkg.bestValue && (
+                        <View style={styles.bestValueBadge}>
+                          <Text style={styles.bestValueText}>BEST VALUE</Text>
+                        </View>
+                      )}
+
+                      <View style={styles.coinPackageIcon}>
+                        <Text style={{ fontSize: 28 }}>{pkg.icon}</Text>
+                      </View>
+
+                      <View style={styles.coinPackageInfo}>
+                        <Text style={styles.coinPackageName}>{pkg.name}</Text>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={styles.coinPackageAmount}>🪙 {pkg.coins.toLocaleString()}</Text>
+                          {pkg.bonusPercent != null && pkg.bonusPercent > 0 && (
+                            <View style={styles.bonusBadge}>
+                              <Text style={styles.bonusText}>+{pkg.bonusPercent}% bonus</Text>
+                            </View>
+                          )}
+                        </View>
+                      </View>
+
+                      <TouchableOpacity
+                        onPress={() => handlePurchaseCoinPackage(pkg)}
+                        disabled={isProcessing}
+                        style={[
+                          styles.coinBuyButton,
+                          justPurchased && { backgroundColor: '#22c55e' },
+                        ]}
+                      >
+                        <Text style={styles.coinBuyText}>
+                          {isProcessing ? '...' : justPurchased ? '✓ Added!' : pkg.price}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+
+                {/* Info section */}
+                <View style={[styles.freezeInfoBox, { marginTop: 12 }]}>
+                  <Text style={styles.freezeInfoTitle}>About Coin Purchases</Text>
+                  <Text style={styles.freezeInfoText}>
+                    • Coins are added to your balance instantly{'\n'}
+                    • Purchases are one-time (not subscriptions){'\n'}
+                    • Larger packs give more coins per dollar{'\n'}
+                    • Coins never expire
                   </Text>
                 </View>
               </>
@@ -414,9 +579,7 @@ export function ShopModal({
               </View>
             )}
           </ScrollView>
-        </View>
-      </View>
-    </Modal>
+    </Wrapper>
   );
 }
 
@@ -431,13 +594,11 @@ const styles = StyleSheet.create({
     padding: 20,
   },
   container: {
-    backgroundColor: '#1a1a2e',
+    backgroundColor: '#0f1526',
     borderRadius: 24,
     width: '100%',
     maxWidth: 380,
     maxHeight: '85%',
-    borderWidth: 1,
-    borderColor: 'rgba(107, 114, 128, 0.3)',
     overflow: 'hidden',
   },
   header: {
@@ -450,16 +611,14 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 22,
-    fontWeight: '800',
-    color: '#e8dcc8',
+    fontWeight: '700',
+    color: '#e8e0d6',
   },
   coinBadge: {
-    backgroundColor: 'rgba(251, 191, 36, 0.15)',
+    backgroundColor: 'rgba(251, 191, 36, 0.1)',
     paddingHorizontal: 10,
     paddingVertical: 4,
     borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(251, 191, 36, 0.3)',
   },
   coinText: {
     color: '#fbbf24',
@@ -477,12 +636,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 10,
     alignItems: 'center',
-    backgroundColor: 'rgba(107, 114, 128, 0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
   },
   activeTab: {
-    backgroundColor: 'rgba(74, 222, 128, 0.15)',
-    borderWidth: 1,
-    borderColor: 'rgba(74, 222, 128, 0.3)',
+    backgroundColor: 'rgba(232,168,124,0.15)',
   },
   tabText: {
     color: '#6b7280',
@@ -490,7 +647,7 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   activeTabText: {
-    color: '#4ade80',
+    color: '#e8a87c',
   },
   scrollArea: {
     paddingHorizontal: 16,
@@ -510,7 +667,6 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     padding: 12,
     marginBottom: 8,
-    borderWidth: 1,
   },
   lockedCard: {
     opacity: 0.5,
@@ -540,9 +696,9 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   treeName: {
-    color: '#e8dcc8',
+    color: '#e8e0d6',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   rarityBadge: {
     paddingHorizontal: 6,
@@ -582,7 +738,7 @@ const styles = StyleSheet.create({
     paddingVertical: 48,
   },
   comingSoonTitle: {
-    color: '#e8dcc8',
+    color: '#e8e0d6',
     fontSize: 18,
     fontWeight: '700',
     marginBottom: 8,
@@ -599,7 +755,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 14,
     padding: 12,
-    borderWidth: 1,
   },
   freezeIconContainer: {
     width: 56,
@@ -614,9 +769,9 @@ const styles = StyleSheet.create({
     marginLeft: 12,
   },
   freezeName: {
-    color: '#e8dcc8',
+    color: '#e8e0d6',
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '600',
   },
   freezeDesc: {
     color: '#9ca3af',
@@ -625,22 +780,97 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   freezeInfoBox: {
-    backgroundColor: 'rgba(107, 114, 128, 0.1)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 12,
     padding: 16,
     marginTop: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(107, 114, 128, 0.2)',
   },
   freezeInfoTitle: {
-    color: '#e8dcc8',
+    color: '#e8e0d6',
     fontSize: 13,
-    fontWeight: '700',
+    fontWeight: '600',
     marginBottom: 8,
   },
   freezeInfoText: {
     color: '#9ca3af',
     fontSize: 11,
     lineHeight: 18,
+  },
+  // Coin package styles
+  coinPackageCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  coinPackageBest: {
+    backgroundColor: 'rgba(251, 191, 36, 0.06)',
+  },
+  bestValueBadge: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    backgroundColor: '#fbbf24',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderBottomLeftRadius: 8,
+  },
+  bestValueText: {
+    color: '#0f1526',
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+  },
+  coinPackageIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    backgroundColor: 'rgba(251, 191, 36, 0.1)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  coinPackageInfo: {
+    flex: 1,
+    marginLeft: 12,
+  },
+  coinPackageName: {
+    color: '#e8e0d6',
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  coinPackageAmount: {
+    color: '#fbbf24',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  bonusBadge: {
+    backgroundColor: 'rgba(74, 222, 128, 0.1)',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  bonusText: {
+    color: '#4ade80',
+    fontSize: 10,
+    fontWeight: '600',
+  },
+  coinBuyButton: {
+    backgroundColor: '#3b82f6',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 10,
+    minWidth: 72,
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  coinBuyText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
   },
 });
