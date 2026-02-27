@@ -181,7 +181,7 @@ const RARITY_COLORS: Record<string, { bg: string; text: string; border: string }
 };
 
 // Preview asset — we use sapling (what gets planted) as the shop preview
-const PREVIEW_ASSET = require('../assets/Garden Assets/Tree Types/Sapling_converted.png');
+const PREVIEW_ASSET = require('../assets/Garden Assets/Tree Types/Tree_Sapling.png');
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 

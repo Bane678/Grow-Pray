@@ -2488,12 +2488,15 @@ export default function App() {
     const loadAssets = async () => {
       try {
         await Asset.loadAsync([
-          require('./assets/Garden Assets/Ground Tiles/Dead_Tile.png'),
-          require('./assets/Garden Assets/Ground Tiles/Recovered_Tile.png'),
-          require('./assets/Garden Assets/Tree Types/Sapling_converted.png'),
-          require('./assets/Garden Assets/Tree Types/Growing_Tree_converted.png'),
-          require('./assets/Garden Assets/Tree Types/Grown_Tree_converted.png'),
-          require('./assets/Garden Assets/Tree Types/Dead_Tree.png'),
+          require('./assets/Garden Assets/Ground Tiles/Ground_Dead_Tile.png'),
+          require('./assets/Garden Assets/Ground Tiles/Ground_Recovering_Tile.png'),
+          require('./assets/Garden Assets/Ground Tiles/Tile_Recovered.png'),
+          require('./assets/Garden Assets/Tree Types/Tree_Sapling.png'),
+          require('./assets/Garden Assets/Tree Types/Tree_Growing.png'),
+          require('./assets/Garden Assets/Tree Types/Tree_Grown.png'),
+          require('./assets/Garden Assets/Tree Types/Tree_Flourishing.png'),
+          require('./assets/Garden Assets/Tree Types/Tree_Dead.png'),
+          require('./assets/Garden Assets/Icons/Background_Sky.png'),
           require('./assets/Garden Assets/Effects/xp_badge.png'),
           require('./assets/Garden Assets/Icons/Axe.png'),
           require('./assets/Garden Assets/Icons/Fajr.png'),

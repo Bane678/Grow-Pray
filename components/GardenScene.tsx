@@ -11,6 +11,13 @@ const COLORS = {
 // ─── Idle Ambient Animations ───────────────────────────────────────────────────
 const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 
+// ─── Cinematic camera constants ────────────────────────────────────────────────
+const CAMERA_PERSPECTIVE   = 1100;
+const CAMERA_PITCH_DEG     = 21;
+const CAMERA_BASE_ZOOM     = 1.16;
+const CAMERA_BASE_OFFSET_X = 0;
+const CAMERA_BASE_OFFSET_Y = Math.round(SCREEN_H * 0.10);
+
 // ── Star field ────────────────────────────────────────────────────────────────
 // Stars span the full sky but get smaller and dimmer toward the bottom,
 // creating a natural gradient that avoids overcrowding.
@@ -278,31 +285,34 @@ const FallingLeaves = React.memo(function FallingLeaves() {
     return <>{LEAF_SPECS.map((s, i) => <FallingLeaf key={`leaf-${i}`} spec={s} />)}</>;
 });
 
-// Tile dimensions (actual asset is 1456x720, ~2:1 ratio)
-const TILE_WIDTH = 1456;
-const TILE_HEIGHT = 720;
-const DISPLAY_SCALE = 0.08;
+// Tile dimensions (actual asset is 512x256, ~2:1 ratio)
+const TILE_WIDTH = 512;
+const TILE_HEIGHT = 256;
+const DISPLAY_SCALE = 0.228;
 const SCALED_WIDTH = TILE_WIDTH * DISPLAY_SCALE;
 const SCALED_HEIGHT = TILE_HEIGHT * DISPLAY_SCALE;
 
-// Isometric step sizes
-const STEP_X = SCALED_WIDTH / 2;
-const STEP_Y = SCALED_HEIGHT / 2;
+// Isometric step sizes — tightened to close gaps from transparent tile edges
+const TILE_TIGHTEN = 0.79;
+const STEP_X = (SCALED_WIDTH / 2) * TILE_TIGHTEN;
+const STEP_Y = (SCALED_HEIGHT / 2) * TILE_TIGHTEN;
 
 const ASSETS = {
-    deadTile: require('../assets/Garden Assets/Ground Tiles/Dead_Tile.png'),
-    recoveringTile: require('../assets/Garden Assets/Ground Tiles/Recovering_Tile.png'),
-    recoveredTile: require('../assets/Garden Assets/Ground Tiles/Recovered_Tile.png'),
-    sapling: require('../assets/Garden Assets/Tree Types/Sapling_converted.png'),
-    growingTree: require('../assets/Garden Assets/Tree Types/Growing_Tree_converted.png'),
-    grownTree: require('../assets/Garden Assets/Tree Types/Grown_Tree_converted.png'),
-    deadTree: require('../assets/Garden Assets/Tree Types/Dead_Tree.png'),
-    axeIcon: require('../assets/Garden Assets/Icons/Axe.png'),
+    deadTile:        require('../assets/Garden Assets/Ground Tiles/Ground_Dead_Tile.png'),
+    recoveringTile:  require('../assets/Garden Assets/Ground Tiles/Ground_Recovering_Tile.png'),
+    recoveredTile:   require('../assets/Garden Assets/Ground Tiles/Tile_Recovered.png'),
+    sapling:         require('../assets/Garden Assets/Tree Types/Tree_Sapling.png'),
+    growingTree:     require('../assets/Garden Assets/Tree Types/Tree_Growing.png'),
+    grownTree:       require('../assets/Garden Assets/Tree Types/Tree_Grown.png'),
+    flourishingTree: require('../assets/Garden Assets/Tree Types/Tree_Flourishing.png'),
+    deadTree:        require('../assets/Garden Assets/Tree Types/Tree_Dead.png'),
+    axeIcon:         require('../assets/Garden Assets/Icons/Axe.png'),
+    backgroundSky:   require('../assets/Garden Assets/Icons/Background_Sky.png'),
 };
 
-// Tree dimensions (actual asset is 848x1264)
-const TREE_WIDTH = 848;
-const TREE_HEIGHT = 1264;
+// Tree dimensions (actual asset is 512x768)
+const TREE_WIDTH = 512;
+const TREE_HEIGHT = 768;
 
 // Vertical squash factor — compresses tree height to simulate a more overhead camera angle
 // and reduce visual overlap between neighboring tiles. 1.0 = no squash, 0.7 = 30% shorter.
@@ -314,10 +324,10 @@ const TREE_SQUASH = 0.7;
 //   Growing  → Grown:      ~3 days (75 XP)
 //   Grown    → Flourishing: ~1 week (175 XP)
 const TREE_STAGES = [
-    { name: 'sapling', minXP: 0, scale: 0.10, asset: 'sapling' },
-    { name: 'growing', minXP: 15, scale: 0.12, asset: 'growingTree' },
-    { name: 'grown', minXP: 75, scale: 0.14, asset: 'grownTree' },
-    { name: 'flourishing', minXP: 175, scale: 0.16, asset: 'grownTree' }, // Use grown tree with larger scale for now
+    { name: 'sapling',     minXP: 0,   scale: 0.165, asset: 'sapling' },
+    { name: 'growing',     minXP: 15,  scale: 0.199, asset: 'growingTree' },
+    { name: 'grown',       minXP: 75,  scale: 0.232, asset: 'grownTree' },
+    { name: 'flourishing', minXP: 175, scale: 0.265, asset: 'flourishingTree' },
 ] as const;
 
 // Get current tree stage based on XP
@@ -330,10 +340,10 @@ const getTreeStage = (xp: number) => {
     return TREE_STAGES[0];
 };
 
-// Dead tree dimensions (720x1472)
-const DEAD_TREE_WIDTH = 720;
-const DEAD_TREE_HEIGHT = 1472;
-const DEAD_TREE_SCALE = 0.08;
+// Dead tree dimensions (512x768)
+const DEAD_TREE_WIDTH = 512;
+const DEAD_TREE_HEIGHT = 768;
+const DEAD_TREE_SCALE = 0.113;
 const SCALED_DEAD_TREE_WIDTH = DEAD_TREE_WIDTH * DEAD_TREE_SCALE;
 const SCALED_DEAD_TREE_HEIGHT = DEAD_TREE_HEIGHT * DEAD_TREE_SCALE * TREE_SQUASH;
 
@@ -625,8 +635,26 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     const posX = tileCenterX - ptWidth / 2;
     const posY = tileCenterY - ptHeight * 0.75;
 
+    // Shadow dimensions — scale with tree size
+    const shadowW = ptWidth * 1.1;
+    const shadowH = ptWidth * 0.35;
+
     return (
         <>
+            {/* Ground shadow */}
+            <View
+                pointerEvents="none"
+                style={{
+                    position: 'absolute',
+                    left: tileCenterX - shadowW / 2,
+                    top: tileCenterY - shadowH / 2 + 2,
+                    width: shadowW,
+                    height: shadowH,
+                    borderRadius: shadowW / 2,
+                    backgroundColor: 'rgba(0,0,0,0.22)',
+                    zIndex: zIndexBase,
+                }}
+            />
             <Animated.View
                 pointerEvents="none"
                 style={{
@@ -1294,11 +1322,28 @@ function IsometricGrid({
             const isTappable = (tileState === 'recovering' || tileState === 'recovered') && onDeadTreePress;
             const isBeingChopped = choppingTrees.has(`${row},${col}`);
 
+            // Dead tree shadow dimensions
+            const dtShadowW = SCALED_DEAD_TREE_WIDTH * 1.0;
+            const dtShadowH = SCALED_DEAD_TREE_WIDTH * 0.3;
+            const dtShadowX = deadTreeX + (SCALED_WIDTH / 2) - dtShadowW / 2;
+            const dtShadowY = deadTreeY + (SCALED_HEIGHT / 2) - dtShadowH / 2 + 2;
+
             if (isTappable) {
                 if (isBeingChopped) {
                     return (
+                        <React.Fragment key={`dead-tree-${row}-${col}`}>
                         <View
-                            key={`dead-tree-${row}-${col}`}
+                            pointerEvents="none"
+                            style={{
+                                position: 'absolute',
+                                left: dtShadowX, top: dtShadowY,
+                                width: dtShadowW, height: dtShadowH,
+                                borderRadius: dtShadowW / 2,
+                                backgroundColor: 'rgba(0,0,0,0.18)',
+                                zIndex: zIdx,
+                            }}
+                        />
+                        <View
                             pointerEvents="none"
                             style={{
                                 position: 'absolute',
@@ -1313,12 +1358,24 @@ function IsometricGrid({
                                 onComplete={() => onChoppingComplete?.(row, col)}
                             />
                         </View>
+                        </React.Fragment>
                     );
                 }
 
                 return (
+                    <React.Fragment key={`dead-tree-${row}-${col}`}>
                     <View
-                        key={`dead-tree-${row}-${col}`}
+                        pointerEvents="none"
+                        style={{
+                            position: 'absolute',
+                            left: dtShadowX, top: dtShadowY,
+                            width: dtShadowW, height: dtShadowH,
+                            borderRadius: dtShadowW / 2,
+                            backgroundColor: 'rgba(0,0,0,0.18)',
+                            zIndex: zIdx,
+                        }}
+                    />
+                    <View
                         pointerEvents="none"
                         style={{
                             position: 'absolute',
@@ -1360,12 +1417,24 @@ function IsometricGrid({
                             resizeMode="contain"
                         />
                     </View>
+                    </React.Fragment>
                 );
             }
 
             return (
+                <React.Fragment key={`dead-tree-${row}-${col}`}>
                 <View
-                    key={`dead-tree-${row}-${col}`}
+                    pointerEvents="none"
+                    style={{
+                        position: 'absolute',
+                        left: dtShadowX, top: dtShadowY,
+                        width: dtShadowW, height: dtShadowH,
+                        borderRadius: dtShadowW / 2,
+                        backgroundColor: 'rgba(0,0,0,0.18)',
+                        zIndex: zIdx,
+                    }}
+                />
+                <View
                     pointerEvents="none"
                     style={{
                         position: 'absolute',
@@ -1382,6 +1451,7 @@ function IsometricGrid({
                         resizeMode="contain"
                     />
                 </View>
+                </React.Fragment>
             );
         });
     }, [visibleDeadTrees, gridSize, rotation, getTileState, choppingTrees, onDeadTreePress, onChoppingComplete]);
@@ -1484,6 +1554,20 @@ function IsometricGrid({
             {plantedTreeElements}
 
             {/* Main tree on center tile - changes based on XP */}
+            {/* Center tree ground shadow */}
+            <View
+                pointerEvents="none"
+                style={{
+                    position: 'absolute',
+                    left: centerTileX + (SCALED_WIDTH / 2) - (scaledTreeWidth * 0.55),
+                    top: centerTileY + (SCALED_HEIGHT / 2) - (scaledTreeWidth * 0.175) + 2,
+                    width: scaledTreeWidth * 1.1,
+                    height: scaledTreeWidth * 0.35,
+                    borderRadius: scaledTreeWidth * 0.55,
+                    backgroundColor: 'rgba(0,0,0,0.22)',
+                    zIndex: rCenterRow + rCenterCol,
+                }}
+            />
             <Animated.View
                 pointerEvents="none"
                 style={{
@@ -1579,14 +1663,14 @@ export const GardenScene = React.memo(function GardenScene({
     const dragX  = useRef(new Animated.Value(0)).current;
     const dragY  = useRef(new Animated.Value(0)).current;
     // Animated.add produces a native-driver-compatible derived value
-    const panX   = useRef(Animated.add(baseX, dragX)).current;
-    const panY   = useRef(Animated.add(baseY, dragY)).current;
-    const scale  = useRef(new Animated.Value(1)).current;
+    const panX   = useRef(Animated.add(Animated.add(baseX, dragX), new Animated.Value(CAMERA_BASE_OFFSET_X))).current;
+    const panY   = useRef(Animated.add(Animated.add(baseY, dragY), new Animated.Value(CAMERA_BASE_OFFSET_Y))).current;
+    const scale  = useRef(new Animated.Value(CAMERA_BASE_ZOOM)).current;
 
     const lastBaseX   = useRef(0);
     const lastBaseY   = useRef(0);
-    const baseScale   = useRef(1);
-    const lastScale   = useRef(1);
+    const baseScale   = useRef(CAMERA_BASE_ZOOM);
+    const lastScale   = useRef(CAMERA_BASE_ZOOM);
     const momentumRef = useRef<Animated.CompositeAnimation | null>(null);
 
     const pinchRef = useRef(null);
@@ -1676,6 +1760,7 @@ export const GardenScene = React.memo(function GardenScene({
             {/* ── Sky ambience — behind gesture layer ──────────────────────── */}
             {!frozen && (
             <View style={[StyleSheet.absoluteFill, { zIndex: 0 }]} pointerEvents="none">
+                <Image source={ASSETS.backgroundSky} style={StyleSheet.absoluteFill} resizeMode="cover" />
                 <StarField />
                 <CloudDrift />
             </View>
@@ -1704,6 +1789,8 @@ export const GardenScene = React.memo(function GardenScene({
                                 styles.scaleWrapper,
                                 {
                                     transform: [
+                                        { perspective: CAMERA_PERSPECTIVE },
+                                        { rotateX: `${CAMERA_PITCH_DEG}deg` },
                                         { translateX: panX },
                                         { translateY: panY },
                                         { scale },
@@ -1738,7 +1825,7 @@ export const GardenScene = React.memo(function GardenScene({
             {!frozen && (
             <Animated.View
                 pointerEvents="none"
-                style={[StyleSheet.absoluteFill, { zIndex: 199, transform: [{ translateX: panX }, { translateY: panY }, { scale }] }]}
+                style={[StyleSheet.absoluteFill, { zIndex: 199, transform: [{ perspective: CAMERA_PERSPECTIVE }, { rotateX: `${CAMERA_PITCH_DEG}deg` }, { translateX: panX }, { translateY: panY }, { scale }] }]}
             >
                 <FloatingParticles />
                 <FallingLeaves />
