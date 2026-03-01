@@ -172,14 +172,16 @@ function DustMote({ spec }: { spec: typeof MOTE_SPECS[0] }) {
             position: 'absolute',
             left: spec.spawnX - spec.size / 2,
             top:  spec.spawnY - spec.size / 2,
-            width: spec.size, height: spec.size, borderRadius: spec.size,
-            backgroundColor: spec.color, opacity,
+            width: spec.size * 4, height: spec.size * 4,
+            opacity,
             transform: [
                 // Animated.add merges primary drift + lateral wobble in one transform
                 { translateX: Animated.add(tx, wobble) },
                 { translateY: ty },
             ],
-        }} />
+        }}>
+            <Image source={ASSETS.pollenMote} style={{ width: spec.size * 4, height: spec.size * 4 }} resizeMode="contain" />
+        </Animated.View>
     );
 }
 
@@ -258,19 +260,19 @@ function FallingLeaf({ spec }: { spec: typeof LEAF_SPECS[0] }) {
     return (
         <Animated.View pointerEvents="none" style={{
             position: 'absolute',
-            left: spec.spawnX - spec.w / 2,
-            top:  spec.spawnY - spec.h / 2,
-            width: spec.w,
-            height: spec.h,
-            borderRadius: spec.w * 0.4,
-            backgroundColor: spec.color,
+            left: spec.spawnX - spec.w * 2,
+            top:  spec.spawnY - spec.h * 2,
+            width: spec.w * 4,
+            height: spec.h * 4,
             opacity,
             transform: [
                 { translateX: Animated.add(tx, wobble) },
                 { translateY: ty },
                 { rotate: rotate.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '540deg'] }) },
             ],
-        }} />
+        }}>
+            <Image source={ASSETS.fallingLeaf} style={{ width: spec.w * 4, height: spec.h * 4 }} resizeMode="contain" />
+        </Animated.View>
     );
 }
 
@@ -298,6 +300,18 @@ const ASSETS = {
     grownTree: require('../assets/Garden Assets/Tree Types/Grown_Tree_converted.png'),
     deadTree: require('../assets/Garden Assets/Tree Types/Dead_Tree.png'),
     axeIcon: require('../assets/Garden Assets/Icons/Axe.png'),
+    // Decoration sprites
+    deadGrassTuft: require('../assets/Garden Assets/Ground Tiles/Dead_Grass_Tuft.png'),
+    pebbles: require('../assets/Garden Assets/Ground Tiles/Pebbles.png'),
+    wildflowers: require('../assets/Garden Assets/Ground Tiles/Wildflowers.png'),
+    grassBlades: require('../assets/Garden Assets/Ground Tiles/Grass_Blades.png'),
+    mushrooms: require('../assets/Garden Assets/Ground Tiles/Mushrooms.png'),
+    clovers: require('../assets/Garden Assets/Ground Tiles/Clovers.png'),
+    // Effect sprites
+    emberMote: require('../assets/Garden Assets/Effects/Ember_Mote.png'),
+    dewSparkle: require('../assets/Garden Assets/Effects/Dew_Sparkle.png'),
+    pollenMote: require('../assets/Garden Assets/Effects/Pollen_Mote.png'),
+    fallingLeaf: require('../assets/Garden Assets/Effects/Falling_Leaf.png'),
 };
 
 // Tree dimensions (actual asset is 848x1264)
@@ -662,10 +676,139 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
 
 // AnimatedTile component — keeps previous tile underneath to prevent black flash during swap
 // Supports ripple animation: scale + opacity spring on state transition
+// ─── Tile decoration data ─────────────────────────────────────────────────────
+// Deterministic decoration placement per tile — seeded by row+col so positions
+// are stable across re-renders while still looking sparse and random.
+const DEAD_DECORATIONS = [ASSETS.deadGrassTuft, ASSETS.pebbles] as const;
+const RECOVERED_DECORATIONS = [ASSETS.wildflowers, ASSETS.grassBlades, ASSETS.mushrooms, ASSETS.clovers] as const;
+const DECO_SIZE = 16; // display size in px for each decoration sprite
+
+function seededUnit(seed: number) {
+    const x = Math.sin(seed * 12.9898) * 43758.5453;
+    return x - Math.floor(x);
+}
+
+function getTileDecorations(row: number, col: number, state: TileState) {
+    const seed = row * 92821 + col * 68917 + (state === 'dead' ? 11 : 29);
+    const spawnRoll = seededUnit(seed + 1);
+    let count = 0;
+
+    // Sparse placement: many tiles intentionally get no decoration.
+    if (state === 'dead') {
+        if (spawnRoll < 0.40) count = 1;
+        if (spawnRoll < 0.14) count = 2;
+    } else if (state === 'recovered') {
+        if (spawnRoll < 0.45) count = 1;
+        if (spawnRoll < 0.16) count = 2;
+    }
+    if (count === 0) return [];
+
+    const decorations: Array<{ asset: any; x: number; y: number; flipX: boolean }> = [];
+
+    const pool = state === 'dead' ? DEAD_DECORATIONS : RECOVERED_DECORATIONS;
+
+    for (let i = 0; i < count; i++) {
+        const s = seed + i * 97;
+        const asset = pool[Math.floor(seededUnit(s + 3) * pool.length)];
+        // Position within inner diamond bounds to avoid edge clutter.
+        const fx = seededUnit(s + 5) * 0.9 - 0.45;
+        const fy = seededUnit(s + 7) * 0.6 - 0.3;
+        const x = SCALED_WIDTH * 0.5 + fx * SCALED_WIDTH * 0.55 - DECO_SIZE / 2;
+        const y = SCALED_HEIGHT * 0.5 + fy * SCALED_HEIGHT * 0.55 - DECO_SIZE / 2;
+        const flipX = seededUnit(s + 11) > 0.5;
+        decorations.push({ asset, x, y, flipX });
+    }
+    return decorations;
+}
+
+// ─── Ember Mote ──────────────────────────────────────────────────────────────
+// Slow-drifting glowing ember sprite above dead tiles. Haunting atmospheric feel.
+const EMBER_SIZE = 10;
+const EmberMote = React.memo(function EmberMote({
+    cx, cy, zIndex, seed,
+}: { cx: number; cy: number; zIndex: number; seed: number }) {
+    const opacity = useRef(new Animated.Value(0)).current;
+    const tx = useRef(new Animated.Value(0)).current;
+    const ty = useRef(new Animated.Value(0)).current;
+    const dur = 6000 + (seed * 370) % 4000;
+    const driftX = ((seed * 13 + 7) % 30) - 15;
+    const driftY = -((seed * 11 + 3) % 20) - 10; // always floats upward
+    const delay = (seed * 490) % 6000;
+
+    useEffect(() => {
+        const cycle = Animated.loop(Animated.sequence([
+            Animated.parallel([
+                Animated.sequence([
+                    Animated.timing(opacity, { toValue: 0.6, duration: dur * 0.25, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+                    Animated.timing(opacity, { toValue: 0.5, duration: dur * 0.45, useNativeDriver: true }),
+                    Animated.timing(opacity, { toValue: 0, duration: dur * 0.30, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+                ]),
+                Animated.timing(tx, { toValue: driftX, duration: dur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+                Animated.timing(ty, { toValue: driftY, duration: dur, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+            ]),
+            Animated.parallel([
+                Animated.timing(tx, { toValue: 0, duration: 1, useNativeDriver: true }),
+                Animated.timing(ty, { toValue: 0, duration: 1, useNativeDriver: true }),
+            ]),
+            Animated.delay(2000 + (seed * 310) % 3000),
+        ]));
+        const t = setTimeout(() => cycle.start(), delay);
+        return () => { clearTimeout(t); cycle.stop(); };
+    }, []);
+
+    return (
+        <Animated.View pointerEvents="none" style={{
+            position: 'absolute',
+            left: cx - EMBER_SIZE / 2,
+            top: cy - EMBER_SIZE - 5,
+            width: EMBER_SIZE, height: EMBER_SIZE,
+            zIndex: zIndex + 2,
+            opacity,
+            transform: [{ translateX: tx }, { translateY: ty }],
+        }}>
+            <Image source={ASSETS.emberMote} style={{ width: EMBER_SIZE, height: EMBER_SIZE }} resizeMode="contain" />
+        </Animated.View>
+    );
+});
+
+// ─── Dew Sparkle ─────────────────────────────────────────────────────────────
+// Gentle pulsing dew drop on recovered tiles. 1-2 per tile.
+const DEW_SIZE = 8;
+const DewSparkle = React.memo(function DewSparkle({
+    cx, cy, zIndex, seed,
+}: { cx: number; cy: number; zIndex: number; seed: number }) {
+    const opacity = useRef(new Animated.Value(0)).current;
+    const dur = 3000 + (seed * 230) % 2000;
+    const delay = (seed * 370) % 4000;
+
+    useEffect(() => {
+        const cycle = Animated.loop(Animated.sequence([
+            Animated.timing(opacity, { toValue: 0.7, duration: dur * 0.4, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(opacity, { toValue: 0.1, duration: dur * 0.6, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]));
+        const t = setTimeout(() => cycle.start(), delay);
+        return () => { clearTimeout(t); cycle.stop(); };
+    }, []);
+
+    return (
+        <Animated.View pointerEvents="none" style={{
+            position: 'absolute',
+            left: cx - DEW_SIZE / 2,
+            top: cy - DEW_SIZE / 2,
+            width: DEW_SIZE, height: DEW_SIZE,
+            zIndex: zIndex + 2,
+            opacity,
+        }}>
+            <Image source={ASSETS.dewSparkle} style={{ width: DEW_SIZE, height: DEW_SIZE }} resizeMode="contain" />
+        </Animated.View>
+    );
+});
+
 const AnimatedTile = React.memo(function AnimatedTile({
     row,
     col,
     state,
+    hasTree,
     screenX,
     screenY,
     zIndex,
@@ -674,6 +817,7 @@ const AnimatedTile = React.memo(function AnimatedTile({
     row: number;
     col: number;
     state: TileState;
+    hasTree: boolean;
     screenX: number;
     screenY: number;
     zIndex: number;
@@ -796,6 +940,22 @@ const AnimatedTile = React.memo(function AnimatedTile({
                         />
                     </Animated.View>
                 )}
+                {/* Tile decorations — small sprites scattered on the tile */}
+                {!hasTree && (state === 'dead' || state === 'recovered') && getTileDecorations(row, col, state).map((deco, i) => (
+                    <Image
+                        key={`deco-${i}`}
+                        source={deco.asset}
+                        style={{
+                            position: 'absolute',
+                            left: deco.x,
+                            top: deco.y,
+                            width: DECO_SIZE,
+                            height: DECO_SIZE,
+                            transform: deco.flipX ? [{ scaleX: -1 }] : [],
+                        }}
+                        resizeMode="contain"
+                    />
+                ))}
             </Animated.View>
         </View>
     );
@@ -1185,6 +1345,27 @@ function IsometricGrid({
         return s;
     }, [visibleDeadTrees]);
 
+    // Tiles that currently have any tree asset on them (main, planted, or dead).
+    const treeOccupiedTileSet = useMemo(() => {
+        const set = new Set<string>();
+        set.add(`${maxCenter},${maxCenter}`); // main center tree
+
+        for (const dt of visibleDeadTrees) {
+            set.add(`${dt.row},${dt.col}`);
+        }
+
+        for (let row = startRow; row <= endRow; row++) {
+            for (let col = startCol; col <= endCol; col++) {
+                if (row === maxCenter && col === maxCenter) continue;
+                if (getPlantedTree(row, col)) {
+                    set.add(`${row},${col}`);
+                }
+            }
+        }
+
+        return set;
+    }, [startRow, endRow, startCol, endCol, maxCenter, visibleDeadTrees, getPlantedTree]);
+
     // ─── Tap highlight state ─────────────────────────────────────────────────
     const [tapHighlight, setTapHighlight] = useState<{ x: number; y: number; zIndex: number; tileState: TileState } | null>(null);
     const tapHighlightOpacity = useRef(new Animated.Value(0)).current;
@@ -1260,6 +1441,7 @@ function IsometricGrid({
                 const screenX = (rCol - rRow) * STEP_X + centerOffsetX;
                 const screenY = (rCol + rRow) * STEP_Y;
                 const state = getTileState(row, col);
+                const hasTree = treeOccupiedTileSet.has(`${row},${col}`);
 
                 result.push(
                     <AnimatedTile
@@ -1267,6 +1449,7 @@ function IsometricGrid({
                         row={row}
                         col={col}
                         state={state}
+                        hasTree={hasTree}
                         screenX={screenX}
                         screenY={screenY}
                         zIndex={rRow + rCol}
@@ -1276,7 +1459,39 @@ function IsometricGrid({
             }
         }
         return result;
-    }, [gridSize, rotation, getTileState, animDelayMap]);
+    }, [startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, animDelayMap, treeOccupiedTileSet]);
+
+    // Memoize ambient tile effects — embers on dead, dew sparkles on recovered
+    const tileEffects = useMemo(() => {
+        const effects: React.ReactElement[] = [];
+        for (let row = startRow; row <= endRow; row++) {
+            for (let col = startCol; col <= endCol; col++) {
+                const state = getTileState(row, col);
+                const localRow = row - startRow;
+                const localCol = col - startCol;
+                const [rRow, rCol] = rotateLocal(localRow, localCol, rotation, maxLocal);
+                const screenX = (rCol - rRow) * STEP_X + centerOffsetX;
+                const screenY = (rCol + rRow) * STEP_Y;
+                const tileCX = screenX + SCALED_WIDTH / 2;
+                const tileCY = screenY + SCALED_HEIGHT / 2;
+                const zIdx = rRow + rCol;
+                const seed = row * 17 + col * 31;
+                const hasTree = treeOccupiedTileSet.has(`${row},${col}`);
+
+                if (hasTree) continue;
+
+                if (state === 'dead') {
+                    // Sparse embers on dead tiles.
+                    if (seed % 100 < 16) {
+                        effects.push(
+                            <EmberMote key={`ember-${row}-${col}`} cx={tileCX} cy={tileCY} zIndex={zIdx} seed={seed} />
+                        );
+                    }
+                }
+            }
+        }
+        return effects;
+    }, [startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, treeOccupiedTileSet]);
 
     // Memoize dead tree elements
     const deadTreeElements = useMemo(() => {
@@ -1454,6 +1669,9 @@ function IsometricGrid({
                 }}
             >
             {tiles}
+
+            {/* Ambient tile effects — embers & dew sparkles */}
+            {tileEffects}
 
             {/* Tap highlight — subtle outline around diamond edge of tapped tile */}
             {tapHighlight && (
