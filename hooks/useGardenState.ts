@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { TREE_CATALOG } from '../components/ShopModal';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -695,11 +696,11 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
   }, [treeInventory, saveInventory]);
 
   const getOwnedTreeTypes = useCallback((): string[] => {
-    const owned = ['Basic']; // Always available
-    for (const [id, count] of Object.entries(treeInventory)) {
-      if (count > 0 && id !== 'Basic') owned.push(id);
-    }
-    return owned;
+    // Return owned types sorted by their position in TREE_CATALOG so the
+    // tree picker always matches the shop's display order.
+    return TREE_CATALOG
+      .filter(item => item.id === 'Basic' || (treeInventory[item.id] ?? 0) > 0)
+      .map(item => item.id);
   }, [treeInventory]);
 
   // ─── Decay status ──────────────────────────────────────────────────────────

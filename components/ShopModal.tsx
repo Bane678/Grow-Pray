@@ -18,9 +18,37 @@ export interface TreeCatalogItem {
   name: string;
   price: number;
   rarity: 'common' | 'rare' | 'premium';
-  tint: string;       // tintColor applied to the base tree sprites
+  tint: string;       // tintColor applied to the base tree sprites (ignored when sprites provided)
   description: string;
   premiumOnly?: boolean;
+  /** If set, uses dedicated per-stage sprites instead of tinting the base sprites */
+  sprites?: {
+    sapling?: string;
+    growing?: string;
+    grown?: string;
+    flourishing?: string;
+  };
+  /** Per-stage final render scale overrides (replaces the default stage scale × 0.9) */
+  scaleOverrides?: {
+    sapling?: number;
+    growing?: number;
+    grown?: number;
+    flourishing?: number;
+  };
+  /** Horizontal pixel offset at rendered size to correct for trunk not centred in asset (positive = right) */
+  offsetX?: {
+    sapling?: number;
+    growing?: number;
+    grown?: number;
+    flourishing?: number;
+  };
+  /** Vertical pixel offset at rendered size (positive = down, negative = up) */
+  offsetY?: {
+    sapling?: number;
+    growing?: number;
+    grown?: number;
+    flourishing?: number;
+  };
 }
 
 export const TREE_CATALOG: TreeCatalogItem[] = [
@@ -39,6 +67,30 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
     rarity: 'common',
     tint: '#7ecf6f',
     description: 'A lush tropical palm that sways in the breeze.',
+    sprites: {
+      sapling:     'palmSapling',
+      growing:     'palmGrowing',
+      grown:       'palmGrown',
+      flourishing: 'palmFlourishing',
+    },
+    scaleOverrides: {
+      sapling:     0.100,
+      growing:     0.100,
+      grown:       0.117,
+      flourishing: 0.132,
+    },
+    offsetX: {
+      sapling:     -2,
+      growing:     9,
+      grown:       17,
+      flourishing: 19,
+    },
+    offsetY: {
+      sapling:     -2,
+      growing:     -12,
+      grown:       -18,
+      flourishing: -18,
+    },
   },
   {
     id: 'Oak',
@@ -47,6 +99,30 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
     rarity: 'common',
     tint: '#8B7355',
     description: 'A sturdy, resilient oak. Symbol of strength.',
+    sprites: {
+      sapling:     'oakSapling',
+      growing:     'oakGrowing',
+      grown:       'oakGrown',
+      flourishing: 'oakFlourishing',
+    },
+    scaleOverrides: {
+      sapling:     0.090,
+      growing:     0.108,
+      grown:       0.106,
+      flourishing: 0.137,
+    },
+    offsetX: {
+      sapling:     -2,
+      growing:     2,
+      grown:       1,
+      flourishing: 1,
+    },
+    offsetY: {
+      sapling:     -2,
+      growing:     -2,
+      grown:       -18,
+      flourishing: -18,
+    },
   },
   {
     id: 'Willow',
@@ -55,6 +131,30 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
     rarity: 'common',
     tint: '#5cad6b',
     description: 'Graceful branches cascade like flowing water.',
+    sprites: {
+      sapling:     'willowSapling',
+      growing:     'willowGrowing',
+      grown:       'willowGrown',
+      flourishing: 'willowFlourishing',
+    },
+    scaleOverrides: {
+      sapling:     0.090,
+      growing:     0.082,
+      grown:       0.085,
+      flourishing: 0.108,
+    },
+    offsetX: {
+      sapling:     -2,
+      growing:     0,
+      grown:       5,
+      flourishing: 5,
+    },
+    offsetY: {
+      sapling:     -2,
+      growing:     -12,
+      grown:       -22,
+      flourishing: -22,
+    },
   },
   {
     id: 'CherryBlossom',
@@ -63,6 +163,30 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
     rarity: 'rare',
     tint: '#FFB7C5',
     description: 'Delicate pink petals signifying renewal and hope.',
+    sprites: {
+      sapling:     'cherryBlossomSapling',
+      growing:     'cherryBlossomGrowing',
+      grown:       'cherryBlossomGrown',
+      flourishing: 'cherryBlossomFlourishing',
+    },
+    scaleOverrides: {
+      sapling:     0.090,
+      growing:     0.108,
+      grown:       0.133,
+      flourishing: 0.154,
+    },
+    offsetX: {
+      sapling:     -2,
+      growing:     -1,
+      grown:       0,
+      flourishing: 0,
+    },
+    offsetY: {
+      sapling:     -2,
+      growing:     -4,
+      grown:       -8,
+      flourishing: -8,
+    },
   },
   {
     id: 'Maple',
@@ -71,6 +195,30 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
     rarity: 'rare',
     tint: '#D2691E',
     description: 'Fiery autumn leaves that warm the garden.',
+    sprites: {
+      sapling:     'mapleSapling',
+      growing:     'mapleGrowing',
+      grown:       'mapleGrown',
+      flourishing: 'mapleFlourishing',
+    },
+    scaleOverrides: {
+      sapling:     0.090,
+      growing:     0.113,
+      grown:       0.149,
+      flourishing: 0.153,
+    },
+    offsetX: {
+      sapling:     -2,
+      growing:      2,
+      grown:        0,
+      flourishing:  1,
+    },
+    offsetY: {
+      sapling:     -2,
+      growing:     -8,
+      grown:       -2,
+      flourishing: -12,
+    },
   },
   {
     id: 'Golden',
@@ -80,6 +228,30 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
     tint: '#FFD700',
     description: 'A radiant tree that glows with divine light.',
     premiumOnly: true,
+    sprites: {
+      sapling:     'goldenTreeSapling',
+      growing:     'goldenTreeGrowing',
+      grown:       'goldenTreeGrown',
+      flourishing: 'goldenTreeFlourishing',
+    },
+    scaleOverrides: {
+      sapling:     0.090,
+      growing:     0.118,
+      grown:       0.142,
+      flourishing: 0.170,
+    },
+    offsetX: {
+      sapling:     -2,
+      growing:     0,
+      grown:       1,
+      flourishing: 2,
+    },
+    offsetY: {
+      sapling:     -2,
+      growing:     -4,
+      grown:       -3,
+      flourishing: -3,
+    },
   },
   {
     id: 'Cedar',
@@ -89,6 +261,30 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
     tint: '#1B4332',
     description: 'An ancient, towering cedar from the gardens of paradise.',
     premiumOnly: true,
+    sprites: {
+      sapling:     'cedarSapling',
+      growing:     'cedarGrowing',
+      grown:       'cedarGrown',
+      flourishing: 'cedarFlourishing',
+    },
+    scaleOverrides: {
+      sapling:     0.090,
+      growing:     0.108,
+      grown:       0.126,
+      flourishing: 0.144,
+    },
+    offsetX: {
+      sapling:     -2,
+      growing:     2,
+      grown:       2,
+      flourishing: 2,
+    },
+    offsetY: {
+      sapling:     -2,
+      growing:     -6,
+      grown:       -11,
+      flourishing: -13,
+    },
   },
   {
     id: 'Ramadan',
@@ -181,7 +377,18 @@ const RARITY_COLORS: Record<string, { bg: string; text: string; border: string }
 };
 
 // Preview asset — we use sapling (what gets planted) as the shop preview
-const PREVIEW_ASSET = require('../assets/Garden Assets/Tree Types/Sapling_converted.png');
+const PREVIEW_ASSET = require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png');
+
+// Per-tree custom preview assets keyed by sprites.sapling value
+const CUSTOM_PREVIEW_ASSETS: Record<string, ReturnType<typeof require>> = {
+  palmSapling:   require('../assets/Garden Assets/Tree Types/Palm Trees/Palm_Sapling.png'),
+  willowSapling: require('../assets/Garden Assets/Tree Types/Willow Trees/Willow_Sapling.png'),
+  oakSapling:          require('../assets/Garden Assets/Tree Types/Oak Trees/Oak_Sapling.png'),
+  cherryBlossomSapling: require('../assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Sapling.png'),
+  mapleSapling:         require('../assets/Garden Assets/Tree Types/Maple Trees/Maple_Sapling.png'),
+  goldenTreeSapling:    require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Sapling.png'),
+  cedarSapling:         require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Sapling.png'),
+};
 
 // ─── Component ──────────────────────────────────────────────────────────────────
 
@@ -267,10 +474,10 @@ export function ShopModal({
         {/* Tree preview with tint */}
         <View style={styles.previewContainer}>
           <Image
-            source={PREVIEW_ASSET}
+            source={item.sprites?.sapling && CUSTOM_PREVIEW_ASSETS[item.sprites.sapling] ? CUSTOM_PREVIEW_ASSETS[item.sprites.sapling] : PREVIEW_ASSET}
             style={[
               styles.treePreview,
-              item.tint ? { tintColor: item.tint } : {},
+              !item.sprites?.sapling && item.tint ? { tintColor: item.tint } : {},
             ]}
             resizeMode="contain"
           />
@@ -283,8 +490,10 @@ export function ShopModal({
 
         {/* Info */}
         <View style={styles.cardInfo}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-            <Text style={styles.treeName}>{item.name}</Text>
+          <View style={styles.cardHeader}>
+            <Text style={styles.treeName} numberOfLines={2}>
+              {item.name}
+            </Text>
             <View style={[styles.rarityBadge, { backgroundColor: rarity.bg, borderColor: rarity.border }]}>
               <Text style={[styles.rarityText, { color: rarity.text }]}>
                 {item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1)}
@@ -294,9 +503,9 @@ export function ShopModal({
 
           <Text style={styles.treeDesc} numberOfLines={2}>{item.description}</Text>
 
-          {owned > 0 && (
-            <Text style={styles.ownedText}>Owned: {owned}</Text>
-          )}
+          <Text style={[styles.ownedText, { opacity: owned > 0 ? 1 : 0 }]}>
+            Owned: {owned}
+          </Text>
         </View>
 
         {/* Purchase button */}
@@ -321,6 +530,7 @@ export function ShopModal({
                 canAfford
                   ? { backgroundColor: '#22c55e' }
                   : { backgroundColor: '#374151' },
+                purchasing === item.id && { opacity: 0.45 },
               ]}
             >
               <Text style={{
@@ -328,7 +538,7 @@ export function ShopModal({
                 fontSize: 12,
                 fontWeight: '700',
               }}>
-                {purchasing === item.id ? '...' : `🪙 ${item.price}`}
+                {`🪙 ${item.price}`}
               </Text>
             </TouchableOpacity>
           )}
@@ -337,20 +547,8 @@ export function ShopModal({
     );
   };
 
-  const Wrapper = asPage
-    ? ({ children }: { children: React.ReactNode }) => (
-        <View style={{ flex: 1, backgroundColor: '#0f1526' }}>
-          <View style={[styles.container, { flex: 1, borderRadius: 0, maxHeight: '100%', maxWidth: '100%' as any, borderWidth: 0 }]}>{children}</View>
-        </View>
-      )
-    : ({ children }: { children: React.ReactNode }) => (
-        <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-          <View style={styles.overlay}><View style={styles.container}>{children}</View></View>
-        </Modal>
-      );
-
-  return (
-    <Wrapper>
+  const content = (
+    <>
       {/* Header */}
           <View style={styles.header}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -579,7 +777,25 @@ export function ShopModal({
               </View>
             )}
           </ScrollView>
-    </Wrapper>
+    </>
+  );
+
+  if (asPage) {
+    return (
+      <View style={{ flex: 1, backgroundColor: '#0f1526' }}>
+        <View style={[styles.container, { flex: 1, borderRadius: 0, maxHeight: '100%', maxWidth: '100%' as any, borderWidth: 0 }]}>
+          {content}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.container}>{content}</View>
+      </View>
+    </Modal>
   );
 }
 
@@ -694,17 +910,29 @@ const styles = StyleSheet.create({
   cardInfo: {
     flex: 1,
     marginLeft: 12,
+    minWidth: 0,
+  },
+  cardHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginBottom: 2,
   },
   treeName: {
     color: '#e8e0d6',
     fontSize: 14,
     fontWeight: '600',
+    flex: 1,
+    flexShrink: 1,
+    lineHeight: 18,
   },
   rarityBadge: {
     paddingHorizontal: 6,
     paddingVertical: 2,
     borderRadius: 6,
     borderWidth: 1,
+    marginLeft: 6,
+    flexShrink: 0,
+    alignSelf: 'flex-start',
   },
   rarityText: {
     fontSize: 10,
@@ -725,12 +953,13 @@ const styles = StyleSheet.create({
   priceSection: {
     marginLeft: 8,
     alignItems: 'center',
+    flexShrink: 0,
   },
   buyButton: {
     paddingHorizontal: 14,
     paddingVertical: 8,
     borderRadius: 10,
-    minWidth: 60,
+    minWidth: 74,
     alignItems: 'center',
   },
   comingSoon: {

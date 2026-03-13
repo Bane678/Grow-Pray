@@ -2,6 +2,7 @@ import React, { useState, useMemo, memo, useCallback } from 'react';
 import {
   View,
   Text,
+  Image,
   Modal,
   TouchableOpacity,
   ScrollView,
@@ -77,6 +78,30 @@ const PRAYER_COLORS: Record<string, string> = {
   Maghrib: '#f87171',  // red
   Isha: '#a78bfa',     // purple
 };
+
+const PRAYER_ICONS: Record<string, ReturnType<typeof require>> = {
+  Fajr: require('../assets/Garden Assets/Icons/Fajr.png'),
+  Dhuhr: require('../assets/Garden Assets/Icons/Dhuhr.png'),
+  Asr: require('../assets/Garden Assets/Icons/Asr.png'),
+  Maghrib: require('../assets/Garden Assets/Icons/Maghrib.png'),
+  Isha: require('../assets/Garden Assets/Icons/Isha.png'),
+};
+
+const STAT_ICONS: Record<string, string> = {
+  'Perfect Days': '⭐',
+  'Prayers': '🤲',
+  'Best Streak': '🔥',
+};
+
+// Intensity colour from 0 (nothing) to 5 (all prayers)
+function intensityColor(count: number): string {
+  if (count === 0) return 'transparent';
+  if (count === 1) return 'rgba(232,168,124,0.08)';
+  if (count === 2) return 'rgba(232,168,124,0.15)';
+  if (count === 3) return 'rgba(232,168,124,0.22)';
+  if (count === 4) return 'rgba(232,168,124,0.32)';
+  return 'rgba(251,191,36,0.18)'; // perfect — golden tint
+}
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -177,33 +202,61 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
             {/* ── Streak Cards ──────────────────────────────── */}
             <View style={styles.streaksContainer}>
-              {PRAYER_ORDER.map(prayer => (
-                <View key={prayer} style={styles.streakCard}>
-                  <View style={[styles.streakDot, { backgroundColor: PRAYER_COLORS[prayer] }]} />
-                  <Text style={styles.streakLabel}>{prayer}</Text>
-                  <Text style={styles.streakCount}>{streaks[prayer] || 0}</Text>
-                  <Text style={styles.streakUnit}>days</Text>
-                </View>
-              ))}
+              {PRAYER_ORDER.map(prayer => {
+                const streak = streaks[prayer] || 0;
+                const fill = Math.min(1, streak / 30);
+                return (
+                  <View key={prayer} style={styles.streakCard}>
+                    {/* Icon ring */}
+                    <View style={[styles.streakIconRing, { borderColor: PRAYER_COLORS[prayer] + '40', shadowColor: PRAYER_COLORS[prayer] }]}>
+                      <Image source={PRAYER_ICONS[prayer]} style={styles.streakIconImg} />
+                    </View>
+                    <Text style={styles.streakLabel}>{prayer}</Text>
+                    <Text style={[styles.streakCount, { color: PRAYER_COLORS[prayer] }]}>{streak}</Text>
+                    <Text style={styles.streakUnit}>days</Text>
+                    {/* Mini progress bar */}
+                    <View style={styles.streakBarTrack}>
+                      <View style={[styles.streakBarFill, { width: `${fill * 100}%` as any, backgroundColor: PRAYER_COLORS[prayer] }]} />
+                    </View>
+                  </View>
+                );
+              })}
             </View>
 
             {/* ── Month Stats Bar ───────────────────────────── */}
             <View style={styles.statsBar}>
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{monthStats.perfectDays}</Text>
-                <Text style={styles.statLabel}>Perfect Days</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{monthStats.totalPrayers}</Text>
-                <Text style={styles.statLabel}>Prayers</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statItem}>
-                <Text style={styles.statValue}>{bestStreak}</Text>
-                <Text style={styles.statLabel}>Best Streak</Text>
-              </View>
+              {[
+                { value: monthStats.perfectDays, label: 'Perfect Days' },
+                { value: monthStats.totalPrayers, label: 'Prayers' },
+                { value: bestStreak, label: 'Best Streak' },
+              ].map((stat, idx) => (
+                <React.Fragment key={stat.label}>
+                  {idx > 0 && <View style={styles.statDivider} />}
+                  <View style={styles.statItem}>
+                    <Text style={styles.statIcon}>{STAT_ICONS[stat.label]}</Text>
+                    <Text style={styles.statValue}>{stat.value}</Text>
+                    <Text style={styles.statLabel}>{stat.label}</Text>
+                  </View>
+                </React.Fragment>
+              ))}
             </View>
+            {/* Monthly completion bar */}
+            {(() => {
+              const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+              const daysElapsed = Math.min(daysInMonth, Math.floor((today.getTime() - new Date(viewYear, viewMonth, 1).getTime()) / 86400000) + 1);
+              const rate = daysElapsed > 0 ? Math.round((monthStats.totalPrayers / (daysElapsed * 5)) * 100) : 0;
+              return (
+                <View style={styles.monthRateContainer}>
+                  <View style={styles.monthRateRow}>
+                    <Text style={styles.monthRateLabel}>Monthly completion</Text>
+                    <Text style={styles.monthRateValue}>{rate}%</Text>
+                  </View>
+                  <View style={styles.monthRateTrack}>
+                    <View style={[styles.monthRateFill, { width: `${rate}%` as any }]} />
+                  </View>
+                </View>
+              );
+            })()}
 
             {/* ── Calendar ──────────────────────────────────── */}
             <View style={styles.calendarContainer}>
@@ -253,9 +306,12 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
                       style={[
                         styles.dayCell,
                         { width: cellSize, height: cellSize + 8 },
+                        !isFuture && { backgroundColor: intensityColor(count) },
                         isSelected && styles.dayCellSelected,
+                        isToday && styles.dayCellToday,
                       ]}
                     >
+                      {isPerfect && <Text style={styles.perfectStar}>★</Text>}
                       <Text style={[
                         styles.dayNum,
                         isToday && styles.dayNumToday,
@@ -304,21 +360,33 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
                 <Text style={styles.detailTitle}>
                   {selectedDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
                 </Text>
-                <Text style={styles.detailSubtitle}>
-                  {selectedDayPrayers.length}/5 prayers completed
-                </Text>
+                {/* Summary badge */}
+                <View style={[styles.detailBadge, {
+                  backgroundColor: selectedDayPrayers.length === 5 ? 'rgba(251,191,36,0.12)' : selectedDayPrayers.length > 0 ? 'rgba(232,168,124,0.1)' : 'rgba(255,255,255,0.04)',
+                }]}>
+                  <Text style={[styles.detailBadgeText, {
+                    color: selectedDayPrayers.length === 5 ? '#fbbf24' : selectedDayPrayers.length > 0 ? '#e8a87c' : '#6b7280',
+                  }]}>
+                    {selectedDayPrayers.length === 5 ? '✨ Perfect Day!' : `${selectedDayPrayers.length}/5 prayers completed`}
+                  </Text>
+                </View>
                 <View style={styles.detailPrayers}>
                   {PRAYER_ORDER.map(prayer => {
                     const done = selectedDayPrayers.includes(prayer);
                     return (
                       <View key={prayer} style={styles.detailRow}>
-                        <View style={[styles.detailDot, { backgroundColor: done ? PRAYER_COLORS[prayer] : 'rgba(107, 114, 128, 0.3)' }]} />
+                        <View style={[styles.detailIconCircle, {
+                          backgroundColor: done ? PRAYER_COLORS[prayer] + '20' : 'rgba(255,255,255,0.04)',
+                          borderColor: done ? PRAYER_COLORS[prayer] + '40' : 'rgba(255,255,255,0.08)',
+                        }]}>
+                          <Image source={PRAYER_ICONS[prayer]} style={styles.detailIconImg} />
+                        </View>
                         <Text style={[styles.detailPrayerName, !done && styles.detailPrayerMissed]}>
                           {prayer}
                         </Text>
                         <MaterialCommunityIcons
                           name={done ? 'check-circle' : 'close-circle-outline'}
-                          size={18}
+                          size={20}
                           color={done ? '#4ade80' : '#6b7280'}
                         />
                       </View>
@@ -332,6 +400,7 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
             <View style={styles.legend}>
               {PRAYER_ORDER.map(p => (
                 <View key={p} style={styles.legendItem}>
+                  <Image source={PRAYER_ICONS[p]} style={styles.legendIconImg} />
                   <View style={[styles.legendDot, { backgroundColor: PRAYER_COLORS[p] }]} />
                   <Text style={styles.legendText}>{p}</Text>
                 </View>
@@ -383,15 +452,27 @@ const styles = StyleSheet.create({
   streakCard: {
     flex: 1,
     backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 12,
+    borderRadius: 14,
     paddingVertical: 10,
+    paddingHorizontal: 2,
     alignItems: 'center',
   },
-  streakDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  streakIconRing: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: 2,
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 4,
+    shadowOpacity: 0.4,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 0 },
+  },
+  streakIconImg: {
+    width: 18,
+    height: 18,
+    resizeMode: 'contain',
   },
   streakLabel: {
     fontSize: 10,
@@ -402,12 +483,23 @@ const styles = StyleSheet.create({
   streakCount: {
     fontSize: 20,
     fontWeight: '800',
-    color: '#e8e0d6',
   },
   streakUnit: {
     fontSize: 9,
     color: '#6b7280',
     fontWeight: '500',
+    marginBottom: 6,
+  },
+  streakBarTrack: {
+    width: '70%',
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+  streakBarFill: {
+    height: '100%',
+    borderRadius: 1.5,
   },
 
   // Stats bar
@@ -423,6 +515,10 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+  statIcon: {
+    fontSize: 16,
+    marginBottom: 2,
+  },
   statValue: {
     fontSize: 20,
     fontWeight: '800',
@@ -437,6 +533,38 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     backgroundColor: 'rgba(255,255,255,0.08)',
+  },
+  // Monthly completion bar
+  monthRateContainer: {
+    marginHorizontal: 16,
+    marginBottom: 20,
+  },
+  monthRateRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  monthRateLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+    fontWeight: '600',
+  },
+  monthRateValue: {
+    fontSize: 13,
+    color: '#e8a87c',
+    fontWeight: '800',
+  },
+  monthRateTrack: {
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    overflow: 'hidden',
+  },
+  monthRateFill: {
+    height: '100%',
+    borderRadius: 3,
+    backgroundColor: '#e8a87c',
   },
 
   // Calendar
@@ -479,7 +607,19 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   dayCellSelected: {
-    backgroundColor: 'rgba(232, 168, 124, 0.12)',
+    borderWidth: 1.5,
+    borderColor: '#e8a87c',
+  },
+  dayCellToday: {
+    borderWidth: 1.5,
+    borderColor: 'rgba(232, 168, 124, 0.45)',
+  },
+  perfectStar: {
+    fontSize: 7,
+    color: '#fbbf24',
+    position: 'absolute',
+    top: 1,
+    right: 4,
   },
   dayNum: {
     fontSize: 13,
@@ -522,23 +662,37 @@ const styles = StyleSheet.create({
     color: '#e8e0d6',
     marginBottom: 2,
   },
-  detailSubtitle: {
+  detailBadge: {
+    alignSelf: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 12,
+    marginBottom: 14,
+  },
+  detailBadgeText: {
     fontSize: 12,
-    color: '#6b7280',
-    marginBottom: 12,
+    fontWeight: '700',
   },
   detailPrayers: {
-    gap: 8,
+    gap: 10,
   },
   detailRow: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  detailDot: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
+  detailIconCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+  },
+  detailIconImg: {
+    width: 20,
+    height: 20,
+    resizeMode: 'contain',
   },
   detailPrayerName: {
     flex: 1,
@@ -560,7 +714,12 @@ const styles = StyleSheet.create({
   legendItem: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    gap: 3,
+  },
+  legendIconImg: {
+    width: 12,
+    height: 12,
+    resizeMode: 'contain',
   },
   legendDot: {
     width: 7,

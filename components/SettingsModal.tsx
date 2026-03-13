@@ -128,10 +128,8 @@ export const SettingsModal = memo(function SettingsModal({
     Linking.openURL(url);
   }, []);
 
-  return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.overlay}>
-        <View style={styles.container}>
+  const innerContent = (
+    <>
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>⚙️ Settings</Text>
@@ -254,6 +252,14 @@ export const SettingsModal = memo(function SettingsModal({
 
             <View style={{ height: 30 }} />
           </ScrollView>
+    </>
+  );
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <View style={styles.container}>
+          {innerContent}
         </View>
       </View>
     </Modal>

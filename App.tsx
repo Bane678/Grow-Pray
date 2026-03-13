@@ -1,6 +1,8 @@
 import "./global.css";
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, ActivityIndicator, TouchableOpacity, Image, Animated, Modal, ScrollView, TouchableWithoutFeedback, Easing } from 'react-native';
+import { Text, View, ActivityIndicator, TouchableOpacity, Image, ImageBackground, Animated, Modal, ScrollView, TouchableWithoutFeedback, Easing, StyleSheet, Dimensions, Platform } from 'react-native';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
 import { GardenScene } from './components/GardenScene';
 import { useGardenState, TileState } from './hooks/useGardenState';
@@ -16,7 +18,9 @@ import { useDifficultDay } from './hooks/useDifficultDay';
 import { DifficultDayModal } from './components/DifficultDayModal';
 import { SettingsModal } from './components/SettingsModal';
 import { PrayerHistoryModal } from './components/PrayerHistoryModal';
+
 import { Asset } from 'expo-asset';
+import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { usePrayerTimes } from './hooks/usePrayerTimes';
 import { useNotifications } from './hooks/useNotifications';
@@ -24,6 +28,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
+
+// Keep the native splash visible until our custom loading screen image is ready
+SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const THEME = {
@@ -423,18 +430,309 @@ function RestOverlay({
 }
 
 // Top Info Bar — clean minimal: stats row + next prayer line
+// Circular progress ring built with half-circle rotations (no SVG needed)
+function CountdownRing({ progress, size, strokeWidth, color, trackColor }: {
+  progress: number; // 0..1
+  size: number;
+  strokeWidth: number;
+  color: string;
+  trackColor: string;
+}) {
+  const radius = size / 2;
+  const p = Math.min(Math.max(progress, 0), 1);
+
+  // Right half: sweeps from 180° (hidden behind clip) to 0° (full right arc visible at 50%)
+  const rightDeg = 180 - Math.min(p, 0.5) * 360;
+  // Left half: stays hidden at 180° until 50%, then sweeps to 0° at 100%
+  const leftDeg = p <= 0.5 ? 180 : 180 - (p - 0.5) * 360;
+
+  return (
+    <View style={{ width: size, height: size }}>
+      {/* Track */}
+      <View style={{
+        position: 'absolute',
+        width: size,
+        height: size,
+        borderRadius: radius,
+        borderWidth: strokeWidth,
+        borderColor: trackColor,
+      }} />
+      {/* Right clip — shows right half of the rotating arc */}
+      <View style={{
+        position: 'absolute',
+        left: radius,
+        width: radius,
+        height: size,
+        overflow: 'hidden',
+      }}>
+        <View style={{
+          width: size,
+          height: size,
+          left: -radius,
+          borderRadius: radius,
+          borderWidth: strokeWidth,
+          borderTopColor: color,
+          borderRightColor: color,
+          borderBottomColor: 'transparent',
+          borderLeftColor: 'transparent',
+          transform: [{ rotate: `${rightDeg}deg` }],
+        }} />
+      </View>
+      {/* Left clip — shows left half of the rotating arc */}
+      <View style={{
+        position: 'absolute',
+        left: 0,
+        width: radius,
+        height: size,
+        overflow: 'hidden',
+      }}>
+        <View style={{
+          width: size,
+          height: size,
+          borderRadius: radius,
+          borderWidth: strokeWidth,
+          borderBottomColor: color,
+          borderLeftColor: color,
+          borderTopColor: 'transparent',
+          borderRightColor: 'transparent',
+          transform: [{ rotate: `${leftDeg}deg` }],
+        }} />
+      </View>
+    </View>
+  );
+}
+
+// Premium animated countdown ring with glow, leading dot, smooth animation & completion pulse
+function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
+  progress: number;
+  size: number;
+  strokeWidth: number;
+  isComplete: boolean; // true when all prayers done
+}) {
+  const radius = size / 2;
+  // Smoothly animate the displayed progress
+  const animProgress = useRef(new Animated.Value(0)).current;
+  const prevProgressRef = useRef(0);
+
+  // Completion pulse
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  const pulseOpacity = useRef(new Animated.Value(0)).current;
+  const wasComplete = useRef(false);
+
+  // Leading edge glow pulse
+  const edgeGlow = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(edgeGlow, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(edgeGlow, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, []);
+
+  useEffect(() => {
+    const prev = prevProgressRef.current;
+    prevProgressRef.current = progress;
+
+    // Detect reset (progress jumped backward significantly = new prayer cycle)
+    if (prev > 0.9 && progress < 0.1) {
+      // Fire completion pulse, then reset
+      Animated.parallel([
+        Animated.timing(pulseAnim, { toValue: 1.15, duration: 300, useNativeDriver: true }),
+        Animated.timing(pulseOpacity, { toValue: 0.6, duration: 300, useNativeDriver: true }),
+      ]).start(() => {
+        Animated.parallel([
+          Animated.timing(pulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+          Animated.timing(pulseOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+        ]).start();
+        animProgress.setValue(0);
+        Animated.timing(animProgress, {
+          toValue: progress,
+          duration: 600,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: false,
+        }).start();
+      });
+    } else {
+      // Normal smooth interpolation
+      Animated.timing(animProgress, {
+        toValue: progress,
+        duration: 800,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: false,
+      }).start();
+    }
+  }, [progress]);
+
+  // Completion state pulse (all prayers done)
+  useEffect(() => {
+    if (isComplete && !wasComplete.current) {
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.12, duration: 350, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+      ]).start();
+      Animated.sequence([
+        Animated.timing(pulseOpacity, { toValue: 0.5, duration: 350, useNativeDriver: true }),
+        Animated.timing(pulseOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
+      ]).start();
+    }
+    wasComplete.current = isComplete;
+  }, [isComplete]);
+
+  // Use listener to drive the non-animated CountdownRing
+  const [displayProgress, setDisplayProgress] = useState(progress);
+  useEffect(() => {
+    const id = animProgress.addListener(({ value }) => setDisplayProgress(value));
+    return () => animProgress.removeListener(id);
+  }, []);
+
+  const activeColor = isComplete ? '#4ade80' : '#e8a87c';
+  const brightColor = isComplete ? '#86efac' : '#fbbf24';
+
+  // Leading edge position — angle in the -90deg rotated coordinate system
+  // progress 0 = top (12 o'clock), progress 1 = full circle back to top
+  const edgeAngle = displayProgress * 2 * Math.PI - Math.PI / 2;
+  const dotX = radius + (radius - strokeWidth / 2) * Math.cos(edgeAngle);
+  const dotY = radius + (radius - strokeWidth / 2) * Math.sin(edgeAngle);
+
+  return (
+    <View style={{ width: size + 16, height: size + 16, alignItems: 'center', justifyContent: 'center' }}>
+      {/* Outer glow layers */}
+      <Animated.View style={{
+        position: 'absolute',
+        width: size + 12,
+        height: size + 12,
+        borderRadius: (size + 12) / 2,
+        backgroundColor: activeColor,
+        opacity: Animated.add(
+          pulseOpacity,
+          displayProgress > 0.01 ? 0.06 : 0,
+        ),
+        transform: [{ scale: pulseAnim }],
+      }} />
+      <Animated.View style={{
+        position: 'absolute',
+        width: size + 6,
+        height: size + 6,
+        borderRadius: (size + 6) / 2,
+        backgroundColor: activeColor,
+        opacity: displayProgress > 0.01 ? 0.08 : 0,
+        transform: [{ scale: pulseAnim }],
+      }} />
+
+      {/* The ring itself (rotated so 0 = top, 1 = full clockwise) */}
+      <View style={{ transform: [{ rotate: '-90deg' }] }}>
+        {/* Base warm-orange arc */}
+        <CountdownRing
+          progress={displayProgress}
+          size={size}
+          strokeWidth={strokeWidth}
+          color={activeColor}
+          trackColor="rgba(255,255,255,0.06)"
+        />
+        {/* Overlay lighter gold arc at slightly less progress to simulate gradient tail */}
+        {displayProgress > 0.02 && (
+          <View style={{ position: 'absolute' }}>
+            <CountdownRing
+              progress={Math.max(0, displayProgress - 0.08)}
+              size={size}
+              strokeWidth={strokeWidth}
+              color={brightColor}
+              trackColor="transparent"
+            />
+          </View>
+        )}
+      </View>
+
+      {/* Leading edge glowing dot */}
+      {displayProgress > 0.01 && displayProgress < 0.99 && (
+        <Animated.View style={{
+          position: 'absolute',
+          left: 8 + dotX - 4,
+          top: 8 + dotY - 4,
+          width: 8,
+          height: 8,
+          borderRadius: 4,
+          backgroundColor: brightColor,
+          opacity: edgeGlow.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }),
+          shadowColor: brightColor,
+          shadowOffset: { width: 0, height: 0 },
+          shadowOpacity: 0.9,
+          shadowRadius: 6,
+          elevation: 6,
+        }} />
+      )}
+    </View>
+  );
+}
+
+
+// Subtle ambient floating particles for the sky area
+const PARTICLE_COUNT = 14;
+const PARTICLE_SEED = Array.from({ length: PARTICLE_COUNT }, (_, i) => ({
+  x: ((i * 47 + 13) % 97) / 100,
+  y: ((i * 31 + 7) % 85) / 100,
+  size: 1.2 + (i % 4) * 0.4,
+  dur: 8000 + (i * 1337) % 6000,
+  delay: (i * 571) % 3000,
+  drift: 10 + (i % 3) * 8,
+  opacity: 0.06 + (i % 5) * 0.025,
+}));
+
+const AmbientParticle = React.memo(function AmbientParticle({ p, screenW, screenH }: {
+  p: typeof PARTICLE_SEED[0]; screenW: number; screenH: number;
+}) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    const loop = Animated.loop(Animated.sequence([
+      Animated.timing(anim, { toValue: 1, duration: p.dur, easing: Easing.inOut(Easing.sin), useNativeDriver: true, delay: p.delay }),
+      Animated.timing(anim, { toValue: 0, duration: p.dur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+    ]));
+    loop.start();
+    return () => loop.stop();
+  }, []);
+  return (
+    <Animated.View pointerEvents="none" style={{
+      position: 'absolute',
+      left: p.x * screenW,
+      top: p.y * screenH * 0.5,
+      width: p.size,
+      height: p.size,
+      borderRadius: p.size / 2,
+      backgroundColor: '#c4d4f0',
+      opacity: anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [p.opacity * 0.3, p.opacity, p.opacity * 0.3] }),
+      transform: [
+        { translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [0, -p.drift] }) },
+        { translateX: anim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, p.drift * 0.3, 0] }) },
+      ],
+    }} />
+  );
+});
+
+const AmbientParticles = React.memo(function AmbientParticles() {
+  const { width: sw, height: sh } = Dimensions.get('window');
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {PARTICLE_SEED.map((p, i) => (
+        <AmbientParticle key={i} p={p} screenW={sw} screenH={sh} />
+      ))}
+    </View>
+  );
+});
+
 function TopInfoBar({ 
   streaks, 
   coins,
   xp, 
   nextPrayer, 
   timeUntilNext,
+  ringProgress,
   freezeCount,
   consistencyMultiplier,
-  perfectDays,
-  nextTier,
   onMultiplierPress,
-  ramadanBanner,
+  isRamadan,
+  ramadanDay,
+  ramadanMultiplier,
   difficultDayActive,
 }: { 
   streaks: PrayerStreaks; 
@@ -442,114 +740,185 @@ function TopInfoBar({
   xp: number; 
   nextPrayer: string | null; 
   timeUntilNext: string;
+  ringProgress: number;
   freezeCount: number;
   consistencyMultiplier: number;
-  perfectDays: number;
-  nextTier: { daysNeeded: number; nextMultiplier: number } | null;
   onMultiplierPress: () => void;
-  ramadanBanner: string | null;
+  isRamadan: boolean;
+  ramadanDay: number;
+  ramadanMultiplier: number;
   difficultDayActive: boolean;
 }) {
   const bestStreak = Math.max(...Object.values(streaks));
+  const combinedMultiplier = consistencyMultiplier * ramadanMultiplier;
+  const screenWidth = Dimensions.get('window').width;
 
   return (
-    <View style={{ paddingHorizontal: 16, paddingVertical: 8, gap: 6 }}>
-      {/* Ramadan banner */}
-      {ramadanBanner && (
-        <View style={{
-          backgroundColor: THEME.purpleMuted,
-          borderRadius: 10,
-          paddingVertical: 6,
-          paddingHorizontal: 12,
-          alignItems: 'center',
-        }}>
-          <Text style={{ fontSize: 13, fontWeight: '600', color: THEME.purple }}>
-            {ramadanBanner}
-          </Text>
-        </View>
-      )}
+    <View style={{ alignItems: 'center', paddingTop: 16 }}>
 
-      {/* Difficult Day banner */}
+      {/* Difficult Day banner — compact */}
       {difficultDayActive && (
         <View style={{
           backgroundColor: THEME.purpleMuted,
-          borderRadius: 10,
-          paddingVertical: 5,
-          paddingHorizontal: 12,
-          alignItems: 'center',
+          borderRadius: 9,
+          paddingVertical: 4,
+          paddingHorizontal: 10,
+          marginBottom: 8,
         }}>
-          <Text style={{ fontSize: 12, fontWeight: '600', color: THEME.purple }}>
+          <Text style={{ fontSize: 10, fontWeight: '600', color: THEME.purple }}>
             Difficult Day Active
           </Text>
         </View>
       )}
 
-      {/* Single stats row — inline, no individual borders */}
+      {/* ── Context label — subtle next prayer indicator ── */}
+      {nextPrayer ? (
+        <Text style={{
+          fontSize: 11,
+          fontWeight: '500',
+          color: 'rgba(232,224,214,0.5)',
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+          marginBottom: 10,
+        }}>
+          Next: {nextPrayer}
+        </Text>
+      ) : (
+        <Text style={{
+          fontSize: 11,
+          fontWeight: '500',
+          color: 'rgba(74,222,128,0.5)',
+          letterSpacing: 1,
+          textTransform: 'uppercase',
+          marginBottom: 10,
+        }}>
+          All Prayers Complete
+        </Text>
+      )}
+
+      {/* ── Moonlight glow behind timer ── */}
+      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+        {/* Outer soft glow */}
+        <View pointerEvents="none" style={{
+          position: 'absolute',
+          width: 180,
+          height: 180,
+          borderRadius: 90,
+          backgroundColor: 'rgba(140,170,220,0.04)',
+        }} />
+        {/* Inner brighter glow */}
+        <View pointerEvents="none" style={{
+          position: 'absolute',
+          width: 120,
+          height: 120,
+          borderRadius: 60,
+          backgroundColor: 'rgba(160,190,240,0.06)',
+        }} />
+
+        {/* ── Countdown Circle — focal element ── */}
+        <View style={{ width: 96, height: 96, alignItems: 'center', justifyContent: 'center' }}>
+          <PremiumCountdownRing
+            progress={ringProgress}
+            size={80}
+            strokeWidth={3.5}
+            isComplete={!nextPrayer}
+          />
+          {/* Center text */}
+          <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{
+              fontSize: 18,
+              fontWeight: '800',
+              color: THEME.text,
+              letterSpacing: -0.5,
+            }}>
+              {nextPrayer ? timeUntilNext : '✓'}
+            </Text>
+            <Text style={{
+              fontSize: 9,
+              fontWeight: '500',
+              color: THEME.textSecondary,
+              marginTop: 1,
+            }}>
+              {nextPrayer ? `until ${nextPrayer}` : 'All done'}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      {/* 18px gap between timer and stats */}
+      <View style={{ height: 18 }} />
+
+      {/* ── Floating Pill Stats Panel — Liquid Glass ── */}
       <View style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        backgroundColor: THEME.bgCard,
-        borderRadius: 14,
-        paddingHorizontal: 14,
-        paddingVertical: 8,
+        width: screenWidth * 0.65,
+        borderRadius: 18,
+        overflow: 'hidden',
       }}>
-        {/* Left group: streak · coins · xp */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
+        <BlurView intensity={25} tint="dark" style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-evenly',
+          paddingVertical: 9,
+          paddingHorizontal: 6,
+          borderRadius: 18,
+          borderWidth: 1,
+          borderColor: 'rgba(255,255,255,0.12)',
+        }}>
+          {/* Glass surface fill */}
+          <View style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(20,30,50,0.30)',
+            borderRadius: 18,
+          }} />
+          {/* Top-edge highlight */}
+          <View style={{
+            position: 'absolute', top: 0, left: 12, right: 12, height: 1,
+            backgroundColor: 'rgba(255,255,255,0.08)',
+          }} />
+
           {/* Streak */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <MaterialCommunityIcons name="fire" size={15} color={bestStreak > 0 ? THEME.warning : THEME.textSecondary} />
-            <Text style={{ fontSize: 14, fontWeight: '700', color: bestStreak > 0 ? THEME.warning : THEME.textSecondary }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Text style={{ fontSize: 11 }}>🔥</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: bestStreak > 0 ? THEME.warning : THEME.textSecondary }}>
               {bestStreak}
             </Text>
           </View>
 
           {/* Coins */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <MaterialCommunityIcons name="circle-multiple" size={14} color={THEME.coin} />
-            <Text style={{ fontSize: 14, fontWeight: '700', color: THEME.coin }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Text style={{ fontSize: 11 }}>🪙</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.coin }}>
               {coins}
             </Text>
           </View>
 
           {/* XP */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <MaterialCommunityIcons name="star-four-points" size={14} color={THEME.success} />
-            <Text style={{ fontSize: 14, fontWeight: '700', color: THEME.success }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Text style={{ fontSize: 11 }}>✨</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.success }}>
               {xp}
             </Text>
           </View>
 
+          {/* Combined Multiplier */}
+          <TouchableOpacity onPress={onMultiplierPress} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+            <Text style={{ fontSize: 11 }}>⚡</Text>
+            <Text style={{ fontSize: 13, fontWeight: '800', color: combinedMultiplier > 1 ? THEME.coin : THEME.textSecondary }}>
+              {combinedMultiplier}×
+            </Text>
+          </TouchableOpacity>
+
           {/* Freeze (only if > 0) */}
           {freezeCount > 0 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-              <MaterialCommunityIcons name="shield-check" size={14} color={THEME.purple} />
-              <Text style={{ fontSize: 14, fontWeight: '700', color: THEME.purple }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+              <MaterialCommunityIcons name="shield-check" size={12} color={THEME.purple} />
+              <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.purple }}>
                 {freezeCount}
               </Text>
             </View>
           )}
-        </View>
-
-        {/* Right: multiplier badge */}
-        <TouchableOpacity onPress={onMultiplierPress} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-          <MaterialCommunityIcons name="lightning-bolt" size={14} color={consistencyMultiplier > 1 ? THEME.coin : THEME.textSecondary} />
-          <Text style={{ fontSize: 14, fontWeight: '700', color: consistencyMultiplier > 1 ? THEME.coin : THEME.textSecondary }}>
-            {consistencyMultiplier}×
-          </Text>
-        </TouchableOpacity>
+        </BlurView>
       </View>
-
-      {/* Next prayer countdown — standalone warm accent line */}
-      <Text style={{
-        fontSize: 14,
-        fontWeight: '500',
-        color: THEME.accent,
-        textAlign: 'center',
-        paddingVertical: 2,
-      }}>
-        {nextPrayer ? `${timeUntilNext} until ${nextPrayer}` : 'All prayers complete ✓'}
-      </Text>
     </View>
   );
 }
@@ -587,6 +956,7 @@ function FloatingPrayerBar({
   onTogglePrayer,
   getPrayerWindowStatus,
   streaks,
+  debugPrayersUnlocked = false,
 }: {
   timings: Record<string, string> | null;
   nextPrayer: string | null;
@@ -594,6 +964,7 @@ function FloatingPrayerBar({
   onTogglePrayer: (prayer: string) => void;
   getPrayerWindowStatus: (prayer: string) => 'active' | 'missed' | 'upcoming';
   streaks: PrayerStreaks;
+  debugPrayersUnlocked?: boolean;
 }) {
   const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
@@ -618,7 +989,7 @@ function FloatingPrayerBar({
         const isActive = status === 'active';
         const isMissed = status === 'missed';
         const isUpcoming = status === 'upcoming';
-        const canTap = isActive || isCompleted;
+        const canTap = debugPrayersUnlocked || isActive || isCompleted;
         
         // Subtle ring color for status
         let ringColor = 'rgba(255,255,255,0.1)'; // upcoming
@@ -1449,6 +1820,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
   const [prayerHistory, setPrayerHistory] = useState<Record<string, string[]>>({});
 
   const [timeUntilNext, setTimeUntilNext] = useState('--:--');
+  const [ringProgress, setRingProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [xpPopup, setXpPopup] = useState<{ visible: boolean; amount: number; baseAmount: number; multiplier: number }>({ visible: false, amount: 0, baseAmount: 0, multiplier: 1 });
   const [coinPopup, setCoinPopup] = useState<{ visible: boolean; amount: number }>({ visible: false, amount: 0 });
@@ -1466,40 +1838,70 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     return () => clearInterval(interval);
   }, []);
 
-  // Calculate time until next prayer
+  // Calculate time until next prayer + ring progress (updates every second)
   useEffect(() => {
     if (!timings || !nextPrayer) {
       setTimeUntilNext('--:--');
+      setRingProgress(0);
       return;
     }
 
+    const PRAYER_ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+
+    // Parse "HH:MM" → Date object for today (or adjusted day)
+    const parseTime = (timeStr: string, refDate: Date): Date => {
+      const [h, m] = timeStr.split(':').map(Number);
+      const d = new Date(refDate);
+      d.setHours(h, m, 0, 0);
+      return d;
+    };
+
     const updateCountdown = () => {
       const now = new Date();
-      const timeStr = timings[nextPrayer];
-      if (!timeStr) return;
 
-      const [hours, minutes] = timeStr.split(':').map(Number);
-      const prayerTime = new Date();
-      prayerTime.setHours(hours, minutes, 0, 0);
-
-      // If prayer time has passed, it's likely tomorrow's first prayer
-      if (prayerTime <= now) {
-        prayerTime.setDate(prayerTime.getDate() + 1);
+      // ── Next prayer time ──
+      const nextTimeStr = timings[nextPrayer];
+      if (!nextTimeStr) return;
+      let nextTime = parseTime(nextTimeStr, now);
+      // If nextPrayer time already passed today, it's tomorrow (Fajr after Isha)
+      if (nextTime <= now) {
+        nextTime.setDate(nextTime.getDate() + 1);
       }
 
-      const diff = prayerTime.getTime() - now.getTime();
+      // ── Previous prayer time ──
+      const nextIdx = PRAYER_ORDER.indexOf(nextPrayer);
+      const prevIdx = nextIdx > 0 ? nextIdx - 1 : PRAYER_ORDER.length - 1;
+      const prevPrayer = PRAYER_ORDER[prevIdx];
+      const prevTimeStr = timings[prevPrayer];
+      let prevTime = prevTimeStr ? parseTime(prevTimeStr, now) : new Date(now);
+      // Previous prayer should be before now
+      if (prevTime > now) {
+        prevTime.setDate(prevTime.getDate() - 1);
+      }
+
+      // ── Ring progress: (now - prev) / (next - prev) ──
+      const totalSpan = nextTime.getTime() - prevTime.getTime();
+      const elapsed = now.getTime() - prevTime.getTime();
+      const progress = totalSpan > 0 ? Math.min(Math.max(elapsed / totalSpan, 0), 1) : 0;
+      setRingProgress(progress);
+
+      // ── Countdown text ──
+      const diff = nextTime.getTime() - now.getTime();
       const diffHours = Math.floor(diff / (1000 * 60 * 60));
       const diffMinutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const diffSeconds = Math.floor((diff % (1000 * 60)) / 1000);
 
       if (diffHours > 0) {
         setTimeUntilNext(`${diffHours}h ${diffMinutes}m`);
+      } else if (diffMinutes > 0) {
+        setTimeUntilNext(`${diffMinutes}m ${diffSeconds}s`);
       } else {
-        setTimeUntilNext(`${diffMinutes}m`);
+        setTimeUntilNext(`${diffSeconds}s`);
       }
     };
 
     updateCountdown();
-    const interval = setInterval(updateCountdown, 60000); // Update every minute
+    const interval = setInterval(updateCountdown, 1000); // Update every second
     return () => clearInterval(interval);
   }, [timings, nextPrayer]);
 
@@ -1798,6 +2200,37 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     setXpPopup({ visible: false, amount: 0, baseAmount: 0, multiplier: 1 });
   };
 
+  // Debug: same as togglePrayerCompleted but bypasses the active-window check
+  const debugTogglePrayer = async (prayer: string) => {
+    const newCompleted = new Set(completedPrayers);
+    const wasCompleted = newCompleted.has(prayer);
+    if (wasCompleted) {
+      newCompleted.delete(prayer);
+    } else {
+      newCompleted.add(prayer);
+      const baseXp = XP_ON_TIME;
+      const xpEarned = Math.round(baseXp * xpMultiplier * 10) / 10;
+      const newXp = xp + xpEarned;
+      setXp(newXp);
+      setXpPopup({ visible: true, amount: xpEarned, baseAmount: baseXp, multiplier: xpMultiplier });
+      await AsyncStorage.setItem(XP_KEY, JSON.stringify(newXp));
+      const newStreaks = { ...streaks, [prayer]: (streaks[prayer] || 0) + 1 };
+      setStreaks(newStreaks);
+      await AsyncStorage.setItem(STREAKS_KEY, JSON.stringify({ counts: newStreaks, lastDate: new Date().toDateString() }));
+      let coinsEarned = COINS_PER_PRAYER * coinMultiplier;
+      if (newCompleted.size === 5) coinsEarned += COINS_ALL_FIVE_BONUS;
+      const newCoins = coins + coinsEarned;
+      setCoins(newCoins);
+      await AsyncStorage.setItem(COINS_KEY, JSON.stringify(newCoins));
+      setTimeout(() => setCoinPopup({ visible: true, amount: coinsEarned }), 300);
+    }
+    setCompletedPrayers(newCompleted);
+    try {
+      const today = new Date().toDateString();
+      await AsyncStorage.setItem(COMPLETED_PRAYERS_KEY, JSON.stringify({ date: today, prayers: Array.from(newCompleted) }));
+    } catch (e) {}
+  };
+
   const hideCoinPopup = () => {
     setCoinPopup({ visible: false, amount: 0 });
   };
@@ -1836,8 +2269,10 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     milestonePopup,
     hideMilestonePopup,
     timeUntilNext,
+    ringProgress,
     canCompletePrayer,
     togglePrayerCompleted,
+    debugTogglePrayer,
     getPrayerWindowStatus,
     spendCoins,
     earnCoins,
@@ -2070,6 +2505,59 @@ function FreezePromptModal({
   );
 }
 
+// ─── Loading Overlay ─────────────────────────────────────────────────────────────
+// Sits on top of the entire app tree at zIndex 9999. Stays fully visible while
+// assets, garden state, and prayer state are loading behind it. Once `ready`
+// is true, fades out and unmounts so gestures are no longer blocked.
+const LOADING_SCREEN_IMAGE = require('./assets/Garden Assets/Icons/Loading_Screen.png');
+
+const MIN_SPLASH_MS = 2000; // Show loading screen for at least 2 seconds
+
+function LoadingOverlay({ ready, onImageLoaded }: { ready: boolean; onImageLoaded: () => void }) {
+  const opacity = useRef(new Animated.Value(1)).current;
+  const [visible, setVisible] = useState(true);
+  const mountTime = useRef(Date.now()).current;
+
+  useEffect(() => {
+    if (!ready) return;
+    // Ensure the loading screen is visible for at least MIN_SPLASH_MS
+    const elapsed = Date.now() - mountTime;
+    const remaining = Math.max(0, MIN_SPLASH_MS - elapsed);
+    const timer = setTimeout(() => {
+      Animated.timing(opacity, {
+        toValue: 0,
+        duration: 400,
+        easing: Easing.out(Easing.quad),
+        useNativeDriver: true,
+      }).start(() => setVisible(false));
+    }, remaining);
+    return () => clearTimeout(timer);
+  }, [ready]);
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View
+      pointerEvents={ready ? 'none' : 'box-none'}
+      style={[
+        StyleSheet.absoluteFill,
+        {
+          zIndex: 9999,
+          opacity,
+          backgroundColor: THEME.bg,
+        },
+      ]}
+    >
+      <Image
+        source={LOADING_SCREEN_IMAGE}
+        style={{ width: '100%', height: '100%' }}
+        resizeMode="cover"
+        onLoad={onImageLoaded}
+      />
+    </Animated.View>
+  );
+}
+
 export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null); // null = loading
@@ -2079,6 +2567,7 @@ export default function App() {
   const [showExpansionModal, setShowExpansionModal] = useState(false);
   const [showShopModal, setShowShopModal] = useState(false);
   const [showDebugModal, setShowDebugModal] = useState(false);
+  const [debugPrayersUnlocked, setDebugPrayersUnlocked] = useState(false);
   const [showMultiplierModal, setShowMultiplierModal] = useState(false);
   const [showChallengesModal, setShowChallengesModal] = useState(false);
   const [showDifficultDayModal, setShowDifficultDayModal] = useState(false);
@@ -2322,8 +2811,8 @@ export default function App() {
     const status = prayerState.getPrayerWindowStatus(prayer);
     const isOnTime = status === 'active';
 
-    // Execute the original toggle
-    await prayerState.togglePrayerCompleted(prayer);
+    // Execute prayer toggle — bypass time-window if debug mode is on
+    await (debugPrayersUnlocked ? prayerState.debugTogglePrayer(prayer) : prayerState.togglePrayerCompleted(prayer));
 
     // Update challenges
     if (wasCompleted) {
@@ -2331,7 +2820,7 @@ export default function App() {
     } else {
       challengesHook.recordPrayerCompletion(prayer, isOnTime);
     }
-  }, [prayerState, challengesHook]);
+  }, [prayerState, challengesHook, debugPrayersUnlocked]);
 
   // Claim challenge reward → credit coins
   const handleClaimChallengeReward = useCallback(async (challengeId: ChallengeId) => {
@@ -2484,17 +2973,69 @@ export default function App() {
     gardenState.totalRecoveredTiles > 0,
   );
 
+  // Pre-load the loading screen image first, then load everything else
   useEffect(() => {
     const loadAssets = async () => {
       try {
+        // Step 1: Pre-load the loading screen image so it's immediately available
+        await Asset.loadAsync([LOADING_SCREEN_IMAGE]);
+
+        // Step 2: Load all remaining game assets behind the loading screen
         await Asset.loadAsync([
+          // Ground tiles
           require('./assets/Garden Assets/Ground Tiles/Dead_Tile.png'),
+          require('./assets/Garden Assets/Ground Tiles/Recovering_Tile.png'),
           require('./assets/Garden Assets/Ground Tiles/Recovered_Tile.png'),
-          require('./assets/Garden Assets/Tree Types/Sapling_converted.png'),
-          require('./assets/Garden Assets/Tree Types/Growing_Tree_converted.png'),
-          require('./assets/Garden Assets/Tree Types/Grown_Tree_converted.png'),
-          require('./assets/Garden Assets/Tree Types/Dead_Tree.png'),
+          // Tile decorations
+          require('./assets/Garden Assets/Ground Tiles/Dead_Grass_Tuft.png'),
+          require('./assets/Garden Assets/Ground Tiles/Pebbles.png'),
+          require('./assets/Garden Assets/Ground Tiles/Wildflowers.png'),
+          require('./assets/Garden Assets/Ground Tiles/Grass_Blades.png'),
+          require('./assets/Garden Assets/Ground Tiles/Mushrooms.png'),
+          require('./assets/Garden Assets/Ground Tiles/Clovers.png'),
+          // Trees
+          require('./assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png'),
+          require('./assets/Garden Assets/Tree Types/Basic Trees/Growing_Tree_converted.png'),
+          require('./assets/Garden Assets/Tree Types/Basic Trees/Grown_Tree_converted.png'),
+          require('./assets/Garden Assets/Tree Types/Basic Trees/Flourishing_Tree_converted.png'),
+          require('./assets/Garden Assets/Tree Types/Basic Trees/Dead_Tree.png'),
+          require('./assets/Garden Assets/Tree Types/Palm Trees/Palm_Sapling.png'),
+          require('./assets/Garden Assets/Tree Types/Palm Trees/Palm_Growing.png'),
+          require('./assets/Garden Assets/Tree Types/Palm Trees/Palm_Grown.png'),
+          require('./assets/Garden Assets/Tree Types/Palm Trees/Palm_Flourishing.png'),
+          require('./assets/Garden Assets/Tree Types/Willow Trees/Willow_Sapling.png'),
+          require('./assets/Garden Assets/Tree Types/Willow Trees/Willow_Growing.png'),
+          require('./assets/Garden Assets/Tree Types/Willow Trees/Willow_Grown.png'),
+          require('./assets/Garden Assets/Tree Types/Willow Trees/Willow_Flourishing.png'),
+          require('./assets/Garden Assets/Tree Types/Oak Trees/Oak_Sapling.png'),
+          require('./assets/Garden Assets/Tree Types/Oak Trees/Oak_Growing.png'),
+          require('./assets/Garden Assets/Tree Types/Oak Trees/Oak_Grown.png'),
+          require('./assets/Garden Assets/Tree Types/Oak Trees/Oak_Flourishing.png'),
+          require('./assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Sapling.png'),
+          require('./assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Growing.png'),
+          require('./assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Grown.png'),
+          require('./assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Flourishing.png'),
+          require('./assets/Garden Assets/Tree Types/Maple Trees/Maple_Sapling.png'),
+          require('./assets/Garden Assets/Tree Types/Maple Trees/Maple_Growing.png'),
+          require('./assets/Garden Assets/Tree Types/Maple Trees/Maple_Grown.png'),
+          require('./assets/Garden Assets/Tree Types/Maple Trees/Maple_Flourishing.png'),
+          require('./assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Sapling.png'),
+          require('./assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Growing.png'),
+          require('./assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Grown.png'),
+          require('./assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Flourishing.png'),
+          require('./assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Sapling.png'),
+          require('./assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Growing.png'),
+          require('./assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Grown.png'),
+          require('./assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Flourished.png'),
+          // Effects
+          require('./assets/Garden Assets/Effects/Ember_Mote.png'),
+          require('./assets/Garden Assets/Effects/Dew_Sparkle.png'),
+          require('./assets/Garden Assets/Effects/Pollen_Mote.png'),
+          require('./assets/Garden Assets/Effects/Falling_Leaf.png'),
+          require('./assets/Garden Assets/Effects/Fruit_Common.png'),
+          require('./assets/Garden Assets/Effects/Fruit_Premium.png'),
           require('./assets/Garden Assets/Effects/xp_badge.png'),
+          // Icons
           require('./assets/Garden Assets/Icons/Axe.png'),
           require('./assets/Garden Assets/Icons/Fajr.png'),
           require('./assets/Garden Assets/Icons/Dhuhr.png'),
@@ -2514,31 +3055,36 @@ export default function App() {
 
   // Show onboarding for first-time users
   if (showOnboarding === null) {
-    // Still checking AsyncStorage
     return (
-      <View style={{ flex: 1, backgroundColor: THEME.bg, justifyContent: 'center', alignItems: 'center' }}>
+      <View style={{ flex: 1, backgroundColor: THEME.bg }}>
         <StatusBar style="light" />
+        <LoadingOverlay
+          ready={false}
+          onImageLoaded={() => SplashScreen.hideAsync().catch(() => {})}
+        />
       </View>
     );
   }
 
   if (showOnboarding) {
-    return <OnboardingScreen onComplete={handleOnboardingComplete} />;
-  }
-
-  if (!isReady) {
     return (
-      <View style={{ flex: 1, backgroundColor: THEME.bg, justifyContent: 'center', alignItems: 'center' }}>
-        <StatusBar style="light" />
-        <Text style={{ fontSize: 32, fontWeight: 'bold', color: THEME.text, marginBottom: 8 }}>Jannah Garden</Text>
-        <ActivityIndicator size="large" color={THEME.accent} style={{ marginTop: 16 }} />
-      </View>
+      <>
+        <OnboardingScreen onComplete={handleOnboardingComplete} />
+        <LoadingOverlay
+          ready={isReady}
+          onImageLoaded={() => SplashScreen.hideAsync().catch(() => {})}
+        />
+      </>
     );
   }
 
   return (
     <SafeAreaProvider>
-    <View style={{ flex: 1, backgroundColor: THEME.bg }}>
+    <ImageBackground
+        source={require('./assets/Garden Assets/Icons/Starry_Night_Sky.png')}
+        style={{ flex: 1, backgroundColor: THEME.bg }}
+        resizeMode="cover"
+      >
       <StatusBar style="light" />
       
       {/* Content area — fills space above bottom bar */}
@@ -3347,6 +3893,26 @@ export default function App() {
                 </Text>
               </TouchableOpacity>
 
+              {/* ── Prayer unlock toggle ──────────────────────── */}
+              <TouchableOpacity
+                onPress={() => setDebugPrayersUnlocked(v => !v)}
+                style={{
+                  backgroundColor: debugPrayersUnlocked ? '#2d5a2d' : '#2d3748',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: debugPrayersUnlocked ? '#48bb78' : '#4a5568',
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600' }}>
+                  {debugPrayersUnlocked ? '🔓 Prayer Icons: Always Tappable' : '🔒 Prayer Icons: Time-Locked'}
+                </Text>
+                <Text style={{ color: debugPrayersUnlocked ? '#68d391' : '#cbd5e0', fontSize: 11, marginTop: 4 }}>
+                  {debugPrayersUnlocked ? 'Tap to re-enable time locks' : 'Tap to bypass time windows'}
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={() => setShowDebugModal(false)}
                 style={{
@@ -3418,10 +3984,9 @@ export default function App() {
         </SafeAreaView>
       )}
 
-      {/* Top Info Bar - Floating overlay (stats only, hidden on non-garden tabs) */}
+      {/* Top Info Bar - Floating overlay with gradient backdrop */}
       {activeTab === 'garden' && (
-      <SafeAreaView 
-        edges={['top']} 
+      <View
         pointerEvents="box-none"
         style={{ 
           position: 'absolute', 
@@ -3431,6 +3996,33 @@ export default function App() {
           zIndex: 300,
         }}
       >
+        {/* Soft gradient transition — deep navy fading into transparent */}
+        <LinearGradient
+          colors={[
+            'rgba(10,14,28,0.88)',   // deep navy, near-opaque
+            'rgba(10,14,28,0.65)',   // still strong
+            'rgba(10,14,28,0.30)',   // semi-transparent
+            'rgba(10,14,28,0.08)',   // light fade
+            'rgba(10,14,28,0)',      // fully transparent
+          ]}
+          locations={[0, 0.3, 0.55, 0.8, 1]}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 300,
+          }}
+          pointerEvents="none"
+        />
+
+        {/* Subtle ambient floating particles */}
+        <AmbientParticles />
+
+        <SafeAreaView 
+          edges={['top']} 
+          pointerEvents="box-none"
+        >
         {prayerState.loading ? (
           <View style={{ paddingVertical: 16 }}>
             <ActivityIndicator size="small" color="#8b7355" />
@@ -3442,16 +4034,18 @@ export default function App() {
             xp={prayerState.xp}
             nextPrayer={isResting ? null : prayerState.nextPrayer}
             timeUntilNext={isResting ? 'Resting' : prayerState.timeUntilNext}
+            ringProgress={isResting ? 0 : prayerState.ringProgress}
             freezeCount={freezeInventory.single + freezeInventory.all}
             consistencyMultiplier={consistency.multiplier}
-            perfectDays={consistency.perfectDays}
-            nextTier={consistency.nextTier}
             onMultiplierPress={() => setShowMultiplierModal(true)}
-            ramadanBanner={ramadan.bannerText}
+            isRamadan={ramadan.isRamadan}
+            ramadanDay={ramadan.ramadanDay}
+            ramadanMultiplier={ramadan.multiplier}
             difficultDayActive={difficultDay.isActive}
           />
         )}
-      </SafeAreaView>
+        </SafeAreaView>
+      </View>
       )}
 
       </View>
@@ -3474,6 +4068,7 @@ export default function App() {
             onTogglePrayer={handleTogglePrayerWithChallenges}
             getPrayerWindowStatus={prayerState.getPrayerWindowStatus}
             streaks={prayerState.streaks}
+            debugPrayersUnlocked={debugPrayersUnlocked}
           />
         )}
 
@@ -3544,7 +4139,11 @@ export default function App() {
           />
         </Animated.View>
       )}
-    </View>
+    </ImageBackground>
+      <LoadingOverlay
+        ready={isReady && !gardenState.loading && prayerState.stateLoaded}
+        onImageLoaded={() => SplashScreen.hideAsync().catch(() => {})}
+      />
     </SafeAreaProvider>
   );
 }

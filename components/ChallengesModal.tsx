@@ -2,6 +2,7 @@ import React, { useEffect, useState, memo, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
+  Image,
   TouchableOpacity,
   FlatList,
   StyleSheet,
@@ -12,6 +13,11 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Challenge, ChallengeId, getTimeUntilReset, getTimeUntilMidnight } from '../hooks/useChallenges';
+
+// Challenge IDs that use a pixel-art image instead of an emoji
+const CHALLENGE_IMAGE_ICONS: Partial<Record<string, ReturnType<typeof require>>> = {
+  fajrToday: require('../assets/Garden Assets/Icons/Fajr.png'),
+};
 
 type Section = 'daily' | 'weekly';
 
@@ -56,29 +62,20 @@ export const ChallengesModal = memo(function ChallengesModal({ visible, onClose,
 
   const totalCompleted = sectionChallenges.filter(c => c.claimed).length;
 
+  // Claimable = complete but not yet claimed — drives the red badge on each tab
+  const dailyClaimable  = useMemo(() => challenges.filter(c => c.type === 'daily'  && c.progress >= c.target && !c.claimed).length, [challenges]);
+  const weeklyClaimable = useMemo(() => challenges.filter(c => c.type === 'weekly' && c.progress >= c.target && !c.claimed).length, [challenges]);
+
   const listData = useMemo(() => {
-    return [...sectionChallenges, { _type: 'info' as const }];
+    return sectionChallenges;
   }, [sectionChallenges]);
 
-  const renderItem = useCallback(({ item }: { item: any }) => {
-    if (item._type === 'info') {
-      const infoText = section === 'daily'
-        ? '• Daily challenges reset at midnight\n• Complete prayers or plant trees to progress\n• Claim rewards before midnight or they reset\n• On Schedule: complete prayers within their time window'
-        : '• Weekly challenges reset every Monday at midnight\n• On-Time Master: complete prayers before their Islamic deadline\n• Tree Planter: plant trees anytime during the week\n• Perfect Week requires all 35 prayers (5/day × 7 days)';
-      return (
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>ℹ️ How it works</Text>
-          <Text style={styles.infoText}>{infoText}</Text>
-        </View>
-      );
-    }
-    return (
-      <MemoizedChallengeCard
-        challenge={item as Challenge}
-        onClaim={claimHandlers[(item as Challenge).id]}
-      />
-    );
-  }, [claimHandlers, section]);
+  const renderItem = useCallback(({ item }: { item: any }) => (
+    <MemoizedChallengeCard
+      challenge={item as Challenge}
+      onClaim={claimHandlers[(item as Challenge).id]}
+    />
+  ), [claimHandlers]);
 
   const keyExtractor = useCallback((item: any) => item.id ?? '_info', []);
 
@@ -124,6 +121,11 @@ export const ChallengesModal = memo(function ChallengesModal({ visible, onClose,
             activeOpacity={0.7}
           >
             <Text style={[styles.tabBtnText, section === 'daily' && styles.tabBtnTextActive]}>Daily</Text>
+            {dailyClaimable > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{dailyClaimable}</Text>
+              </View>
+            )}
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.tabBtn, section === 'weekly' && styles.tabBtnActive]}
@@ -131,6 +133,11 @@ export const ChallengesModal = memo(function ChallengesModal({ visible, onClose,
             activeOpacity={0.7}
           >
             <Text style={[styles.tabBtnText, section === 'weekly' && styles.tabBtnTextActive]}>Weekly</Text>
+            {weeklyClaimable > 0 && (
+              <View style={styles.tabBadge}>
+                <Text style={styles.tabBadgeText}>{weeklyClaimable}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -142,6 +149,13 @@ export const ChallengesModal = memo(function ChallengesModal({ visible, onClose,
           {totalCompleted === sectionChallenges.length && sectionChallenges.length > 0 && (
             <Text style={styles.allDoneText}>{section === 'daily' ? '🎉 All done today!' : '🎉 All done this week!'}</Text>
           )}
+        </View>
+
+        {/* Overall section progress bar */}
+        <View style={styles.overallProgressWrap}>
+          <View style={styles.overallProgressBar}>
+            <View style={[styles.overallProgressFill, { width: `${sectionChallenges.length > 0 ? (totalCompleted / sectionChallenges.length) * 100 : 0}%` as any }]} />
+          </View>
         </View>
 
         {/* Challenge cards — FlatList for virtualized native scroll */}
@@ -170,13 +184,24 @@ function ChallengeCard({ challenge, onClaim }: { challenge: Challenge; onClaim: 
   const isComplete = progress >= challenge.target;
   const isClaimed = challenge.claimed;
 
-  // Pre-compute styles to avoid inline object creation
-  const cardStyle = useMemo(() => {
-    const bg = isClaimed ? 'rgba(74,222,128,0.06)' : isComplete ? 'rgba(251,191,36,0.06)' : 'rgba(255,255,255,0.04)';
-    return [styles.card, { backgroundColor: bg }];
-  }, [isClaimed, isComplete]);
-
   const statusColor = isClaimed ? '#4ade80' : isComplete ? '#fbbf24' : '#e8a87c';
+
+  // Card wrapper — tinted left accent + status-aware background
+  const cardStyle = useMemo(() => {
+    const bg = isClaimed
+      ? 'rgba(74,222,128,0.05)'
+      : isComplete
+      ? 'rgba(251,191,36,0.05)'
+      : 'rgba(255,255,255,0.035)';
+    return [
+      styles.card,
+      {
+        backgroundColor: bg,
+        borderLeftColor: statusColor,
+        borderLeftWidth: 3,
+      },
+    ];
+  }, [isClaimed, isComplete, statusColor]);
 
   const fillStyle = useMemo(
     () => [styles.progressFill, { width: `${progressPct}%` as any, backgroundColor: statusColor }],
@@ -188,17 +213,24 @@ function ChallengeCard({ challenge, onClaim }: { challenge: Challenge; onClaim: 
     [statusColor],
   );
 
+  const imageIcon = CHALLENGE_IMAGE_ICONS[challenge.id];
+
   return (
     <View style={cardStyle}>
       <View style={styles.cardTop}>
         <View style={styles.cardIconRow}>
-          <Text style={styles.cardIcon}>{challenge.icon}</Text>
+          <View style={styles.cardIconContainer}>
+            {imageIcon
+              ? <Image source={imageIcon} style={styles.cardIconImage} resizeMode="contain" />
+              : <Text style={styles.cardIcon}>{challenge.icon}</Text>
+            }
+          </View>
           <View style={styles.cardTitleArea}>
             <Text style={styles.cardTitle}>{challenge.title}</Text>
             <Text style={styles.cardDesc}>{challenge.description}</Text>
           </View>
         </View>
-        <View style={styles.rewardBadge}>
+        <View style={[styles.rewardBadge, isComplete && !isClaimed && styles.rewardBadgeGlow]}>
           <Text style={styles.rewardText}>🪙 {challenge.reward}</Text>
         </View>
       </View>
@@ -223,13 +255,13 @@ function ChallengeCard({ challenge, onClaim }: { challenge: Challenge; onClaim: 
           }}
           activeOpacity={0.7}
         >
-          <Text style={styles.claimBtnText}>🎁 Claim Reward (+{challenge.reward} coins)</Text>
+          <Text style={styles.claimBtnText}>Claim Reward  •  +{challenge.reward} 🪙</Text>
         </TouchableOpacity>
       )}
 
       {isClaimed && (
         <View style={styles.claimedBadge}>
-          <Text style={styles.claimedText}>✅ Claimed!</Text>
+          <Text style={styles.claimedText}>✓ Claimed</Text>
         </View>
       )}
     </View>
@@ -257,7 +289,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 12,
+    paddingBottom: 14,
   },
   title: {
     color: '#e8e0d6',
@@ -265,15 +297,16 @@ const styles = StyleSheet.create({
     fontWeight: '800',
   },
   subtitle: {
-    color: '#9ca3af',
-    fontSize: 13,
-    marginTop: 2,
+    color: '#6b7280',
+    fontSize: 12,
+    marginTop: 4,
+    letterSpacing: 0.3,
   },
   closeBtn: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.04)',
+    backgroundColor: 'rgba(255,255,255,0.06)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -285,16 +318,37 @@ const styles = StyleSheet.create({
   tabRow: {
     flexDirection: 'row',
     marginHorizontal: 20,
-    marginBottom: 12,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 12,
+    marginBottom: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 14,
     padding: 3,
   },
   tabBtn: {
     flex: 1,
-    paddingVertical: 7,
-    borderRadius: 9,
+    paddingVertical: 9,
+    borderRadius: 11,
     alignItems: 'center',
+    position: 'relative',
+  },
+  tabBadge: {
+    position: 'absolute',
+    top: -6,
+    right: 8,
+    minWidth: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: '#ef4444',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+    borderWidth: 2,
+    borderColor: '#0f1526',
+  },
+  tabBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    lineHeight: 13,
   },
   tabBtnActive: {
     backgroundColor: '#e8a87c',
@@ -306,13 +360,14 @@ const styles = StyleSheet.create({
   },
   tabBtnTextActive: {
     color: '#0f1526',
+    fontWeight: '700',
   },
   summaryRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingBottom: 12,
+    paddingBottom: 6,
   },
   summaryText: {
     color: '#e8e0d6',
@@ -321,8 +376,23 @@ const styles = StyleSheet.create({
   },
   allDoneText: {
     color: '#4ade80',
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  overallProgressWrap: {
+    paddingHorizontal: 20,
+    paddingBottom: 14,
+  },
+  overallProgressBar: {
+    height: 4,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  overallProgressFill: {
+    height: '100%',
+    borderRadius: 2,
+    backgroundColor: '#e8a87c',
   },
   scrollContent: {
     paddingHorizontal: 16,
@@ -330,8 +400,11 @@ const styles = StyleSheet.create({
   },
   card: {
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    padding: 14,
+    paddingLeft: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
   },
   cardTop: {
     flexDirection: 'row',
@@ -344,29 +417,48 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     flex: 1,
   },
+  cardIconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+    // No background — box removed per design
+  },
   cardIcon: {
     fontSize: 28,
-    marginRight: 12,
+  },
+  cardIconImage: {
+    width: 36,
+    height: 36,
   },
   cardTitleArea: {
     flex: 1,
   },
   cardTitle: {
     color: '#e8e0d6',
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: '700',
   },
   cardDesc: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 12,
-    marginTop: 2,
+    marginTop: 3,
+    lineHeight: 16,
   },
   rewardBadge: {
-    backgroundColor: 'rgba(251,191,36,0.12)',
-    borderRadius: 8,
+    backgroundColor: 'rgba(251,191,36,0.10)',
+    borderRadius: 10,
     paddingHorizontal: 10,
-    paddingVertical: 4,
+    paddingVertical: 5,
     marginLeft: 8,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.12)',
+  },
+  rewardBadgeGlow: {
+    backgroundColor: 'rgba(251,191,36,0.18)',
+    borderColor: 'rgba(251,191,36,0.30)',
   },
   rewardText: {
     color: '#fbbf24',
@@ -380,56 +472,65 @@ const styles = StyleSheet.create({
   },
   progressBar: {
     flex: 1,
-    height: 8,
+    height: 6,
     backgroundColor: 'rgba(255,255,255,0.06)',
-    borderRadius: 4,
+    borderRadius: 3,
     overflow: 'hidden',
   },
   progressFill: {
     height: '100%',
-    borderRadius: 4,
+    borderRadius: 3,
   },
   progressText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
-    minWidth: 45,
+    minWidth: 40,
     textAlign: 'right',
   },
   claimBtn: {
     marginTop: 12,
     backgroundColor: '#e8a87c',
     borderRadius: 12,
-    paddingVertical: 10,
+    paddingVertical: 11,
     alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
   },
   claimBtnText: {
-    color: '#000',
+    color: '#0f1526',
     fontSize: 14,
     fontWeight: '800',
+    letterSpacing: 0.3,
   },
   claimedBadge: {
-    marginTop: 8,
-    alignItems: 'center',
+    marginTop: 10,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(74,222,128,0.10)',
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
   },
   claimedText: {
     color: '#4ade80',
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 12,
+    fontWeight: '700',
   },
   infoBox: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 12,
-    padding: 14,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 14,
+    padding: 16,
     marginTop: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.04)',
   },
   infoTitle: {
-    color: '#e8e0d6',
-    fontSize: 14,
+    color: '#9ca3af',
+    fontSize: 13,
     fontWeight: '700',
-    marginBottom: 6,
+    marginBottom: 8,
   },
   infoText: {
-    color: '#9ca3af',
+    color: '#6b7280',
     fontSize: 12,
     lineHeight: 20,
   },

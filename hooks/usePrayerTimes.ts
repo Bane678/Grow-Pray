@@ -56,7 +56,7 @@ function getTimezone(): string {
 }
 
 // Fetch with timeout + retry
-async function fetchWithRetry(url: string, retries = 3, timeoutMs = 10000): Promise<any> {
+async function fetchWithRetry(url: string, retries = 2, timeoutMs = 5000): Promise<any> {
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
             const controller = new AbortController();
@@ -132,8 +132,22 @@ export function usePrayerTimes() {
 
     useEffect(() => {
         isMounted.current = true;
-        getLocationAndFetchTimings();
-        return () => { isMounted.current = false; };
+
+        // Safety net: if both APIs stall (AbortController unreliable in some RN envs),
+        // this guarantees loading resolves within 12 seconds no matter what.
+        const safetyTimer = setTimeout(() => {
+            if (isMounted.current) {
+                console.warn('Prayer times safety timeout — using hardcoded fallback');
+                applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES);
+            }
+        }, 12000);
+
+        getLocationAndFetchTimings().finally(() => clearTimeout(safetyTimer));
+
+        return () => {
+            isMounted.current = false;
+            clearTimeout(safetyTimer);
+        };
     }, []);
 
     const applyTimings = (t: Timings, d: PrayerDeadlines) => {

@@ -1,8 +1,9 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, Animated, Easing, Dimensions } from 'react-native';
-import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler, TapGestureHandler, PinchGestureHandlerGestureEvent, TapGestureHandlerStateChangeEvent, State } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler, TapGestureHandler, TapGestureHandlerStateChangeEvent, State } from 'react-native-gesture-handler';
 import { TileState, PlantedTree, TileTransition } from '../hooks/useGardenState';
 import { TREE_CATALOG } from './ShopModal';
+import { Audio } from 'expo-av';
 
 const COLORS = {
     skyBg: '#0f1526',
@@ -185,8 +186,9 @@ function DustMote({ spec }: { spec: typeof MOTE_SPECS[0] }) {
     );
 }
 
-const FloatingParticles = React.memo(function FloatingParticles() {
-    return <>{MOTE_SPECS.map((s, i) => <DustMote key={i} spec={s} />)}</>;
+const FloatingParticles = React.memo(function FloatingParticles({ count }: { count: number }) {
+    const visible = Math.min(count, MOTE_SPECS.length);
+    return <>{MOTE_SPECS.slice(0, visible).map((s, i) => <DustMote key={i} spec={s} />)}</>;
 });
 
 // ── Falling Leaves ────────────────────────────────────────────────────────────
@@ -276,8 +278,9 @@ function FallingLeaf({ spec }: { spec: typeof LEAF_SPECS[0] }) {
     );
 }
 
-const FallingLeaves = React.memo(function FallingLeaves() {
-    return <>{LEAF_SPECS.map((s, i) => <FallingLeaf key={`leaf-${i}`} spec={s} />)}</>;
+const FallingLeaves = React.memo(function FallingLeaves({ count }: { count: number }) {
+    const visible = Math.min(count, LEAF_SPECS.length);
+    return <>{LEAF_SPECS.slice(0, visible).map((s, i) => <FallingLeaf key={`leaf-${i}`} spec={s} />)}</>;
 });
 
 // Tile dimensions (actual asset is 1456x720, ~2:1 ratio)
@@ -295,10 +298,46 @@ const ASSETS = {
     deadTile: require('../assets/Garden Assets/Ground Tiles/Dead_Tile.png'),
     recoveringTile: require('../assets/Garden Assets/Ground Tiles/Recovering_Tile.png'),
     recoveredTile: require('../assets/Garden Assets/Ground Tiles/Recovered_Tile.png'),
-    sapling: require('../assets/Garden Assets/Tree Types/Sapling_converted.png'),
-    growingTree: require('../assets/Garden Assets/Tree Types/Growing_Tree_converted.png'),
-    grownTree: require('../assets/Garden Assets/Tree Types/Grown_Tree_converted.png'),
-    deadTree: require('../assets/Garden Assets/Tree Types/Dead_Tree.png'),
+    sapling: require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png'),
+    growingTree: require('../assets/Garden Assets/Tree Types/Basic Trees/Growing_Tree_converted.png'),
+    grownTree: require('../assets/Garden Assets/Tree Types/Basic Trees/Grown_Tree_converted.png'),
+    flourishingTree: require('../assets/Garden Assets/Tree Types/Basic Trees/Flourishing_Tree_converted.png'),
+    deadTree: require('../assets/Garden Assets/Tree Types/Basic Trees/Dead_Tree.png'),
+    // Palm tree sprites
+    palmSapling:     require('../assets/Garden Assets/Tree Types/Palm Trees/Palm_Sapling.png'),
+    palmGrowing:     require('../assets/Garden Assets/Tree Types/Palm Trees/Palm_Growing.png'),
+    palmGrown:       require('../assets/Garden Assets/Tree Types/Palm Trees/Palm_Grown.png'),
+    palmFlourishing: require('../assets/Garden Assets/Tree Types/Palm Trees/Palm_Flourishing.png'),
+    // Willow tree sprites
+    willowSapling:     require('../assets/Garden Assets/Tree Types/Willow Trees/Willow_Sapling.png'),
+    willowGrowing:     require('../assets/Garden Assets/Tree Types/Willow Trees/Willow_Growing.png'),
+    willowGrown:       require('../assets/Garden Assets/Tree Types/Willow Trees/Willow_Grown.png'),
+    willowFlourishing: require('../assets/Garden Assets/Tree Types/Willow Trees/Willow_Flourishing.png'),
+    // Oak tree sprites
+    oakSapling:     require('../assets/Garden Assets/Tree Types/Oak Trees/Oak_Sapling.png'),
+    oakGrowing:     require('../assets/Garden Assets/Tree Types/Oak Trees/Oak_Growing.png'),
+    oakGrown:       require('../assets/Garden Assets/Tree Types/Oak Trees/Oak_Grown.png'),
+    oakFlourishing: require('../assets/Garden Assets/Tree Types/Oak Trees/Oak_Flourishing.png'),
+    // Cherry Blossom tree sprites
+    cherryBlossomSapling:     require('../assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Sapling.png'),
+    cherryBlossomGrowing:     require('../assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Growing.png'),
+    cherryBlossomGrown:       require('../assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Grown.png'),
+    cherryBlossomFlourishing: require('../assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Flourishing.png'),
+    // Maple tree sprites
+    mapleSapling:     require('../assets/Garden Assets/Tree Types/Maple Trees/Maple_Sapling.png'),
+    mapleGrowing:     require('../assets/Garden Assets/Tree Types/Maple Trees/Maple_Growing.png'),
+    mapleGrown:       require('../assets/Garden Assets/Tree Types/Maple Trees/Maple_Grown.png'),
+    mapleFlourishing: require('../assets/Garden Assets/Tree Types/Maple Trees/Maple_Flourishing.png'),
+    // Golden tree sprites
+    goldenTreeSapling:     require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Sapling.png'),
+    goldenTreeGrowing:     require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Growing.png'),
+    goldenTreeGrown:       require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Grown.png'),
+    goldenTreeFlourishing: require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Flourishing.png'),
+    // Cedar tree sprites
+    cedarSapling:     require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Sapling.png'),
+    cedarGrowing:     require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Growing.png'),
+    cedarGrown:       require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Grown.png'),
+    cedarFlourishing: require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Flourished.png'),
     axeIcon: require('../assets/Garden Assets/Icons/Axe.png'),
     // Decoration sprites
     deadGrassTuft: require('../assets/Garden Assets/Ground Tiles/Dead_Grass_Tuft.png'),
@@ -311,8 +350,12 @@ const ASSETS = {
     emberMote: require('../assets/Garden Assets/Effects/Ember_Mote.png'),
     dewSparkle: require('../assets/Garden Assets/Effects/Dew_Sparkle.png'),
     pollenMote: require('../assets/Garden Assets/Effects/Pollen_Mote.png'),
-    fallingLeaf: require('../assets/Garden Assets/Effects/Falling_Leaf.png'),
+    fallingLeaf:   require('../assets/Garden Assets/Effects/Falling_Leaf.png'),
+    fruitCommon:   require('../assets/Garden Assets/Effects/Fruit_Common.png'),
+    fruitPremium:  require('../assets/Garden Assets/Effects/Fruit_Premium.png'),
 };
+
+const AXE_CUT_SOUND = require('../assets/sounds/Axe_Cut.mp3');
 
 // Tree dimensions (actual asset is 848x1264)
 const TREE_WIDTH = 848;
@@ -331,7 +374,7 @@ const TREE_STAGES = [
     { name: 'sapling', minXP: 0, scale: 0.10, asset: 'sapling' },
     { name: 'growing', minXP: 15, scale: 0.12, asset: 'growingTree' },
     { name: 'grown', minXP: 75, scale: 0.14, asset: 'grownTree' },
-    { name: 'flourishing', minXP: 175, scale: 0.16, asset: 'grownTree' }, // Use grown tree with larger scale for now
+    { name: 'flourishing', minXP: 175, scale: 0.16, asset: 'flourishingTree' },
 ] as const;
 
 // Get current tree stage based on XP
@@ -604,7 +647,27 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     }
 
     const catalogItem = planted.type !== 'Basic' ? TREE_CATALOG.find(t => t.id === planted.type) : null;
-    const tintStyle = (!isDead && catalogItem?.tint) ? { tintColor: catalogItem.tint } : {};
+    // Use per-type custom sprite if available, otherwise fall back to tinted base sprite
+    const stageName = !isDead ? TREE_STAGES[effectiveStageIndex]?.name : undefined;
+    const customAssetKey = stageName ? catalogItem?.sprites?.[stageName as keyof NonNullable<typeof catalogItem>['sprites']] : undefined;
+    if (customAssetKey && customAssetKey in ASSETS) {
+        ptAsset = ASSETS[customAssetKey as keyof typeof ASSETS];
+    }
+    // Apply per-tree scale override if defined for this stage
+    if (!isDead && stageName && catalogItem?.scaleOverrides) {
+        const overrideScale = catalogItem.scaleOverrides[stageName as keyof NonNullable<typeof catalogItem>['scaleOverrides']];
+        if (overrideScale !== undefined) {
+            ptWidth  = TREE_WIDTH  * overrideScale;
+            ptHeight = TREE_HEIGHT * overrideScale * TREE_SQUASH;
+        }
+    }
+    const tintStyle = (!isDead && !customAssetKey && catalogItem?.tint) ? { tintColor: catalogItem.tint } : {};
+    const offsetX = (!isDead && stageName && catalogItem?.offsetX)
+        ? (catalogItem.offsetX[stageName as keyof NonNullable<typeof catalogItem>['offsetX']] ?? 0)
+        : 0;
+    const offsetY = (!isDead && stageName && catalogItem?.offsetY)
+        ? (catalogItem.offsetY[stageName as keyof NonNullable<typeof catalogItem>['offsetY']] ?? 0)
+        : 0;
 
     // Detect stage advances and fire level-up FX + scale bounce
     const prevStageIndexRef = useRef(effectiveStageIndex);
@@ -629,18 +692,19 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
         if (effectiveStageIndex > prevStageIndexRef.current) {
             setFxTrigger(n => n + 1);
             Animated.sequence([
-                Animated.spring(treeSizeAnim, { toValue: 1.25, tension: 120, friction: 4, useNativeDriver: true }),
-                Animated.spring(treeSizeAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: true }),
+                Animated.spring(treeSizeAnim, { toValue: 1.25, tension: 120, friction: 4, useNativeDriver: false }),
+                Animated.spring(treeSizeAnim, { toValue: 1, tension: 80, friction: 8, useNativeDriver: false }),
             ]).start();
         }
         prevStageIndexRef.current = effectiveStageIndex;
     }, [effectiveStageIndex]);
 
-    const posX = tileCenterX - ptWidth / 2;
-    const posY = tileCenterY - ptHeight * 0.75;
+    const posX = tileCenterX - ptWidth / 2 + offsetX;
+    const posY = tileCenterY - ptHeight * 0.75 + offsetY;
 
     return (
         <>
+            {/* Outer view: sway rotation on native driver (smooth, no JS overhead) */}
             <Animated.View
                 pointerEvents="none"
                 style={{
@@ -652,16 +716,27 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
                     zIndex: zIndexBase + 1,
                     transformOrigin: 'center bottom',
                     transform: [
-                        { scale: treeSizeAnim },
                         { rotate: swayAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-0.03rad', '0.03rad'] }) },
                     ],
                 }}
             >
-                <Image
-                    source={ptAsset}
-                    style={{ width: ptWidth, height: ptHeight, ...tintStyle }}
-                    resizeMode="contain"
-                />
+                {/* Inner view: level-up scale on JS driver so the image is re-rendered
+                    at full resolution every frame — eliminates the grainy texture-stretch
+                    artifact that native driver causes by rasterising at 1× then stretching. */}
+                <Animated.View
+                    style={{
+                        width: ptWidth,
+                        height: ptHeight,
+                        transformOrigin: 'center bottom',
+                        transform: [{ scale: treeSizeAnim }],
+                    }}
+                >
+                    <Image
+                        source={ptAsset}
+                        style={{ width: ptWidth, height: ptHeight, ...tintStyle }}
+                        resizeMode="contain"
+                    />
+                </Animated.View>
             </Animated.View>
             <LevelUpFX
                 centerX={tileCenterX}
@@ -804,6 +879,12 @@ const DewSparkle = React.memo(function DewSparkle({
     );
 });
 
+// Pre-computed wind shimmer phase type — shared across all tiles from one animation loop
+type WindShimmerPhase = {
+    opacity: Animated.AnimatedInterpolation<number>;
+    translateX: Animated.AnimatedInterpolation<number>;
+};
+
 const AnimatedTile = React.memo(function AnimatedTile({
     row,
     col,
@@ -813,6 +894,7 @@ const AnimatedTile = React.memo(function AnimatedTile({
     screenY,
     zIndex,
     animDelay,
+    windShimmer,
 }: {
     row: number;
     col: number;
@@ -822,39 +904,12 @@ const AnimatedTile = React.memo(function AnimatedTile({
     screenY: number;
     zIndex: number;
     animDelay?: number; // ms delay for staggered ripple (undefined = no animation)
+    windShimmer?: WindShimmerPhase;
 }) {
     const prevStateRef = useRef<TileState>(state);
     const [prevState, setPrevState] = useState<TileState>(state);
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const opacityAnim = useRef(new Animated.Value(1)).current;
-    const grassWindAnim = useRef(new Animated.Value(0)).current;
-    const grassLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-
-    // Grass wind shimmer for recovered tiles — phase-staggered across grid
-    useEffect(() => {
-        if (state === 'recovered') {
-            const windDelay = ((row + col * 2) % 8) * 800;
-            const windDur = 8000 + ((row * 11 + col * 7) % 4000);
-            const t = setTimeout(() => {
-                const loop = Animated.loop(Animated.sequence([
-                    Animated.timing(grassWindAnim, { toValue: 1, duration: windDur / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-                    Animated.timing(grassWindAnim, { toValue: 0, duration: windDur / 2, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-                ]));
-                grassLoopRef.current = loop;
-                loop.start();
-            }, windDelay);
-            return () => {
-                clearTimeout(t);
-                grassLoopRef.current?.stop();
-                grassLoopRef.current = null;
-                grassWindAnim.setValue(0);
-            };
-        } else {
-            grassLoopRef.current?.stop();
-            grassLoopRef.current = null;
-            grassWindAnim.setValue(0);
-        }
-    }, [state]);
 
     useEffect(() => {
         if (prevStateRef.current !== state) {
@@ -881,7 +936,7 @@ const AnimatedTile = React.memo(function AnimatedTile({
                         easing: Easing.out(Easing.quad),
                         useNativeDriver: true,
                     }),
-                ]).start();
+                ]).start(() => setPrevState(state));
             };
 
             if (delay > 0) {
@@ -924,14 +979,14 @@ const AnimatedTile = React.memo(function AnimatedTile({
                     style={{ position: 'absolute', width: SCALED_WIDTH, height: SCALED_HEIGHT }}
                     resizeMode="contain"
                 />
-                {/* Wind shimmer overlay — recovered tiles only */}
-                {state === 'recovered' && (
+                {/* Wind shimmer overlay — recovered tiles only, driven by shared animation */}
+                {state === 'recovered' && windShimmer && (
                     <Animated.View pointerEvents="none" style={{
                         position: 'absolute',
                         width: SCALED_WIDTH,
                         height: SCALED_HEIGHT,
-                        opacity: grassWindAnim.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.06, 0] }),
-                        transform: [{ translateX: grassWindAnim.interpolate({ inputRange: [0, 1], outputRange: [-4, 4] }) }],
+                        opacity: windShimmer.opacity,
+                        transform: [{ translateX: windShimmer.translateX }],
                     }}>
                         <Image
                             source={TILE_ASSETS.recovered}
@@ -1023,6 +1078,11 @@ const getPlantedTreeStageWithIndex = (currentXP: number, plantedAtXP: number) =>
 };
 
 // Chopping animation component - axe swing + progress bar + dissolve + reward text
+// Swing cycle: 250ms right + 500ms left + 250ms center = 1000ms
+// Chop sound plays at each swing peak (right hit at 250ms, left hit at 750ms)
+const SWING_CYCLE_MS = 1000;
+const CHOP_DURATION_MS = 2000; // Total chopping time (2 full swing cycles)
+
 const ChoppingAnimation = React.memo(function ChoppingAnimation({
     onComplete,
 }: {
@@ -1035,8 +1095,34 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
     const rewardOpacity = useRef(new Animated.Value(0)).current;
     const rewardTranslateY = useRef(new Animated.Value(0)).current;
     const swingLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+    const soundRef = useRef<Audio.Sound | null>(null);
+    const chopTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+    // Play a single chop sound
+    const playChopSound = useCallback(async () => {
+        try {
+            const { sound } = await Audio.Sound.createAsync(
+                AXE_CUT_SOUND,
+                { shouldPlay: true, volume: 0.6 }
+            );
+            sound.setOnPlaybackStatusUpdate((status) => {
+                if (status.isLoaded && status.didJustFinish) {
+                    sound.unloadAsync();
+                }
+            });
+        } catch (e) {
+            // Silently fail
+        }
+    }, []);
 
     useEffect(() => {
+        // Set audio mode
+        Audio.setAudioModeAsync({
+            playsInSilentModeIOS: true,
+            shouldDuckAndroid: false,
+            staysActiveInBackground: false,
+        }).catch(() => {});
+
         // Axe swing loop — start from center position
         const swingLoop = Animated.loop(
             Animated.sequence([
@@ -1048,10 +1134,23 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
         swingLoopRef.current = swingLoop;
         swingLoop.start();
 
-        // Progress bar fills over 2 seconds
+        // Schedule chop sounds at each swing peak
+        // First right-hit at 250ms, first left-hit at 750ms, then repeat every 1000ms
+        const timers: ReturnType<typeof setTimeout>[] = [];
+        const totalCycles = Math.floor(CHOP_DURATION_MS / SWING_CYCLE_MS);
+        for (let cycle = 0; cycle < totalCycles; cycle++) {
+            const base = cycle * SWING_CYCLE_MS;
+            // Right swing hit
+            timers.push(setTimeout(() => playChopSound(), base + 250));
+            // Left swing hit
+            timers.push(setTimeout(() => playChopSound(), base + 750));
+        }
+        chopTimersRef.current = timers;
+
+        // Progress bar fills over CHOP_DURATION_MS
         Animated.timing(progressAnim, {
             toValue: 1,
-            duration: 2000,
+            duration: CHOP_DURATION_MS,
             easing: Easing.linear,
             useNativeDriver: false,
         }).start(({ finished }) => {
@@ -1092,6 +1191,11 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
                 });
             }
         });
+
+        return () => {
+            // Cleanup timers and sounds on unmount
+            chopTimersRef.current.forEach(t => clearTimeout(t));
+        };
     }, []);
 
     const rotation = swingAnim.interpolate({
@@ -1205,6 +1309,7 @@ interface IsometricGridProps {
     onPlantedTreePress?: (row: number, col: number) => void;
     onChoppingComplete?: (row: number, col: number) => void;
     onStageChange?: (stage: string) => void;
+    isZoomedOut?: boolean;
     frozen?: boolean;
 }
 
@@ -1224,6 +1329,7 @@ function IsometricGrid({
     onPlantedTreePress,
     onChoppingComplete,
     onStageChange,
+    isZoomedOut = false,
     frozen = false,
 }: IsometricGridProps) {
     const [currentStage, setCurrentStage] = useState(getTreeStage(xp));
@@ -1324,6 +1430,35 @@ function IsometricGrid({
     // Offset to center the isometric diamond
     const centerOffsetX = (gridSize - 1) * STEP_X;
     const maxLocal = gridSize - 1;
+
+    // ─── Shared wind shimmer — 1 animation loop, 8 phase groups ────────────
+    // Instead of 200+ per-tile Animated.loops, one native-driven value drives all tiles.
+    // Each tile picks a pre-interpolated phase based on (row+col) for a wave-sweep effect.
+    const windAnim = useRef(new Animated.Value(0)).current;
+    const windPhases = useRef<WindShimmerPhase[]>(
+        Array.from({ length: 8 }, (_, i) => {
+            const phase = i / 8;
+            const shifted = Animated.add(windAnim, phase);
+            return {
+                opacity: shifted.interpolate({
+                    inputRange: [phase, phase + 0.5, phase + 1.0],
+                    outputRange: [0, 0.06, 0],
+                }),
+                translateX: shifted.interpolate({
+                    inputRange: [phase, phase + 0.5, phase + 1.0],
+                    outputRange: [-4, 4, -4],
+                }),
+            };
+        })
+    ).current;
+
+    useEffect(() => {
+        const loop = Animated.loop(
+            Animated.timing(windAnim, { toValue: 1, duration: 10000, easing: Easing.linear, useNativeDriver: true })
+        );
+        loop.start();
+        return () => loop.stop();
+    }, []);
 
     // Build animation delay map from pending transitions
     // Stagger: 120ms per ring distance from center, so inner tiles animate first
@@ -1454,6 +1589,7 @@ function IsometricGrid({
                         screenY={screenY}
                         zIndex={rRow + rCol}
                         animDelay={animDelayMap.get(`${row},${col}`)}
+                        windShimmer={windPhases[(row + col * 2) % 8]}
                     />
                 );
             }
@@ -1463,6 +1599,7 @@ function IsometricGrid({
 
     // Memoize ambient tile effects — embers on dead, dew sparkles on recovered
     const tileEffects = useMemo(() => {
+        if (isZoomedOut) return [];
         const effects: React.ReactElement[] = [];
         for (let row = startRow; row <= endRow; row++) {
             for (let col = startCol; col <= endCol; col++) {
@@ -1491,7 +1628,7 @@ function IsometricGrid({
             }
         }
         return effects;
-    }, [startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, treeOccupiedTileSet]);
+    }, [isZoomedOut, startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, treeOccupiedTileSet]);
 
     // Memoize dead tree elements
     const deadTreeElements = useMemo(() => {
@@ -1652,9 +1789,9 @@ function IsometricGrid({
     const fxCenterX = centerTileX + SCALED_WIDTH / 2;
     const fxCenterY = centerTileY + SCALED_HEIGHT / 2;
 
-    // When frozen (a modal covers the garden), hide content with opacity:0
-    // instead of unmounting — keeps tiles mounted so no flash on unfreeze.
-    // Gesture handlers are disabled separately in GardenScene for JS thread relief.
+    // When frozen (a modal covers the garden), disable gestures only.
+    // Keep opacity:1 — hiding with opacity:0 causes the garden to flash-disappear
+    // any time isAnyModalOpen briefly flips (e.g. during state updates on notifications).
     return (
         <TapGestureHandler
             onHandlerStateChange={onTapStateChange}
@@ -1665,7 +1802,6 @@ function IsometricGrid({
                     position: 'relative',
                     width: containerWidth,
                     height: containerHeight,
-                    opacity: frozen ? 0 : 1,
                 }}
             >
             {tiles}
@@ -1790,6 +1926,52 @@ export const GardenScene = React.memo(function GardenScene({
     onChoppingComplete,
     frozen = false,
 }: GardenSceneProps) {
+    // ── Debounced visual freeze ────────────────────────────────────────────
+    // Gesture disabling uses `frozen` directly (immediate).
+    // Visual hiding (opacity:0 + particle unmount) uses `visuallyFrozen`,
+    // which is delayed 80ms before going true. This filters transient frozen
+    // flickers caused by notifications (<80ms), while still hiding the garden
+    // for real modal opens (which stay frozen for hundreds of ms).
+    const [visuallyFrozen, setVisuallyFrozen] = useState(frozen);
+    const frozenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+    useEffect(() => {
+        if (frozen) {
+            frozenTimerRef.current = setTimeout(() => setVisuallyFrozen(true), 80);
+        } else {
+            if (frozenTimerRef.current) {
+                clearTimeout(frozenTimerRef.current);
+                frozenTimerRef.current = null;
+            }
+            setVisuallyFrozen(false);
+        }
+        return () => {
+            if (frozenTimerRef.current) clearTimeout(frozenTimerRef.current);
+        };
+    }, [frozen]);
+    // ── Particle count based on grown/flourishing trees ───────────────────
+    // Count planted trees that have reached 'grown' or 'flourishing' stage (index >= 2).
+    // Each mature tree adds ~2 pollen motes (max 16) and ~0.75 leaves (max 6).
+    const { moteCount, leafCount } = useMemo(() => {
+        let grownCount = 0;
+        for (let row = 0; row < gridSize; row++) {
+            for (let col = 0; col < gridSize; col++) {
+                const planted = getPlantedTree(row, col);
+                if (planted) {
+                    const treeXP = xp - planted.plantedAtXP;
+                    const stage = getTreeStage(treeXP);
+                    if (stage.name === 'grown' || stage.name === 'flourishing') {
+                        grownCount++;
+                    }
+                }
+            }
+        }
+        return {
+            moteCount: Math.min(MOTE_COUNT, Math.round(grownCount * 2)),
+            leafCount: Math.min(LEAF_COUNT, Math.round(grownCount * 0.75)),
+        };
+    }, [gridSize, xp, getPlantedTree]);
+
+    // ── Gesture translation: fully on UI thread via Reanimated ──────────────
     // ── Gesture translation: offset (committed) + drag (live) ─────────────
     // Both driven on the native thread — zero JS involvement during drag or fling.
     const baseX  = useRef(new Animated.Value(0)).current;
@@ -1799,13 +1981,16 @@ export const GardenScene = React.memo(function GardenScene({
     // Animated.add produces a native-driver-compatible derived value
     const panX   = useRef(Animated.add(baseX, dragX)).current;
     const panY   = useRef(Animated.add(baseY, dragY)).current;
-    const scale  = useRef(new Animated.Value(1)).current;
+    const baseScaleAnim  = useRef(new Animated.Value(1)).current;
+    const pinchScaleAnim = useRef(new Animated.Value(1)).current;
+    const displayScale   = useRef(Animated.multiply(baseScaleAnim, pinchScaleAnim)).current;
 
     const lastBaseX   = useRef(0);
     const lastBaseY   = useRef(0);
     const baseScale   = useRef(1);
-    const lastScale   = useRef(1);
     const momentumRef = useRef<Animated.CompositeAnimation | null>(null);
+
+    const [isZoomedOut, setIsZoomedOut] = useState(false);
 
     const pinchRef = useRef(null);
     const panRef   = useRef(null);
@@ -1816,20 +2001,23 @@ export const GardenScene = React.memo(function GardenScene({
         { useNativeDriver: true },
     );
 
-    const onPinchGestureEvent = (event: PinchGestureHandlerGestureEvent) => {
-        const newScale = Math.max(0.2, Math.min(4, baseScale.current * event.nativeEvent.scale));
-        scale.setValue(newScale);
-        lastScale.current = newScale;
-    };
+    const onPinchGestureEvent = Animated.event(
+        [{ nativeEvent: { scale: pinchScaleAnim } }],
+        { useNativeDriver: true },
+    );
 
     const onPinchStateChange = (event: any) => {
-        if (event.nativeEvent.state === State.END) {
-            baseScale.current = lastScale.current;
+        if (event.nativeEvent.state === State.END || event.nativeEvent.state === State.CANCELLED) {
+            const raw = baseScale.current * event.nativeEvent.scale;
+            const clamped = Math.max(0.2, Math.min(4, raw));
+            baseScale.current = clamped;
+            baseScaleAnim.setValue(clamped);
+            pinchScaleAnim.setValue(1);
+            setIsZoomedOut(clamped < 0.5);
         }
     };
 
     // Stop any running decay and sync the native value back to the JS ref.
-    // stopAnimation callback fires synchronously once the native side ACKs.
     const stopMomentum = (onSynced?: (x: number, y: number) => void) => {
         if (momentumRef.current) {
             momentumRef.current.stop();
@@ -1848,7 +2036,6 @@ export const GardenScene = React.memo(function GardenScene({
         const { state, velocityX, velocityY, translationX, translationY } = event.nativeEvent;
 
         if (state === State.BEGAN) {
-            // Re-grab position if momentum was running so the new drag starts correctly
             stopMomentum((x, y) => {
                 lastBaseX.current = x;
                 lastBaseY.current = y;
@@ -1863,7 +2050,6 @@ export const GardenScene = React.memo(function GardenScene({
             const newBaseX = lastBaseX.current + translationX;
             const newBaseY = lastBaseY.current + translationY;
 
-            // Fold accumulated drag into base, reset drag to 0
             baseX.setValue(newBaseX);
             baseY.setValue(newBaseY);
             dragX.setValue(0);
@@ -1871,7 +2057,6 @@ export const GardenScene = React.memo(function GardenScene({
             lastBaseX.current = newBaseX;
             lastBaseY.current = newBaseY;
 
-            // Native-driven fling decay — runs entirely on UI thread
             const speed = Math.sqrt(velocityX ** 2 + velocityY ** 2);
             if (state === State.END && speed > 80) {
                 momentumRef.current = Animated.parallel([
@@ -1892,12 +2077,10 @@ export const GardenScene = React.memo(function GardenScene({
     return (
         <GestureHandlerRootView style={styles.container}>
             {/* ── Sky ambience — behind gesture layer ──────────────────────── */}
-            {!frozen && (
             <View style={[StyleSheet.absoluteFill, { zIndex: 0 }]} pointerEvents="none">
                 <StarField />
                 <CloudDrift />
             </View>
-            )}
 
             <PanGestureHandler
                 ref={panRef}
@@ -1918,16 +2101,8 @@ export const GardenScene = React.memo(function GardenScene({
                         enabled={!frozen}
                     >
                         <Animated.View style={styles.canvasContainer}>
-                            <Animated.View style={[
-                                styles.scaleWrapper,
-                                {
-                                    transform: [
-                                        { translateX: panX },
-                                        { translateY: panY },
-                                        { scale },
-                                    ]
-                                }
-                            ]}>
+                            <Animated.View style={[styles.scaleWrapper, { transform: [{ translateX: panX }, { translateY: panY }, { scale: displayScale }] }]}>
+                                <Animated.View style={{ opacity: visuallyFrozen ? 0 : 1 }}>
                                 <IsometricGrid
                                     xp={xp}
                                     gridSize={gridSize}
@@ -1943,8 +2118,10 @@ export const GardenScene = React.memo(function GardenScene({
                                     onPlantPress={onPlantPress}
                                     onPlantedTreePress={onPlantedTreePress}
                                     onChoppingComplete={onChoppingComplete}
+                                    isZoomedOut={isZoomedOut}
                                     frozen={frozen}
                                 />
+                                </Animated.View>
                             </Animated.View>
                         </Animated.View>
                     </PinchGestureHandler>
@@ -1952,14 +2129,13 @@ export const GardenScene = React.memo(function GardenScene({
             </PanGestureHandler>
 
             {/* ── Foreground ambience — above garden ───────────────────────── */}
-            {/* Pollen tracks the garden pan/zoom so it always appears to emit from trees */}
-            {!frozen && (
+            {!visuallyFrozen && !isZoomedOut && (
             <Animated.View
                 pointerEvents="none"
-                style={[StyleSheet.absoluteFill, { zIndex: 199, transform: [{ translateX: panX }, { translateY: panY }, { scale }] }]}
+                style={[StyleSheet.absoluteFill, { zIndex: 199, transform: [{ translateX: panX }, { translateY: panY }, { scale: displayScale }] }]}
             >
-                <FloatingParticles />
-                <FallingLeaves />
+                <FloatingParticles count={moteCount} />
+                <FallingLeaves count={leafCount} />
             </Animated.View>
             )}
 
@@ -1970,7 +2146,7 @@ export const GardenScene = React.memo(function GardenScene({
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: COLORS.skyBg,
+        backgroundColor: 'transparent',
     },
     canvasContainer: {
         flex: 1,
