@@ -2,11 +2,14 @@ import React from 'react';
 import {
   View,
   Text,
+  Image,
   Modal,
   TouchableOpacity,
   StyleSheet,
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
+
+const ICON_MOON = require('../assets/Garden Assets/Icons/Icon_Moon.png');
 
 interface DifficultDayModalProps {
   visible: boolean;
@@ -32,7 +35,7 @@ export function DifficultDayModal({
       <View style={styles.overlay}>
         <View style={styles.container}>
           {/* Icon */}
-          <Text style={styles.icon}>🌙</Text>
+          <Image source={ICON_MOON} style={{ width: 40, height: 40, marginBottom: 12 }} resizeMode="contain" />
 
           {/* Title */}
           <Text style={styles.title}>Activate Difficult Day?</Text>
@@ -45,8 +48,8 @@ export function DifficultDayModal({
 
           {/* Benefits */}
           <View style={styles.benefitsBox}>
-            <Text style={styles.benefitItem}>✅  Streaks preserved even on tough days</Text>
-            <Text style={styles.benefitItem}>🕐  Auto-deactivates at midnight</Text>
+            <Text style={styles.benefitItem}>  Streaks preserved even on tough days</Text>
+            <Text style={styles.benefitItem}>  Auto-deactivates at midnight</Text>
           </View>
 
           {/* Usage counter */}
@@ -59,7 +62,7 @@ export function DifficultDayModal({
 
           {!isPremium && (
             <Text style={styles.premiumHint}>
-              💎 Premium users get {10} uses per month
+              Premium users get {10} uses per month
             </Text>
           )}
 
@@ -79,7 +82,7 @@ export function DifficultDayModal({
               disabled={!canActivate}
             >
               <Text style={[styles.activateBtnText, !canActivate && { color: '#6b7280' }]}>
-                {canActivate ? '🌙 Activate' : 'No Uses Left'}
+                {canActivate ? 'Activate' : 'No Uses Left'}
               </Text>
             </TouchableOpacity>
           </View>

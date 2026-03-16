@@ -2,6 +2,7 @@ import React, { useState, useCallback, memo } from 'react';
 import {
   View,
   Text,
+  Image,
   Modal,
   TouchableOpacity,
   ScrollView,
@@ -14,6 +15,9 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { PRAYER_METHODS, type PrayerMethodKey, type Madhab } from '../hooks/usePrayerTimes';
+
+const ICON_GEAR = require('../assets/Garden Assets/Icons/Icon_Gear.png');
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -21,11 +25,19 @@ const PRAYER_ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
 type PrayerName = (typeof PRAYER_ORDER)[number];
 type PrayerStreaks = Record<string, number>;
 
+// Ordered list of methods for the picker
+const METHOD_KEYS: PrayerMethodKey[] = ['MWL', 'ISNA', 'EGYPT', 'UMM_AL_QURA', 'KARACHI', 'DUBAI', 'TURKEY'];
+
 interface SettingsModalProps {
   visible: boolean;
   onClose: () => void;
   // Prayer settings
   streaks: PrayerStreaks;
+  madhab: Madhab;
+  onChangeMadhab: (m: Madhab) => void;
+  calcMethodKey: PrayerMethodKey | null;
+  detectedMethodKey: PrayerMethodKey;
+  onChangeCalcMethod: (key: PrayerMethodKey | null) => void;
   // Notifications
   notificationsEnabled: boolean;
   onToggleNotifications: (enabled: boolean) => void;
@@ -57,6 +69,8 @@ const ALL_STORAGE_KEYS = [
   '@GrowPray:notificationsEnabled',
   '@GrowPray:premiumStatus',
   '@GrowPray:prayerHistory',
+  '@GrowPray:madhab',
+  '@GrowPray:calcMethod',
 ];
 
 const APP_VERSION = '1.0.0';
@@ -70,6 +84,11 @@ export const SettingsModal = memo(function SettingsModal({
   visible,
   onClose,
   streaks,
+  madhab,
+  onChangeMadhab,
+  calcMethodKey,
+  detectedMethodKey,
+  onChangeCalcMethod,
   notificationsEnabled,
   onToggleNotifications,
   isPremium,
@@ -78,6 +97,7 @@ export const SettingsModal = memo(function SettingsModal({
   onResetProgress,
 }: SettingsModalProps) {
   const [restoringPurchases, setRestoringPurchases] = useState(false);
+  const [showAdvanced, setShowAdvanced] = useState(calcMethodKey !== null);
 
   const handleRestorePurchases = useCallback(async () => {
     setRestoringPurchases(true);
@@ -97,7 +117,7 @@ export const SettingsModal = memo(function SettingsModal({
 
   const handleResetProgress = useCallback(() => {
     Alert.alert(
-      '⚠️ Reset All Progress',
+      'Reset All Progress',
       'This will permanently delete ALL your data including streaks, coins, XP, garden, and inventory. This cannot be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
@@ -132,7 +152,10 @@ export const SettingsModal = memo(function SettingsModal({
     <>
           {/* Header */}
           <View style={styles.header}>
-            <Text style={styles.title}>⚙️ Settings</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Image source={ICON_GEAR} style={{ width: 20, height: 20 }} resizeMode="contain" />
+              <Text style={styles.title}>Settings</Text>
+            </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <Text style={styles.closeBtnText}>✕</Text>
             </TouchableOpacity>
@@ -147,6 +170,139 @@ export const SettingsModal = memo(function SettingsModal({
           >
             {/* ── PRAYER SETTINGS ───────────────────────────────── */}
             <SectionHeader icon="clock-outline" title="Prayer Settings" />
+
+            {/* Madhab / Asr Calculation */}
+            <Text style={{ color: '#9ca3af', fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              Asr Calculation
+            </Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
+              <TouchableOpacity
+                onPress={() => { Haptics.selectionAsync(); onChangeMadhab('hanafi'); }}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  backgroundColor: madhab === 'hanafi' ? 'rgba(232, 168, 124, 0.2)' : 'rgba(255,255,255,0.04)',
+                  borderWidth: 1,
+                  borderColor: madhab === 'hanafi' ? '#e8a87c' : 'rgba(255,255,255,0.08)',
+                }}
+              >
+                <Text style={{ color: madhab === 'hanafi' ? '#e8a87c' : '#9ca3af', fontSize: 14, fontWeight: '700' }}>Hanafi</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => { Haptics.selectionAsync(); onChangeMadhab('standard'); }}
+                style={{
+                  flex: 1,
+                  paddingVertical: 12,
+                  borderRadius: 10,
+                  alignItems: 'center',
+                  backgroundColor: madhab === 'standard' ? 'rgba(232, 168, 124, 0.2)' : 'rgba(255,255,255,0.04)',
+                  borderWidth: 1,
+                  borderColor: madhab === 'standard' ? '#e8a87c' : 'rgba(255,255,255,0.08)',
+                }}
+              >
+                <Text style={{ color: madhab === 'standard' ? '#e8a87c' : '#9ca3af', fontSize: 14, fontWeight: '700' }}>Standard</Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Calculation Method */}
+            <Text style={{ color: '#9ca3af', fontSize: 12, fontWeight: '600', textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 8 }}>
+              Calculation Method
+            </Text>
+
+            {!showAdvanced ? (
+              <View style={{ marginBottom: 16 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: '#e5e7eb', fontSize: 14, fontWeight: '600' }}>
+                      {PRAYER_METHODS[detectedMethodKey]?.name || 'Auto'}
+                    </Text>
+                    <Text style={{ color: '#6b7280', fontSize: 12, marginTop: 2 }}>
+                      Recommended for your area
+                    </Text>
+                  </View>
+                  <MaterialCommunityIcons name="check-circle" size={20} color="#10b981" />
+                </View>
+                <TouchableOpacity
+                  onPress={() => { Haptics.selectionAsync(); setShowAdvanced(true); }}
+                  style={{ paddingVertical: 8 }}
+                >
+                  <Text style={{ color: '#60a5fa', fontSize: 13, fontWeight: '600' }}>
+                    Change calculation method
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <View style={{ marginBottom: 16 }}>
+                {/* Recommended option */}
+                <TouchableOpacity
+                  onPress={() => {
+                    Haptics.selectionAsync();
+                    onChangeCalcMethod(null);
+                  }}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    borderRadius: 10,
+                    marginBottom: 4,
+                    backgroundColor: calcMethodKey === null ? 'rgba(16, 185, 129, 0.1)' : 'transparent',
+                    borderWidth: 1,
+                    borderColor: calcMethodKey === null ? 'rgba(16, 185, 129, 0.3)' : 'transparent',
+                  }}
+                >
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: calcMethodKey === null ? '#10b981' : '#e5e7eb', fontSize: 14, fontWeight: '600' }}>
+                      Recommended ({PRAYER_METHODS[detectedMethodKey]?.name})
+                    </Text>
+                  </View>
+                  {calcMethodKey === null && <MaterialCommunityIcons name="check" size={18} color="#10b981" />}
+                </TouchableOpacity>
+
+                {/* Method list */}
+                {METHOD_KEYS.map((key) => (
+                  <TouchableOpacity
+                    key={key}
+                    onPress={() => {
+                      Haptics.selectionAsync();
+                      onChangeCalcMethod(key);
+                    }}
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      paddingVertical: 10,
+                      paddingHorizontal: 12,
+                      borderRadius: 10,
+                      marginBottom: 4,
+                      backgroundColor: calcMethodKey === key ? 'rgba(232, 168, 124, 0.1)' : 'transparent',
+                      borderWidth: 1,
+                      borderColor: calcMethodKey === key ? 'rgba(232, 168, 124, 0.3)' : 'transparent',
+                    }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: calcMethodKey === key ? '#e8a87c' : '#d1d5db', fontSize: 14, fontWeight: '500' }}>
+                        {PRAYER_METHODS[key].name}
+                      </Text>
+                      <Text style={{ color: '#6b7280', fontSize: 11, marginTop: 2 }}>
+                        Fajr {Math.abs(PRAYER_METHODS[key].fajrAngle)}° · Isha {Math.abs(PRAYER_METHODS[key].ishaAngle)}°
+                      </Text>
+                    </View>
+                    {calcMethodKey === key && <MaterialCommunityIcons name="check" size={18} color="#e8a87c" />}
+                  </TouchableOpacity>
+                ))}
+
+                <TouchableOpacity
+                  onPress={() => { Haptics.selectionAsync(); setShowAdvanced(false); onChangeCalcMethod(null); }}
+                  style={{ paddingVertical: 8, marginTop: 4 }}
+                >
+                  <Text style={{ color: '#6b7280', fontSize: 13 }}>
+                    Reset to recommended
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
 
             {/* ── NOTIFICATIONS ──────────────────────────────────── */}
             <SectionHeader icon="bell-outline" title="Notifications" />

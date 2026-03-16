@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View,
   Text,
+  Image,
   Modal,
   TouchableOpacity,
   ActivityIndicator,
@@ -10,6 +11,8 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { PREMIUM_PLANS, FREE_LIMITS, PREMIUM_LIMITS } from '../hooks/usePremium';
+
+const ICON_SPARKLE = require('../assets/Garden Assets/Icons/Icon_Sparkle.png');
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -175,12 +178,12 @@ export function PaywallModal({
             width: '100%',
             maxWidth: 340,
           }}>
-            <Text style={{ fontSize: 60, marginBottom: 16 }}>🎉</Text>
+            <Image source={ICON_SPARKLE} style={{ width: 60, height: 60, marginBottom: 16 }} resizeMode="contain" />
             <Text style={{ fontSize: 24, fontWeight: '800', color: '#e8a87c', marginBottom: 8, textAlign: 'center', width: '100%' }}>
               Welcome to Premium!
             </Text>
             <Text style={{ fontSize: 15, color: '#e8e0d6', textAlign: 'center', lineHeight: 22 }}>
-              All premium features are now unlocked. May your garden flourish!
+              All premium features are now unlocked.
             </Text>
           </View>
         </View>
@@ -207,7 +210,7 @@ export function PaywallModal({
 
         {/* Header */}
         <View style={{ alignItems: 'center', marginBottom: 16 }}>
-          <Text style={{ fontSize: 40, marginBottom: 6 }}>✨</Text>
+          <Image source={ICON_SPARKLE} style={{ width: 40, height: 40, marginBottom: 6 }} resizeMode="contain" />
           <Text style={{
             fontSize: 24,
             fontWeight: '800',

@@ -5,6 +5,21 @@ import { TileState, PlantedTree, TileTransition } from '../hooks/useGardenState'
 import { TREE_CATALOG } from './ShopModal';
 import { Audio } from 'expo-av';
 
+const PARTICLE_IMAGES = [
+    require('../assets/Garden Assets/Icons/particles/p0.png'),
+    require('../assets/Garden Assets/Icons/particles/p1.png'),
+    require('../assets/Garden Assets/Icons/particles/p2.png'),
+    require('../assets/Garden Assets/Icons/particles/p3.png'),
+    require('../assets/Garden Assets/Icons/particles/p4.png'),
+    require('../assets/Garden Assets/Icons/particles/p5.png'),
+    require('../assets/Garden Assets/Icons/particles/p6.png'),
+    require('../assets/Garden Assets/Icons/particles/p7.png'),
+    require('../assets/Garden Assets/Icons/particles/p8.png'),
+    require('../assets/Garden Assets/Icons/particles/p9.png'),
+    require('../assets/Garden Assets/Icons/particles/p10.png'),
+    require('../assets/Garden Assets/Icons/particles/p11.png'),
+];
+
 const COLORS = {
     skyBg: '#0f1526',
 };
@@ -549,23 +564,22 @@ const LevelUpFX = React.memo(function LevelUpFX({
                     transform: [{ scale: ringScale }],
                 }}
             /> */}
-            {/* Sparkle particles */}
+            {/* Image particles */}
             {sparkAnims.map((s, i) => (
-                <Animated.View
+                <Animated.Image
                     key={`spark-fx-${i}`}
-                    pointerEvents="none"
+                    source={PARTICLE_IMAGES[i % PARTICLE_IMAGES.length]}
                     style={{
                         position: 'absolute',
-                        left: centerX - 5,
-                        top: centerY - 5,
-                        width: 10,
-                        height: 10,
-                        borderRadius: 5,
-                        backgroundColor: i % 3 === 0 ? '#fde047' : i % 3 === 1 ? '#86efac' : '#a78bfa',
+                        left: centerX - 16,
+                        top: centerY - treeHeight * 0.6 - 16,
+                        width: 32,
+                        height: 32,
                         zIndex: zIndex + 51,
                         opacity: s.opacity,
                         transform: [{ translateX: s.tx }, { translateY: s.ty }],
                     }}
+                    resizeMode="contain"
                 />
             ))}
             {/* Floating "Level Up!" text */}
@@ -1287,7 +1301,7 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
                     textShadowColor: 'rgba(0,0,0,0.7)',
                     textShadowOffset: { width: 0, height: 1 },
                     textShadowRadius: 3,
-                }}>+5 🪙</Text>
+                }}>+5</Text>
             </Animated.View>
         </>
     );

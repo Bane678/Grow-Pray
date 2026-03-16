@@ -10,53 +10,119 @@ type Timings = {
     [key: string]: string;
 };
 
-// Explicit Islamic deadlines for each prayer (HH:MM format)
-// Derived from Muwaqqit astronomical calculations
 export type PrayerDeadlines = {
     Fajr: string;      // Sunrise
-    Dhuhr: string;     // Asr al-Mithl al-Awwal (shadow = object + meridian shadow)
+    Dhuhr: string;     // Asr start
     Asr: string;       // Sunset
-    Maghrib: string;   // Isha (disappearance of red twilight)
+    Maghrib: string;   // Isha start
     Isha: string;      // Next day's Fajr
 };
 
-// Hardcoded fallback — used when API is completely unreachable
+// ─── Calculation Methods ────────────────────────────────────────────────────────
+// Each method defines the Fajr/Isha sun angles used by Islamic authorities in
+// that region. Angles are passed directly to Muwaqqit (fa/ea params) so it
+// computes the correct astronomical time — no post-hoc minute offsets.
+
+export interface PrayerMethod {
+    name: string;
+    fajrAngle: number;        // degrees below horizon (negative), e.g. -18
+    ishaAngle: number;        // degrees below horizon (negative), e.g. -17
+    aladhanMethod: number;    // Aladhan API method ID (fallback)
+}
+
+export const PRAYER_METHODS: Record<string, PrayerMethod> = {
+    MWL: {
+        name: 'Muslim World League',
+        fajrAngle: -18,
+        ishaAngle: -17,
+        aladhanMethod: 3,
+    },
+    ISNA: {
+        name: 'ISNA',
+        fajrAngle: -15,
+        ishaAngle: -15,
+        aladhanMethod: 2,
+    },
+    EGYPT: {
+        name: 'Egyptian General Authority',
+        fajrAngle: -19.5,
+        ishaAngle: -17.5,
+        aladhanMethod: 5,
+    },
+    UMM_AL_QURA: {
+        name: 'Umm Al-Qura (Makkah)',
+        fajrAngle: -18.5,
+        ishaAngle: -19,
+        aladhanMethod: 4,
+    },
+    KARACHI: {
+        name: 'Karachi',
+        fajrAngle: -18,
+        ishaAngle: -18,
+        aladhanMethod: 1,
+    },
+    DUBAI: {
+        name: 'Dubai',
+        fajrAngle: -18.2,
+        ishaAngle: -18.2,
+        aladhanMethod: 12,
+    },
+    TURKEY: {
+        name: 'Turkey (Diyanet)',
+        fajrAngle: -18,
+        ishaAngle: -17,
+        aladhanMethod: 13,
+    },
+};
+
+export type PrayerMethodKey = keyof typeof PRAYER_METHODS;
+export type Madhab = 'hanafi' | 'standard';
+
+// Map country codes → default calculation method key
+function getMethodKeyForCountry(countryCode: string): PrayerMethodKey {
+    const cc = countryCode.toUpperCase();
+
+    if (['GB', 'IE', 'FR', 'DE', 'NL', 'BE', 'AT', 'CH', 'IT', 'ES', 'PT',
+         'DK', 'SE', 'NO', 'FI', 'IS', 'PL', 'CZ', 'HU', 'RO', 'BG', 'HR',
+         'SK', 'SI', 'GR', 'BA', 'RS', 'ME', 'MK', 'AL', 'XK', 'LU', 'LT',
+         'LV', 'EE'].includes(cc)) return 'MWL';
+    if (['US', 'CA', 'MX'].includes(cc)) return 'ISNA';
+    if (['SA', 'YE'].includes(cc)) return 'UMM_AL_QURA';
+    if (['AE', 'OM', 'BH', 'QA', 'KW'].includes(cc)) return 'DUBAI';
+    if (['EG', 'LY', 'SD'].includes(cc)) return 'EGYPT';
+    if (['PK', 'IN', 'BD', 'AF', 'LK', 'NP'].includes(cc)) return 'KARACHI';
+    if (['TR', 'AZ', 'KZ', 'UZ', 'TM', 'KG', 'TJ'].includes(cc)) return 'TURKEY';
+    if (['MY', 'ID', 'SG', 'BN', 'PH', 'TH'].includes(cc)) return 'MWL';
+    if (['MA', 'DZ', 'TN'].includes(cc)) return 'MWL';
+    if (['IQ', 'JO', 'PS', 'LB', 'SY'].includes(cc)) return 'MWL';
+    if (['SO', 'DJ', 'KM', 'MR', 'NG', 'GH', 'SN', 'ML', 'NE', 'CM',
+         'KE', 'TZ', 'UG', 'ET'].includes(cc)) return 'EGYPT';
+    if (['AU', 'NZ'].includes(cc)) return 'MWL';
+    return 'MWL';
+}
+
+// ─── Helpers ────────────────────────────────────────────────────────────────────
+
 const FALLBACK_TIMINGS: Timings = {
-    Fajr: '05:30',
-    Sunrise: '07:00',
-    Dhuhr: '12:15',
-    Asr: '14:45',
-    Sunset: '17:30',
-    Maghrib: '17:30',
-    Isha: '19:15',
+    Fajr: '05:30', Sunrise: '07:00', Dhuhr: '12:15', Asr: '14:45',
+    Sunset: '17:30', Maghrib: '17:30', Isha: '19:15',
 };
-
 const FALLBACK_DEADLINES: PrayerDeadlines = {
-    Fajr: '07:00',     // Sunrise
-    Dhuhr: '14:45',    // Asr start
-    Asr: '17:30',      // Sunset
-    Maghrib: '19:15',  // Isha start
-    Isha: '05:30',     // Next Fajr
+    Fajr: '07:00', Dhuhr: '14:45', Asr: '17:30', Maghrib: '19:15', Isha: '05:30',
 };
 
-// Convert Muwaqqit "HH:MM:SS" to "HH:MM"
 function toHHMM(time: string): string {
     if (!time) return '00:00';
     const parts = time.split(':');
     return `${parts[0]}:${parts[1]}`;
 }
 
-// Get the user's IANA timezone string
 function getTimezone(): string {
-    try {
-        return Intl.DateTimeFormat().resolvedOptions().timeZone;
-    } catch {
-        return 'UTC';
-    }
+    try { return Intl.DateTimeFormat().resolvedOptions().timeZone; }
+    catch { return 'UTC'; }
 }
 
-// Fetch with timeout + retry
-async function fetchWithRetry(url: string, retries = 2, timeoutMs = 5000): Promise<any> {
+async function fetchWithRetry(url: string, retries = 2, timeoutMs = 8000): Promise<any> {
     for (let attempt = 0; attempt < retries; attempt++) {
         try {
             const controller = new AbortController();
@@ -73,7 +139,17 @@ async function fetchWithRetry(url: string, retries = 2, timeoutMs = 5000): Promi
                 return null;
             }
 
-            return await response.json();
+            const text = await response.text();
+            try {
+                return JSON.parse(text);
+            } catch {
+                console.warn(`Non-JSON response (attempt ${attempt + 1}): ${text.slice(0, 120)}`);
+                if (attempt < retries - 1) {
+                    await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
+                    continue;
+                }
+                return null;
+            }
         } catch (error: any) {
             console.warn(`Fetch attempt ${attempt + 1} failed:`, error?.message || error);
             if (attempt < retries - 1) {
@@ -84,57 +160,38 @@ async function fetchWithRetry(url: string, retries = 2, timeoutMs = 5000): Promi
     return null;
 }
 
-// Parse Muwaqqit monthly response to extract today's entry
-function findTodayEntry(data: any[]): any | null {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
-
-    // Muwaqqit returns an array of daily entries for the month
-    // Each entry has a 'd' field with the date
+function findEntryByDate(data: any[], dateStr: string): any | null {
     for (const entry of data) {
         if (entry.d === dateStr) return entry;
     }
-    // If exact date not found, try matching on fajr_date or sunset_date
     for (const entry of data) {
         if (entry.fajr_date === dateStr || entry.sunset_date === dateStr) return entry;
     }
     return null;
 }
 
-// Extract next day's entry (for Isha deadline = next Fajr)
-function findTomorrowEntry(data: any[]): any | null {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    const yyyy = tomorrow.getFullYear();
-    const mm = String(tomorrow.getMonth() + 1).padStart(2, '0');
-    const dd = String(tomorrow.getDate()).padStart(2, '0');
-    const dateStr = `${yyyy}-${mm}-${dd}`;
+// ─── Hook ───────────────────────────────────────────────────────────────────────
 
-    for (const entry of data) {
-        if (entry.d === dateStr) return entry;
-    }
-    for (const entry of data) {
-        if (entry.fajr_date === dateStr) return entry;
-    }
-    return null;
+export interface PrayerTimesConfig {
+    madhab: Madhab;
+    methodKey: PrayerMethodKey | null;  // null = auto-detect from country
 }
 
-export function usePrayerTimes() {
+export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard', methodKey: null }) {
     const [timings, setTimings] = useState<Timings | null>(null);
     const [deadlines, setDeadlines] = useState<PrayerDeadlines | null>(null);
     const [nextPrayer, setNextPrayer] = useState<string | null>(null);
     const [loading, setLoading] = useState(true);
     const [locationError, setLocationError] = useState<string | null>(null);
+    const [detectedMethodKey, setDetectedMethodKey] = useState<PrayerMethodKey>('MWL');
     const isMounted = useRef(true);
+
+    const { madhab, methodKey } = config;
 
     useEffect(() => {
         isMounted.current = true;
+        setLoading(true);
 
-        // Safety net: if both APIs stall (AbortController unreliable in some RN envs),
-        // this guarantees loading resolves within 12 seconds no matter what.
         const safetyTimer = setTimeout(() => {
             if (isMounted.current) {
                 console.warn('Prayer times safety timeout — using hardcoded fallback');
@@ -148,7 +205,7 @@ export function usePrayerTimes() {
             isMounted.current = false;
             clearTimeout(safetyTimer);
         };
-    }, []);
+    }, [madhab, methodKey]);
 
     const applyTimings = (t: Timings, d: PrayerDeadlines) => {
         if (!isMounted.current) return;
@@ -158,19 +215,13 @@ export function usePrayerTimes() {
         setLoading(false);
     };
 
-    const useFallback = () => {
-        console.warn('All API attempts failed — using hardcoded fallback times');
-        applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES);
-    };
-
     const getLocationAndFetchTimings = async () => {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
-            
+
             if (status !== 'granted') {
                 setLocationError('Location permission denied');
-                // Fallback to London coords
-                await fetchFromMuwaqqit(51.5074, -0.1278);
+                await fetchTimes(51.5074, -0.1278, 0, 'MWL');
                 return;
             }
 
@@ -178,71 +229,84 @@ export function usePrayerTimes() {
                 accuracy: Location.Accuracy.Balanced,
             });
 
-            const { latitude, longitude } = location.coords;
-            await fetchFromMuwaqqit(latitude, longitude);
+            const { latitude, longitude, altitude } = location.coords;
+            const elevationM = Math.max(altitude || 0, 0);
+
+            // Auto-detect method from country
+            let autoKey: PrayerMethodKey = 'MWL';
+            try {
+                const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
+                if (geocode.length > 0 && geocode[0].isoCountryCode) {
+                    autoKey = getMethodKeyForCountry(geocode[0].isoCountryCode);
+                    console.log(`Auto-detected method: ${autoKey} (${geocode[0].isoCountryCode})`);
+                }
+            } catch (geoErr) {
+                console.warn('Reverse geocode failed, using MWL:', geoErr);
+            }
+
+            if (isMounted.current) setDetectedMethodKey(autoKey);
+
+            // Use manual override if set, otherwise auto-detected
+            const activeKey = methodKey || autoKey;
+            await fetchTimes(latitude, longitude, elevationM, activeKey);
         } catch (error) {
             console.error('Location error:', error);
             setLocationError('Failed to get location');
-            // Fallback to London coords
-            await fetchFromMuwaqqit(51.5074, -0.1278);
+            await fetchTimes(51.5074, -0.1278, 0, 'MWL');
         }
     };
 
-    const fetchFromMuwaqqit = async (lat: number, lng: number) => {
+    const fetchTimes = async (lat: number, lng: number, elevation: number, key: PrayerMethodKey) => {
+        const method = PRAYER_METHODS[key] || PRAYER_METHODS.MWL;
         const today = new Date();
         const yyyy = today.getFullYear();
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const dd = String(today.getDate()).padStart(2, '0');
         const tz = encodeURIComponent(getTimezone());
 
-        // Muwaqqit returns the full month of data in one call
-        const url = `https://api.muwaqqit.com/api.json?lt=${lat}&ln=${lng}&d=${yyyy}-${mm}-${dd}&tz=${tz}`;
-        
-        const data = await fetchWithRetry(url);
+        // Pass Fajr/Isha angles directly to Muwaqqit
+        const url = `https://api.muwaqqit.com/api.json?lt=${lat}&ln=${lng}&d=${yyyy}-${mm}-${dd}&tz=${tz}&ht=${Math.round(elevation)}&fa=${method.fajrAngle}&ea=${method.ishaAngle}`;
 
-        if (data && Array.isArray(data)) {
-            const todayEntry = findTodayEntry(data);
-            const tomorrowEntry = findTomorrowEntry(data);
+        console.log(`[Prayer] ${method.name} — Fajr ${method.fajrAngle}°, Isha ${method.ishaAngle}°, Asr: ${madhab}`);
+
+        const data = await fetchWithRetry(url);
+        const entries = data && Array.isArray(data) ? data
+            : data && Array.isArray(data?.list) ? data.list
+            : null;
+
+        if (entries) {
+            const todayStr = `${yyyy}-${mm}-${dd}`;
+            const todayEntry = findEntryByDate(entries, todayStr);
 
             if (todayEntry) {
-                // Map Muwaqqit fields → our Timings shape
-                //
-                // Muwaqqit fields:
-                //   fajr_time      — Fajr start
-                //   sunrise_time   — Sunrise (Fajr deadline)
-                //   zohr_time      — Dhuhr start (after zenith)
-                //   mithl_time     — Asr al-Mithl al-Awwal (Dhuhr deadline / Asr start for majority)
-                //   mithlain_time  — Asr al-Mithl al-Thani (Hanafi Asr start)
-                //   karaha_time    — Karahah (reprehensible to delay Asr past this)
-                //   sunset_time    — Sunset/Maghrib start (Asr deadline)
-                //   esha_red_time  — Isha by red twilight (Maghrib deadline / Isha start for majority)
-                //   esha_time      — Isha by white twilight (Hanafi)
-                //
+                // Select Asr field based on madhab
+                const asrTime = madhab === 'hanafi'
+                    ? toHHMM(todayEntry.mithlain_time)   // Hanafi: shadow = 2× object length
+                    : toHHMM(todayEntry.mithl_time);     // Standard: shadow = 1× object length
+
                 const t: Timings = {
                     Fajr: toHHMM(todayEntry.fajr_time),
                     Sunrise: toHHMM(todayEntry.sunrise_time),
                     Dhuhr: toHHMM(todayEntry.zohr_time),
-                    Asr: toHHMM(todayEntry.mithl_time),          // Majority: shadow = object + meridian
+                    Asr: asrTime,
                     Sunset: toHHMM(todayEntry.sunset_time),
-                    Maghrib: toHHMM(todayEntry.sunset_time),     // Maghrib = Sunset
-                    Isha: toHHMM(todayEntry.esha_red_time),      // Majority: red twilight disappearance
-                    // Extra Muwaqqit data for reference
-                    Karahah: toHHMM(todayEntry.karaha_time),
-                    AsrHanafi: toHHMM(todayEntry.mithlain_time),  // Hanafi Asr start (2× shadow)
-                    IshaHanafi: toHHMM(todayEntry.esha_time),     // Hanafi Isha start (white twilight)
+                    Maghrib: toHHMM(todayEntry.sunset_time),
+                    Isha: toHHMM(todayEntry.esha_time),
                 };
 
-                // Explicit Islamic deadlines
-                const nextFajr = tomorrowEntry
-                    ? toHHMM(tomorrowEntry.fajr_time)
-                    : t.Fajr; // fallback to today's Fajr
+                // Tomorrow's Fajr for Isha deadline
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                const tmrStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
+                const tomorrowEntry = findEntryByDate(entries, tmrStr);
+                const nextFajr = tomorrowEntry ? toHHMM(tomorrowEntry.fajr_time) : t.Fajr;
 
                 const d: PrayerDeadlines = {
-                    Fajr: t.Sunrise,                              // Fajr ends at Sunrise
-                    Dhuhr: t.Asr,                                 // Dhuhr ends at Asr al-Mithl al-Awwal
-                    Asr: t.Sunset,                                // Asr ends at Sunset
-                    Maghrib: t.Isha,                              // Maghrib ends at Isha (red twilight)
-                    Isha: nextFajr,                               // Isha ends at next Fajr
+                    Fajr: t.Sunrise,
+                    Dhuhr: t.Asr,
+                    Asr: t.Sunset,
+                    Maghrib: t.Isha,
+                    Isha: nextFajr,
                 };
 
                 applyTimings(t, d);
@@ -250,46 +314,36 @@ export function usePrayerTimes() {
             }
         }
 
-        // Muwaqqit failed — try Aladhan as secondary fallback
+        // Muwaqqit failed — try Aladhan
         console.warn('Muwaqqit failed, trying Aladhan fallback...');
-        await fetchFromAladhan(lat, lng);
+        await fetchFromAladhan(lat, lng, method);
     };
 
-    // Aladhan fallback (in case Muwaqqit is down / rate-limited)
-    const fetchFromAladhan = async (lat: number, lng: number) => {
+    const fetchFromAladhan = async (lat: number, lng: number, method: PrayerMethod) => {
         const today = new Date();
         const dd = String(today.getDate()).padStart(2, '0');
         const mm = String(today.getMonth() + 1).padStart(2, '0');
         const yyyy = today.getFullYear();
+        const school = madhab === 'hanafi' ? 1 : 0;
 
         const data = await fetchWithRetry(
-            `https://api.aladhan.com/v1/timings/${dd}-${mm}-${yyyy}?latitude=${lat}&longitude=${lng}&method=2`
+            `https://api.aladhan.com/v1/timings/${dd}-${mm}-${yyyy}?latitude=${lat}&longitude=${lng}&method=${method.aladhanMethod}&school=${school}`
         );
 
         if (data && data.code === 200) {
             const at = data.data.timings;
             const t: Timings = {
-                Fajr: at.Fajr,
-                Sunrise: at.Sunrise,
-                Dhuhr: at.Dhuhr,
-                Asr: at.Asr,
-                Sunset: at.Sunset,
-                Maghrib: at.Maghrib,
-                Isha: at.Isha,
+                Fajr: at.Fajr, Sunrise: at.Sunrise, Dhuhr: at.Dhuhr,
+                Asr: at.Asr, Sunset: at.Sunset, Maghrib: at.Maghrib, Isha: at.Isha,
             };
-
-            // Derive deadlines from Aladhan data (best approximation)
             const d: PrayerDeadlines = {
-                Fajr: at.Sunrise,       // Fajr → Sunrise
-                Dhuhr: at.Asr,          // Dhuhr → Asr start
-                Asr: at.Sunset,         // Asr → Sunset
-                Maghrib: at.Isha,       // Maghrib → Isha
-                Isha: at.Fajr,          // Isha → next Fajr (approx — same day value)
+                Fajr: at.Sunrise, Dhuhr: at.Asr, Asr: at.Sunset,
+                Maghrib: at.Isha, Isha: at.Fajr,
             };
-
             applyTimings(t, d);
         } else {
-            useFallback();
+            console.warn('All API attempts failed — using hardcoded fallback');
+            applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES);
         }
     };
 
@@ -302,8 +356,7 @@ export function usePrayerTimes() {
             const timeStr = timings[prayer];
             if (timeStr) {
                 const [hours, minutes] = timeStr.split(':').map(Number);
-                const prayerMinutes = hours * 60 + minutes;
-                if (prayerMinutes > currentMinutes) {
+                if (hours * 60 + minutes > currentMinutes) {
                     setNextPrayer(prayer);
                     return;
                 }
@@ -312,5 +365,5 @@ export function usePrayerTimes() {
         setNextPrayer('Fajr');
     };
 
-    return { timings, deadlines, nextPrayer, loading, locationError };
+    return { timings, deadlines, nextPrayer, loading, locationError, detectedMethodKey };
 }

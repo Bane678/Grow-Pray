@@ -2,6 +2,7 @@ import React, { useState, useRef } from 'react';
 import {
   View,
   Text,
+  Image,
   TextInput,
   TouchableOpacity,
   Animated,
@@ -14,11 +15,19 @@ import { StatusBar } from 'expo-status-bar';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
+const ICON_TREE = require('../assets/Garden Assets/Icons/Icon_Tree.png');
+const ICON_LOCATION = require('../assets/Garden Assets/Icons/Icon_Location.png');
+const ICON_BELL = require('../assets/Garden Assets/Icons/Icon_Bell.png');
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 const ONBOARDING_KEY = '@JannahGarden:onboardingComplete';
 const USER_NAME_KEY = '@JannahGarden:userName';
+const MADHAB_KEY = '@GrowPray:madhab';
+
+const TOTAL_STEPS = 4;
 
 type OnboardingScreenProps = {
   onComplete: () => void;
@@ -27,6 +36,7 @@ type OnboardingScreenProps = {
 export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
+  const [selectedMadhab, setSelectedMadhab] = useState<'hanafi' | 'standard' | null>(null);
   const [locationGranted, setLocationGranted] = useState<boolean | null>(null);
   const [notifGranted, setNotifGranted] = useState<boolean | null>(null);
 
@@ -69,6 +79,12 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     animateToNext(1);
   };
 
+  const handleMadhabSelect = async (madhab: 'hanafi' | 'standard') => {
+    setSelectedMadhab(madhab);
+    await AsyncStorage.setItem(MADHAB_KEY, madhab);
+    animateToNext(2);
+  };
+
   const handleLocationPermission = async () => {
     try {
       const { status } = await Location.requestForegroundPermissionsAsync();
@@ -76,12 +92,12 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
     } catch {
       setLocationGranted(false);
     }
-    animateToNext(2);
+    animateToNext(3);
   };
 
   const handleSkipLocation = () => {
     setLocationGranted(false);
-    animateToNext(2);
+    animateToNext(3);
   };
 
   const handleNotificationPermission = async () => {
@@ -107,7 +123,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
   // Progress dots
   const ProgressDots = () => (
     <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 40 }}>
-      {[0, 1, 2].map((i) => (
+      {Array.from({ length: TOTAL_STEPS }, (_, i) => (
         <View
           key={i}
           style={{
@@ -143,7 +159,7 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
             {/* Step 0: Name */}
             {step === 0 && (
               <View style={{ width: '100%', alignItems: 'center' }}>
-                <Text style={{ fontSize: 48, marginBottom: 16 }}>🌳</Text>
+                <Image source={ICON_TREE} style={{ width: 48, height: 48, marginBottom: 16 }} resizeMode="contain" />
                 <Text
                   style={{
                     fontSize: 28,
@@ -224,10 +240,76 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               </View>
             )}
 
-            {/* Step 1: Location */}
+            {/* Step 1: Madhab */}
             {step === 1 && (
               <View style={{ width: '100%', alignItems: 'center' }}>
-                <Text style={{ fontSize: 48, marginBottom: 16 }}>📍</Text>
+                <MaterialCommunityIcons name="mosque" size={48} color="#e8a87c" style={{ marginBottom: 16 }} />
+                <Text
+                  style={{
+                    fontSize: 26,
+                    fontWeight: '800',
+                    color: '#ffffff',
+                    textAlign: 'center',
+                    marginBottom: 8,
+                  }}
+                >
+                  Your Madhab
+                </Text>
+                <Text
+                  style={{
+                    fontSize: 15,
+                    color: 'rgba(255,255,255,0.6)',
+                    textAlign: 'center',
+                    marginBottom: 32,
+                    lineHeight: 22,
+                  }}
+                >
+                  This determines your Asr prayer time.{'\n'}You can change this later in settings.
+                </Text>
+
+                <TouchableOpacity
+                  onPress={() => handleMadhabSelect('hanafi')}
+                  style={{
+                    width: '100%',
+                    backgroundColor: selectedMadhab === 'hanafi' ? '#e8a87c' : 'rgba(255,255,255,0.06)',
+                    paddingVertical: 16,
+                    paddingHorizontal: 20,
+                    borderRadius: 14,
+                    marginBottom: 12,
+                  }}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>
+                    Hanafi
+                  </Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 4 }}>
+                    Later Asr time
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  onPress={() => handleMadhabSelect('standard')}
+                  style={{
+                    width: '100%',
+                    backgroundColor: selectedMadhab === 'standard' ? '#e8a87c' : 'rgba(255,255,255,0.06)',
+                    paddingVertical: 16,
+                    paddingHorizontal: 20,
+                    borderRadius: 14,
+                  }}
+                >
+                  <Text style={{ color: '#ffffff', fontSize: 17, fontWeight: '700' }}>
+                    Shafi'i / Maliki / Hanbali
+                  </Text>
+                  <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 13, marginTop: 4 }}>
+                    Earlier Asr time
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Step 2: Location */}
+            {step === 2 && (
+              <View style={{ width: '100%', alignItems: 'center' }}>
+                <Image source={ICON_LOCATION} style={{ width: 48, height: 48, marginBottom: 16 }} resizeMode="contain" />
                 <Text
                   style={{
                     fontSize: 26,
@@ -282,10 +364,10 @@ export function OnboardingScreen({ onComplete }: OnboardingScreenProps) {
               </View>
             )}
 
-            {/* Step 2: Notifications */}
-            {step === 2 && (
+            {/* Step 3: Notifications */}
+            {step === 3 && (
               <View style={{ width: '100%', alignItems: 'center' }}>
-                <Text style={{ fontSize: 48, marginBottom: 16 }}>🔔</Text>
+                <Image source={ICON_BELL} style={{ width: 48, height: 48, marginBottom: 16 }} resizeMode="contain" />
                 <Text
                   style={{
                     fontSize: 26,

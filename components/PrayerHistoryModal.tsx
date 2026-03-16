@@ -87,10 +87,14 @@ const PRAYER_ICONS: Record<string, ReturnType<typeof require>> = {
   Isha: require('../assets/Garden Assets/Icons/Isha.png'),
 };
 
-const STAT_ICONS: Record<string, string> = {
-  'Perfect Days': '⭐',
-  'Prayers': '🤲',
-  'Best Streak': '🔥',
+const ICON_STAR = require('../assets/Garden Assets/Icons/Icon_Star.png');
+const ICON_HANDS = require('../assets/Garden Assets/Icons/Icon_Hands.png');
+const ICON_FIRE = require('../assets/Garden Assets/Icons/Icon_Fire.png');
+
+const STAT_ICONS: Record<string, any> = {
+  'Perfect Days': ICON_STAR,
+  'Prayers': ICON_HANDS,
+  'Best Streak': ICON_FIRE,
 };
 
 // Intensity colour from 0 (nothing) to 5 (all prayers)
@@ -177,18 +181,8 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
 
   const cellSize = Math.floor((Dimensions.get('window').width - 80) / 7);
 
-  const Wrapper = asPage
-    ? ({ children }: { children: React.ReactNode }) => (
-        <View style={[styles.container, { flex: 1, borderTopLeftRadius: 0, borderTopRightRadius: 0, maxHeight: '100%' as any }]}>{children}</View>
-      )
-    : ({ children }: { children: React.ReactNode }) => (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-          <View style={styles.overlay}><View style={styles.container}>{children}</View></View>
-        </Modal>
-      );
-
-  return (
-    <Wrapper>
+  const innerContent = (
+    <>
       {/* Header */}
           <View style={styles.header}>
             <Text style={styles.headerTitle}>Prayer History</Text>
@@ -233,7 +227,7 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
                 <React.Fragment key={stat.label}>
                   {idx > 0 && <View style={styles.statDivider} />}
                   <View style={styles.statItem}>
-                    <Text style={styles.statIcon}>{STAT_ICONS[stat.label]}</Text>
+                    <Image source={STAT_ICONS[stat.label]} style={{ width: 18, height: 18 }} resizeMode="contain" />
                     <Text style={styles.statValue}>{stat.value}</Text>
                     <Text style={styles.statLabel}>{stat.label}</Text>
                   </View>
@@ -367,7 +361,7 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
                   <Text style={[styles.detailBadgeText, {
                     color: selectedDayPrayers.length === 5 ? '#fbbf24' : selectedDayPrayers.length > 0 ? '#e8a87c' : '#6b7280',
                   }]}>
-                    {selectedDayPrayers.length === 5 ? '✨ Perfect Day!' : `${selectedDayPrayers.length}/5 prayers completed`}
+                    {selectedDayPrayers.length === 5 ? 'Perfect Day!' : `${selectedDayPrayers.length}/5 prayers completed`}
                   </Text>
                 </View>
                 <View style={styles.detailPrayers}>
@@ -407,7 +401,21 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
               ))}
             </View>
           </ScrollView>
-    </Wrapper>
+    </>
+  );
+
+  if (asPage) {
+    return (
+      <View style={[styles.container, { flex: 1, borderTopLeftRadius: 0, borderTopRightRadius: 0, maxHeight: '100%' as any, backgroundColor: 'rgba(15,21,38,0.65)' }]}>
+        {innerContent}
+      </View>
+    );
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.overlay}><View style={styles.container}>{innerContent}</View></View>
+    </Modal>
   );
 });
 

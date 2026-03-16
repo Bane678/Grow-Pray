@@ -85,92 +85,97 @@ export const ChallengesModal = memo(function ChallengesModal({ visible, onClose,
     ? `Resets in ${dailyTimer.hours}h ${dailyTimer.minutes}m`
     : `Resets in ${weeklyTimer.days}d ${weeklyTimer.hours}h ${weeklyTimer.minutes}m`;
 
-  const Wrapper = asPage
-    ? ({ children }: { children: React.ReactNode }) => (
-        <View style={[styles.container, { flex: 1, borderTopLeftRadius: 0, borderTopRightRadius: 0, maxHeight: '100%' as any }]}>{children}</View>
-      )
-    : ({ children }: { children: React.ReactNode }) => (
-        <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-          <View style={styles.overlay}>
-            <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
-            <View style={styles.container}>{children}</View>
-          </View>
-        </Modal>
-      );
+  const innerContent = (
+    <>
+      {/* Header */}
+      <View style={styles.header}>
+        <View>
+          <Text style={styles.title}>Challenges</Text>
+          <Text style={styles.subtitle}>{resetLabel}</Text>
+        </View>
+        {!asPage && (
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <Text style={styles.closeBtnText}>✕</Text>
+          </TouchableOpacity>
+        )}
+      </View>
+
+      {/* Daily / Weekly tab switcher */}
+      <View style={styles.tabRow}>
+        <TouchableOpacity
+          style={[styles.tabBtn, section === 'daily' && styles.tabBtnActive]}
+          onPress={() => setSection('daily')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabBtnText, section === 'daily' && styles.tabBtnTextActive]}>Daily</Text>
+          {dailyClaimable > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>{dailyClaimable}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabBtn, section === 'weekly' && styles.tabBtnActive]}
+          onPress={() => setSection('weekly')}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.tabBtnText, section === 'weekly' && styles.tabBtnTextActive]}>Weekly</Text>
+          {weeklyClaimable > 0 && (
+            <View style={styles.tabBadge}>
+              <Text style={styles.tabBadgeText}>{weeklyClaimable}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {/* Progress summary */}
+      <View style={styles.summaryRow}>
+        <Text style={styles.summaryText}>
+          {totalCompleted}/{sectionChallenges.length} completed
+        </Text>
+        {totalCompleted === sectionChallenges.length && sectionChallenges.length > 0 && (
+          <Text style={styles.allDoneText}>{section === 'daily' ? 'All done today!' : 'All done this week!'}</Text>
+        )}
+      </View>
+
+      {/* Overall section progress bar */}
+      <View style={styles.overallProgressWrap}>
+        <View style={styles.overallProgressBar}>
+          <View style={[styles.overallProgressFill, { width: `${sectionChallenges.length > 0 ? (totalCompleted / sectionChallenges.length) * 100 : 0}%` as any }]} />
+        </View>
+      </View>
+
+      {/* Challenge cards — FlatList for virtualized native scroll */}
+      <FlatList
+        key={section}
+        data={listData}
+        renderItem={renderItem}
+        keyExtractor={keyExtractor}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        bounces={true}
+        overScrollMode="never"
+        removeClippedSubviews={true}
+        ListFooterComponent={<View style={{ height: 20 }} />}
+      />
+    </>
+  );
+
+  if (asPage) {
+    return (
+      <View style={[styles.container, { flex: 1, borderTopLeftRadius: 0, borderTopRightRadius: 0, maxHeight: '100%' as any, backgroundColor: 'rgba(15,21,38,0.65)' }]}>
+        {innerContent}
+      </View>
+    );
+  }
 
   return (
-    <Wrapper>
-      {/* Header */}
-        <View style={styles.header}>
-          <View>
-            <Text style={styles.title}>🏆 Challenges</Text>
-            <Text style={styles.subtitle}>{resetLabel}</Text>
-          </View>
-          {!asPage && (
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <Text style={styles.closeBtnText}>✕</Text>
-            </TouchableOpacity>
-          )}
-        </View>
-
-        {/* Daily / Weekly tab switcher */}
-        <View style={styles.tabRow}>
-          <TouchableOpacity
-            style={[styles.tabBtn, section === 'daily' && styles.tabBtnActive]}
-            onPress={() => setSection('daily')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabBtnText, section === 'daily' && styles.tabBtnTextActive]}>Daily</Text>
-            {dailyClaimable > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{dailyClaimable}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.tabBtn, section === 'weekly' && styles.tabBtnActive]}
-            onPress={() => setSection('weekly')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.tabBtnText, section === 'weekly' && styles.tabBtnTextActive]}>Weekly</Text>
-            {weeklyClaimable > 0 && (
-              <View style={styles.tabBadge}>
-                <Text style={styles.tabBadgeText}>{weeklyClaimable}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-
-        {/* Progress summary */}
-        <View style={styles.summaryRow}>
-          <Text style={styles.summaryText}>
-            {totalCompleted}/{sectionChallenges.length} completed
-          </Text>
-          {totalCompleted === sectionChallenges.length && sectionChallenges.length > 0 && (
-            <Text style={styles.allDoneText}>{section === 'daily' ? '🎉 All done today!' : '🎉 All done this week!'}</Text>
-          )}
-        </View>
-
-        {/* Overall section progress bar */}
-        <View style={styles.overallProgressWrap}>
-          <View style={styles.overallProgressBar}>
-            <View style={[styles.overallProgressFill, { width: `${sectionChallenges.length > 0 ? (totalCompleted / sectionChallenges.length) * 100 : 0}%` as any }]} />
-          </View>
-        </View>
-
-        {/* Challenge cards — FlatList for virtualized native scroll */}
-        <FlatList
-          data={listData}
-          renderItem={renderItem}
-          keyExtractor={keyExtractor}
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
-          bounces={true}
-          overScrollMode="never"
-          removeClippedSubviews={true}
-          ListFooterComponent={<View style={{ height: 20 }} />}
-        />
-    </Wrapper>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
+        <View style={styles.container}>{innerContent}</View>
+      </View>
+    </Modal>
   );
 });
 
@@ -231,7 +236,7 @@ function ChallengeCard({ challenge, onClaim }: { challenge: Challenge; onClaim: 
           </View>
         </View>
         <View style={[styles.rewardBadge, isComplete && !isClaimed && styles.rewardBadgeGlow]}>
-          <Text style={styles.rewardText}>🪙 {challenge.reward}</Text>
+          <Text style={styles.rewardText}>{challenge.reward} coins</Text>
         </View>
       </View>
 
@@ -255,7 +260,7 @@ function ChallengeCard({ challenge, onClaim }: { challenge: Challenge; onClaim: 
           }}
           activeOpacity={0.7}
         >
-          <Text style={styles.claimBtnText}>Claim Reward  •  +{challenge.reward} 🪙</Text>
+          <Text style={styles.claimBtnText}>Claim  •  +{challenge.reward} coins</Text>
         </TouchableOpacity>
       )}
 

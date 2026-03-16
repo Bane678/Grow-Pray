@@ -10,6 +10,18 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { BOOST_CATALOG, BoostDefinition, ActiveBoost } from '../hooks/useBoosts';
+
+// ─── Freeze icons ─────────────────────────────────────────────────────────────
+const SINGLE_FREEZE_ICON = require('../assets/Garden Assets/Icons/Streak_Freeze.png');
+const ALL_FREEZE_ICON = require('../assets/Garden Assets/Icons/5_Streak_Freeze.png');
+
+// ─── Custom pixel-art icons ───────────────────────────────────────────────────
+const ICON_COIN = require('../assets/Garden Assets/Icons/Icon_Coin.png');
+const ICON_HANDFUL = require('../assets/Garden Assets/Icons/Icon_Handful.png');
+const ICON_POUCH = require('../assets/Garden Assets/Icons/Icon_Pouch.png');
+const ICON_CHEST = require('../assets/Garden Assets/Icons/Icon_Chest.png');
+const ICON_TREASURY = require('../assets/Garden Assets/Icons/Icon_Treasury.png');
 
 // ─── Tree catalog ──────────────────────────────────────────────────────────────
 
@@ -286,14 +298,6 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
       flourishing: -13,
     },
   },
-  {
-    id: 'Ramadan',
-    name: 'Ramadan Crescent',
-    price: 300,
-    rarity: 'rare',
-    tint: '#c4b5fd',
-    description: '🌙 A special tree that blooms during the holy month of Ramadan.',
-  },
 ];
 
 // ─── Coin packages ──────────────────────────────────────────────────────────────
@@ -304,7 +308,7 @@ export interface CoinPackage {
   coins: number;
   price: string;      // Display price
   productId: string;  // App Store / Google Play product ID
-  icon: string;
+  icon: ReturnType<typeof require>;
   bestValue?: boolean;
   bonusPercent?: number;
 }
@@ -316,7 +320,7 @@ export const COIN_PACKAGES: CoinPackage[] = [
     coins: 500,
     price: '$0.99',
     productId: 'jannah_coins_500',
-    icon: '🪙',
+    icon: ICON_HANDFUL,
   },
   {
     id: 'pouch',
@@ -324,7 +328,7 @@ export const COIN_PACKAGES: CoinPackage[] = [
     coins: 1500,
     price: '$2.99',
     productId: 'jannah_coins_1500',
-    icon: '👝',
+    icon: ICON_POUCH,
     bonusPercent: 1,
   },
   {
@@ -333,7 +337,7 @@ export const COIN_PACKAGES: CoinPackage[] = [
     coins: 5000,
     price: '$7.99',
     productId: 'jannah_coins_5000',
-    icon: '📦',
+    icon: ICON_CHEST,
     bonusPercent: 26,
   },
   {
@@ -342,7 +346,7 @@ export const COIN_PACKAGES: CoinPackage[] = [
     coins: 12000,
     price: '$14.99',
     productId: 'jannah_coins_12000',
-    icon: '🏛️',
+    icon: ICON_TREASURY,
     bestValue: true,
     bonusPercent: 61,
   },
@@ -365,6 +369,12 @@ interface ShopModalProps {
   onPurchaseFreeze: (type: 'single' | 'all', cost: number) => Promise<boolean>;
   // Coin purchases (IAP)
   onPurchaseCoins?: (packageId: string, coins: number) => Promise<boolean>;
+  // Boosts
+  boostInventory?: Record<string, number>;
+  activeBoost?: ActiveBoost | null;
+  boostTimeRemainingMs?: number;
+  onPurchaseBoost?: (boostId: string) => Promise<boolean>;
+  onActivateBoost?: (boostId: string) => Promise<boolean>;
   asPage?: boolean;
 }
 
@@ -403,6 +413,11 @@ export function ShopModal({
   freezeInventory,
   onPurchaseFreeze,
   onPurchaseCoins,
+  boostInventory = {},
+  activeBoost = null,
+  boostTimeRemainingMs = 0,
+  onPurchaseBoost,
+  onActivateBoost,
   asPage = false,
 }: ShopModalProps) {
   const [activeTab, setActiveTab] = useState<ShopTab>('trees');
@@ -454,6 +469,45 @@ export function ShopModal({
     }
     setPurchasingFreeze(null);
   }, [purchasingFreeze, coins, onPurchaseFreeze]);
+
+  const [purchasingBoost, setPurchasingBoost] = useState<string | null>(null);
+  const [activatingBoost, setActivatingBoost] = useState<string | null>(null);
+  const [expandedBoost, setExpandedBoost] = useState<string | null>(null);
+
+  const handlePurchaseBoost = useCallback(async (boost: BoostDefinition) => {
+    if (purchasingBoost || !onPurchaseBoost) return;
+    if (coins < boost.price) return;
+
+    setPurchasingBoost(boost.id);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const success = await onPurchaseBoost(boost.id);
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    setPurchasingBoost(null);
+  }, [purchasingBoost, coins, onPurchaseBoost]);
+
+  const handleActivateBoost = useCallback(async (boostId: string) => {
+    if (activatingBoost || !onActivateBoost) return;
+
+    setActivatingBoost(boostId);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+
+    const success = await onActivateBoost(boostId);
+    if (success) {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    setActivatingBoost(null);
+  }, [activatingBoost, onActivateBoost]);
+
+  const formatBoostTime = (ms: number): string => {
+    const totalSec = Math.floor(ms / 1000);
+    const h = Math.floor(totalSec / 3600);
+    const m = Math.floor((totalSec % 3600) / 60);
+    if (h > 0) return `${h}h ${m}m`;
+    return `${m}m`;
+  };
 
   const renderTreeCard = (item: TreeCatalogItem) => {
     const owned = inventory[item.id] || 0;
@@ -533,13 +587,12 @@ export function ShopModal({
                 purchasing === item.id && { opacity: 0.45 },
               ]}
             >
-              <Text style={{
-                color: canAfford ? '#fff' : '#6b7280',
-                fontSize: 12,
-                fontWeight: '700',
-              }}>
-                {`🪙 ${item.price}`}
-              </Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
+                <Text style={{ color: canAfford ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>
+                  {purchasing === item.id ? '...' : `${item.price}`}
+                </Text>
+              </View>
             </TouchableOpacity>
           )}
         </View>
@@ -557,7 +610,10 @@ export function ShopModal({
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <View style={styles.coinBadge}>
-                <Text style={styles.coinText}>🪙 {coins}</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                  <Image source={ICON_COIN} style={{ width: 14, height: 14 }} resizeMode="contain" />
+                  <Text style={styles.coinText}>{coins}</Text>
+                </View>
               </View>
               {!asPage && (
                 <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
@@ -573,8 +629,8 @@ export function ShopModal({
               const isActive = activeTab === tab;
               const labels: Record<ShopTab, string> = {
                 trees: '🌳 Trees',
-                freezes: '🛡️ Freezes',
-                coins: '🪙 Coins',
+                freezes: 'Freezes',
+                coins: 'Coins',
                 boosts: '⚡ Boosts',
               };
               return (
@@ -583,9 +639,21 @@ export function ShopModal({
                   onPress={() => setActiveTab(tab)}
                   style={[styles.tab, isActive && styles.activeTab]}
                 >
-                  <Text style={[styles.tabText, isActive && styles.activeTabText]}>
-                    {labels[tab]}
-                  </Text>
+                  {tab === 'freezes' ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Image source={SINGLE_FREEZE_ICON} style={{ width: 14, height: 14 }} resizeMode="contain" />
+                      <Text style={[styles.tabText, isActive && styles.activeTabText]}>Freezes</Text>
+                    </View>
+                  ) : tab === 'coins' ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                      <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
+                      <Text style={[styles.tabText, isActive && styles.activeTabText]}>Coins</Text>
+                    </View>
+                  ) : (
+                    <Text style={[styles.tabText, isActive && styles.activeTabText]}>
+                      {labels[tab]}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               );
             })}
@@ -618,7 +686,7 @@ export function ShopModal({
                 {/* Single Prayer Freeze */}
                 <View style={[styles.freezeCard, { borderColor: 'rgba(74, 222, 128, 0.3)' }]}>
                   <View style={styles.freezeIconContainer}>
-                    <Text style={{ fontSize: 32 }}>🛡️</Text>
+                    <Image source={SINGLE_FREEZE_ICON} style={{ width: 40, height: 40 }} resizeMode="contain" />
                   </View>
                   <View style={styles.freezeInfo}>
                     <Text style={styles.freezeName}>Single Prayer Freeze</Text>
@@ -643,7 +711,12 @@ export function ShopModal({
                         fontSize: 12,
                         fontWeight: '700',
                       }}>
-                        {purchasingFreeze === 'single' ? '...' : '🪙 50'}
+                        {purchasingFreeze === 'single' ? '...' : (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                            <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
+                            <Text style={{ color: coins >= 50 ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>50</Text>
+                          </View>
+                        )}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -652,7 +725,7 @@ export function ShopModal({
                 {/* All Prayers Freeze */}
                 <View style={[styles.freezeCard, { borderColor: 'rgba(168, 85, 247, 0.3)', marginTop: 12 }]}>
                   <View style={styles.freezeIconContainer}>
-                    <Text style={{ fontSize: 32 }}>🛡️🛡️</Text>
+                    <Image source={ALL_FREEZE_ICON} style={{ width: 40, height: 40 }} resizeMode="contain" />
                   </View>
                   <View style={styles.freezeInfo}>
                     <Text style={styles.freezeName}>All Prayers Freeze</Text>
@@ -677,7 +750,12 @@ export function ShopModal({
                         fontSize: 12,
                         fontWeight: '700',
                       }}>
-                        {purchasingFreeze === 'all' ? '...' : '🪙 150'}
+                        {purchasingFreeze === 'all' ? '...' : (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                            <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
+                            <Text style={{ color: coins >= 150 ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>150</Text>
+                          </View>
+                        )}
                       </Text>
                     </TouchableOpacity>
                   </View>
@@ -722,13 +800,14 @@ export function ShopModal({
                       )}
 
                       <View style={styles.coinPackageIcon}>
-                        <Text style={{ fontSize: 28 }}>{pkg.icon}</Text>
+                        <Image source={pkg.icon} style={{ width: 36, height: 36 }} resizeMode="contain" />
                       </View>
 
                       <View style={styles.coinPackageInfo}>
                         <Text style={styles.coinPackageName}>{pkg.name}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                          <Text style={styles.coinPackageAmount}>🪙 {pkg.coins.toLocaleString()}</Text>
+                          <Image source={ICON_COIN} style={{ width: 14, height: 14 }} resizeMode="contain" />
+                          <Text style={styles.coinPackageAmount}>{pkg.coins.toLocaleString()}</Text>
                           {pkg.bonusPercent != null && pkg.bonusPercent > 0 && (
                             <View style={styles.bonusBadge}>
                               <Text style={styles.bonusText}>+{pkg.bonusPercent}% bonus</Text>
@@ -767,14 +846,123 @@ export function ShopModal({
             )}
 
             {activeTab === 'boosts' && (
-              <View style={styles.comingSoon}>
-                <Text style={{ fontSize: 48, marginBottom: 12 }}>⚡</Text>
-                <Text style={styles.comingSoonTitle}>Boosts</Text>
-                <Text style={styles.comingSoonDesc}>
-                  Earn bonus XP and grow faster.
-                  {'\n'}Coming in the next update!
-                </Text>
-              </View>
+              <>
+                {/* Active boost banner */}
+                {activeBoost && boostTimeRemainingMs > 0 && (() => {
+                  const def = BOOST_CATALOG.find(b => b.id === activeBoost.boostId);
+                  if (!def) return null;
+                  const tierColor = def.tier === 'divine' ? '#fbbf24' : def.tier === 'enhanced' ? '#a855f7' : '#4ade80';
+                  return (
+                    <View style={[styles.activeBoostBanner, { borderColor: tierColor + '40' }]}>
+                      <Text style={{ fontSize: 24 }}>{def.icon}</Text>
+                      <View style={{ flex: 1, marginLeft: 10 }}>
+                        <Text style={{ color: tierColor, fontSize: 13, fontWeight: '700' }}>
+                          {def.name} Active
+                        </Text>
+                        <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }}>
+                          +{Math.round(def.xpBonus * 100)}% XP{def.coinBonus > 0 ? ` · +${def.coinBonus} coins` : ''} · {formatBoostTime(boostTimeRemainingMs)} left
+                        </Text>
+                      </View>
+                      <View style={[styles.activeBoostDot, { backgroundColor: tierColor }]} />
+                    </View>
+                  );
+                })()}
+
+                {BOOST_CATALOG.map((boost) => {
+                  const owned = boostInventory[boost.id] || 0;
+                  const canAfford = coins >= boost.price;
+                  const isActive = activeBoost?.boostId === boost.id && boostTimeRemainingMs > 0;
+                  const hasAnyActive = activeBoost !== null && boostTimeRemainingMs > 0;
+                  const tierColor = boost.tier === 'divine' ? '#fbbf24' : boost.tier === 'enhanced' ? '#a855f7' : '#4ade80';
+                  const tierBg = boost.tier === 'divine' ? 'rgba(251,191,36,0.08)' : boost.tier === 'enhanced' ? 'rgba(168,85,247,0.08)' : 'rgba(74,222,128,0.08)';
+
+                  return (
+                    <TouchableOpacity key={boost.id} activeOpacity={boost.tier !== 'basic' ? 0.85 : 1} onPress={() => { if (boost.tier !== 'basic') setExpandedBoost(expandedBoost === boost.id ? null : boost.id); }} style={[styles.boostCard, { borderColor: tierColor + '30', backgroundColor: tierBg }]}>
+                      <View style={[styles.boostIconContainer, { backgroundColor: tierColor + '18' }]}>
+                        <Text style={{ fontSize: 28 }}>{boost.icon}</Text>
+                      </View>
+                      <View style={styles.boostInfo}>
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                          <Text style={[styles.boostName, { color: tierColor }]}>{boost.name}</Text>
+                          <View style={[styles.boostDurationBadge, { backgroundColor: tierColor + '18' }]}>
+                            <Text style={{ color: tierColor, fontSize: 9, fontWeight: '700' }}>{boost.durationHours}h</Text>
+                          </View>
+                        </View>
+                        <Text style={styles.boostDesc} numberOfLines={boost.tier !== 'basic' && expandedBoost !== boost.id ? 2 : undefined}>{boost.description}</Text>
+                        {boost.tier !== 'basic' && expandedBoost !== boost.id && (
+                          <Text style={{ color: tierColor + 'aa', fontSize: 10, marginTop: 2 }}>tap to read more</Text>
+                        )}
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                          <Text style={{ color: '#e8a87c', fontSize: 11, fontWeight: '600' }}>+{Math.round(boost.xpBonus * 100)}% XP</Text>
+                          {boost.coinBonus > 0 && (
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
+                            <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '600' }}>+{boost.coinBonus}</Text>
+                            <Image source={ICON_COIN} style={{ width: 11, height: 11 }} resizeMode="contain" />
+                          </View>
+                          )}
+                          {owned > 0 && (
+                            <Text style={{ color: '#4ade80', fontSize: 11, fontWeight: '600' }}>Owned: {owned}</Text>
+                          )}
+                        </View>
+                      </View>
+                      <View style={{ alignItems: 'center', marginLeft: 8, gap: 6 }}>
+                        {/* Buy button */}
+                        <TouchableOpacity
+                          onPress={() => handlePurchaseBoost(boost)}
+                          disabled={!canAfford || purchasingBoost === boost.id}
+                          style={[
+                            styles.buyButton,
+                            canAfford ? { backgroundColor: '#22c55e' } : { backgroundColor: '#374151' },
+                            purchasingBoost === boost.id && { opacity: 0.45 },
+                          ]}
+                        >
+                          {purchasingBoost === boost.id ? (
+                            <Text style={{ color: canAfford ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>...</Text>
+                          ) : (
+                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                              <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
+                              <Text style={{ color: canAfford ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>{boost.price}</Text>
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                        {/* Activate button (if owned and no other boost active) */}
+                        {owned > 0 && !isActive && (
+                          <TouchableOpacity
+                            onPress={() => handleActivateBoost(boost.id)}
+                            disabled={hasAnyActive || activatingBoost === boost.id}
+                            style={[
+                              styles.boostActivateBtn,
+                              { borderColor: tierColor + '50' },
+                              hasAnyActive && { opacity: 0.35 },
+                            ]}
+                          >
+                            <Text style={{ color: tierColor, fontSize: 11, fontWeight: '700' }}>
+                              {activatingBoost === boost.id ? '...' : '⚡ Use'}
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                        {isActive && (
+                          <View style={[styles.boostActivateBtn, { borderColor: tierColor + '50', backgroundColor: tierColor + '15' }]}>
+                            <Text style={{ color: tierColor, fontSize: 10, fontWeight: '700' }}>Active</Text>
+                          </View>
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+
+                {/* Info section */}
+                <View style={[styles.freezeInfoBox, { marginTop: 12 }]}>
+                  <Text style={styles.freezeInfoTitle}>How Boosts Work</Text>
+                  <Text style={styles.freezeInfoText}>
+                    • Buy boosts and store them for later use{'\n'}
+                    • Activate a boost to gain bonus XP and coins{'\n'}
+                    • Only one boost can be active at a time{'\n'}
+                    • Boosts stack with your consistency multiplier{'\n'}
+                    • Activate before prayer for maximum benefit
+                  </Text>
+                </View>
+              </>
             )}
           </ScrollView>
     </>
@@ -782,8 +970,8 @@ export function ShopModal({
 
   if (asPage) {
     return (
-      <View style={{ flex: 1, backgroundColor: '#0f1526' }}>
-        <View style={[styles.container, { flex: 1, borderRadius: 0, maxHeight: '100%', maxWidth: '100%' as any, borderWidth: 0 }]}>
+      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+        <View style={[styles.container, { flex: 1, borderRadius: 0, maxHeight: '100%', maxWidth: '100%' as any, borderWidth: 0, backgroundColor: 'rgba(15,21,38,0.65)' }]}>
           {content}
         </View>
       </View>
@@ -1101,5 +1289,62 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: '700',
+  },
+  // Boost styles
+  activeBoostBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 12,
+    borderWidth: 1,
+  },
+  activeBoostDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  boostCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  boostIconContainer: {
+    width: 52,
+    height: 52,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  boostInfo: {
+    flex: 1,
+    marginLeft: 10,
+  },
+  boostName: {
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  boostDurationBadge: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  boostDesc: {
+    color: '#9ca3af',
+    fontSize: 11,
+    lineHeight: 15,
+    marginTop: 2,
+  },
+  boostActivateBtn: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    minWidth: 74,
   },
 });

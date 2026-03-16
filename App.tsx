@@ -1,6 +1,6 @@
 import "./global.css";
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, ActivityIndicator, TouchableOpacity, Image, ImageBackground, Animated, Modal, ScrollView, TouchableWithoutFeedback, Easing, StyleSheet, Dimensions, Platform } from 'react-native';
+import { Text, View, ActivityIndicator, TouchableOpacity, Image, ImageBackground, Animated, Modal, ScrollView, TouchableWithoutFeedback, Pressable, Easing, StyleSheet, Dimensions, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
@@ -13,21 +13,43 @@ import { usePremium } from './hooks/usePremium';
 import { useConsistencyMultiplier } from './hooks/useConsistencyMultiplier';
 import { useChallenges, ChallengeId } from './hooks/useChallenges';
 import { ChallengesModal } from './components/ChallengesModal';
-import { useRamadanMode } from './hooks/useRamadanMode';
 import { useDifficultDay } from './hooks/useDifficultDay';
 import { DifficultDayModal } from './components/DifficultDayModal';
 import { SettingsModal } from './components/SettingsModal';
 import { PrayerHistoryModal } from './components/PrayerHistoryModal';
+import { useBoosts, BOOST_CATALOG } from './hooks/useBoosts';
 
 import { Asset } from 'expo-asset';
 import * as SplashScreen from 'expo-splash-screen';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { usePrayerTimes } from './hooks/usePrayerTimes';
+import { usePrayerTimes, type PrayerTimesConfig, type Madhab, type PrayerMethodKey, PRAYER_METHODS } from './hooks/usePrayerTimes';
 import { useNotifications } from './hooks/useNotifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+
+const SINGLE_FREEZE_ICON = require('./assets/Garden Assets/Icons/Streak_Freeze.png');
+
+// Custom pixel-art icons
+const ICON_COIN = require('./assets/Garden Assets/Icons/Icon_Coin.png');
+const ICON_FIRE = require('./assets/Garden Assets/Icons/Icon_Fire.png');
+const ICON_XP = require('./assets/Garden Assets/Icons/Icon_XP.png');
+const ICON_LIGHTNING = require('./assets/Garden Assets/Icons/Icon_Lightning.png');
+const ICON_SEEDLING = require('./assets/Garden Assets/Icons/Icon_Seedling.png');
+const ICON_MOON = require('./assets/Garden Assets/Icons/Icon_Moon.png');
+const ICON_TROPHY = require('./assets/Garden Assets/Icons/Icon_Trophy.png');
+const ICON_CROWN = require('./assets/Garden Assets/Icons/Icon_Crown.png');
+const ICON_STAR = require('./assets/Garden Assets/Icons/Icon_Star.png');
+const ICON_SPARKLE = require('./assets/Garden Assets/Icons/Icon_Sparkle.png');
+const ICON_BELL = require('./assets/Garden Assets/Icons/Icon_Bell.png');
+const ICON_LOCATION = require('./assets/Garden Assets/Icons/Icon_Location.png');
+const ICON_TREE = require('./assets/Garden Assets/Icons/Icon_Tree.png');
+const ICON_WARNING = require('./assets/Garden Assets/Icons/Icon_Warning.png');
+const ICON_HANDS = require('./assets/Garden Assets/Icons/Icon_Hands.png');
+const ICON_GEAR = require('./assets/Garden Assets/Icons/Icon_Gear.png');
+const ICON_SCROLL = require('./assets/Garden Assets/Icons/Icon_Scroll.png');
 
 // Keep the native splash visible until our custom loading screen image is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -379,7 +401,7 @@ function RestOverlay({
         alignItems: 'center',
         maxWidth: 280,
       }}>
-        <Text style={{ fontSize: 48, marginBottom: 16 }}>🌙</Text>
+        <Image source={ICON_MOON} style={{ width: 48, height: 48, marginBottom: 16 }} resizeMode="contain" />
         
         <Text style={{
           fontSize: 22,
@@ -430,87 +452,17 @@ function RestOverlay({
 }
 
 // Top Info Bar — clean minimal: stats row + next prayer line
-// Circular progress ring built with half-circle rotations (no SVG needed)
-function CountdownRing({ progress, size, strokeWidth, color, trackColor }: {
-  progress: number; // 0..1
-  size: number;
-  strokeWidth: number;
-  color: string;
-  trackColor: string;
-}) {
-  const radius = size / 2;
-  const p = Math.min(Math.max(progress, 0), 1);
-
-  // Right half: sweeps from 180° (hidden behind clip) to 0° (full right arc visible at 50%)
-  const rightDeg = 180 - Math.min(p, 0.5) * 360;
-  // Left half: stays hidden at 180° until 50%, then sweeps to 0° at 100%
-  const leftDeg = p <= 0.5 ? 180 : 180 - (p - 0.5) * 360;
-
-  return (
-    <View style={{ width: size, height: size }}>
-      {/* Track */}
-      <View style={{
-        position: 'absolute',
-        width: size,
-        height: size,
-        borderRadius: radius,
-        borderWidth: strokeWidth,
-        borderColor: trackColor,
-      }} />
-      {/* Right clip — shows right half of the rotating arc */}
-      <View style={{
-        position: 'absolute',
-        left: radius,
-        width: radius,
-        height: size,
-        overflow: 'hidden',
-      }}>
-        <View style={{
-          width: size,
-          height: size,
-          left: -radius,
-          borderRadius: radius,
-          borderWidth: strokeWidth,
-          borderTopColor: color,
-          borderRightColor: color,
-          borderBottomColor: 'transparent',
-          borderLeftColor: 'transparent',
-          transform: [{ rotate: `${rightDeg}deg` }],
-        }} />
-      </View>
-      {/* Left clip — shows left half of the rotating arc */}
-      <View style={{
-        position: 'absolute',
-        left: 0,
-        width: radius,
-        height: size,
-        overflow: 'hidden',
-      }}>
-        <View style={{
-          width: size,
-          height: size,
-          borderRadius: radius,
-          borderWidth: strokeWidth,
-          borderBottomColor: color,
-          borderLeftColor: color,
-          borderTopColor: 'transparent',
-          borderRightColor: 'transparent',
-          transform: [{ rotate: `${leftDeg}deg` }],
-        }} />
-      </View>
-    </View>
-  );
-}
-
-// Premium animated countdown ring with glow, leading dot, smooth animation & completion pulse
+// SVG-based countdown ring — reliable strokeDashoffset approach
 function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
   progress: number;
   size: number;
   strokeWidth: number;
-  isComplete: boolean; // true when all prayers done
+  isComplete: boolean;
 }) {
-  const radius = size / 2;
-  // Smoothly animate the displayed progress
+  const r = (size - strokeWidth) / 2;
+  const circumference = 2 * Math.PI * r;
+
+  // Smoothly animate progress
   const animProgress = useRef(new Animated.Value(0)).current;
   const prevProgressRef = useRef(0);
 
@@ -519,24 +471,11 @@ function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
   const pulseOpacity = useRef(new Animated.Value(0)).current;
   const wasComplete = useRef(false);
 
-  // Leading edge glow pulse
-  const edgeGlow = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    const loop = Animated.loop(Animated.sequence([
-      Animated.timing(edgeGlow, { toValue: 1, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(edgeGlow, { toValue: 0, duration: 1800, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-    ]));
-    loop.start();
-    return () => loop.stop();
-  }, []);
-
   useEffect(() => {
     const prev = prevProgressRef.current;
     prevProgressRef.current = progress;
 
-    // Detect reset (progress jumped backward significantly = new prayer cycle)
     if (prev > 0.9 && progress < 0.1) {
-      // Fire completion pulse, then reset
       Animated.parallel([
         Animated.timing(pulseAnim, { toValue: 1.15, duration: 300, useNativeDriver: true }),
         Animated.timing(pulseOpacity, { toValue: 0.6, duration: 300, useNativeDriver: true }),
@@ -554,7 +493,6 @@ function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
         }).start();
       });
     } else {
-      // Normal smooth interpolation
       Animated.timing(animProgress, {
         toValue: progress,
         duration: 800,
@@ -564,7 +502,6 @@ function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
     }
   }, [progress]);
 
-  // Completion state pulse (all prayers done)
   useEffect(() => {
     if (isComplete && !wasComplete.current) {
       Animated.sequence([
@@ -579,21 +516,17 @@ function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
     wasComplete.current = isComplete;
   }, [isComplete]);
 
-  // Use listener to drive the non-animated CountdownRing
   const [displayProgress, setDisplayProgress] = useState(progress);
   useEffect(() => {
     const id = animProgress.addListener(({ value }) => setDisplayProgress(value));
     return () => animProgress.removeListener(id);
   }, []);
 
+  const p = Math.min(Math.max(displayProgress, 0), 1);
+  const offset = circumference * (1 - p);
+
   const activeColor = isComplete ? '#4ade80' : '#e8a87c';
   const brightColor = isComplete ? '#86efac' : '#fbbf24';
-
-  // Leading edge position — angle in the -90deg rotated coordinate system
-  // progress 0 = top (12 o'clock), progress 1 = full circle back to top
-  const edgeAngle = displayProgress * 2 * Math.PI - Math.PI / 2;
-  const dotX = radius + (radius - strokeWidth / 2) * Math.cos(edgeAngle);
-  const dotY = radius + (radius - strokeWidth / 2) * Math.sin(edgeAngle);
 
   return (
     <View style={{ width: size + 16, height: size + 16, alignItems: 'center', justifyContent: 'center' }}>
@@ -604,10 +537,7 @@ function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
         height: size + 12,
         borderRadius: (size + 12) / 2,
         backgroundColor: activeColor,
-        opacity: Animated.add(
-          pulseOpacity,
-          displayProgress > 0.01 ? 0.06 : 0,
-        ),
+        opacity: Animated.add(pulseOpacity, p > 0.01 ? 0.06 : 0),
         transform: [{ scale: pulseAnim }],
       }} />
       <Animated.View style={{
@@ -616,52 +546,41 @@ function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
         height: size + 6,
         borderRadius: (size + 6) / 2,
         backgroundColor: activeColor,
-        opacity: displayProgress > 0.01 ? 0.08 : 0,
+        opacity: p > 0.01 ? 0.08 : 0,
         transform: [{ scale: pulseAnim }],
       }} />
 
-      {/* The ring itself (rotated so 0 = top, 1 = full clockwise) */}
-      <View style={{ transform: [{ rotate: '-90deg' }] }}>
-        {/* Base warm-orange arc */}
-        <CountdownRing
-          progress={displayProgress}
-          size={size}
+      {/* SVG ring */}
+      <Svg width={size} height={size}>
+        <Defs>
+          <SvgGradient id="ringGrad" x1="0" y1="0" x2="1" y2="1">
+            <Stop offset="0" stopColor={brightColor} />
+            <Stop offset="1" stopColor={activeColor} />
+          </SvgGradient>
+        </Defs>
+        {/* Track */}
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="rgba(255,255,255,0.06)"
           strokeWidth={strokeWidth}
-          color={activeColor}
-          trackColor="rgba(255,255,255,0.06)"
+          fill="none"
         />
-        {/* Overlay lighter gold arc at slightly less progress to simulate gradient tail */}
-        {displayProgress > 0.02 && (
-          <View style={{ position: 'absolute' }}>
-            <CountdownRing
-              progress={Math.max(0, displayProgress - 0.08)}
-              size={size}
-              strokeWidth={strokeWidth}
-              color={brightColor}
-              trackColor="transparent"
-            />
-          </View>
-        )}
-      </View>
-
-      {/* Leading edge glowing dot */}
-      {displayProgress > 0.01 && displayProgress < 0.99 && (
-        <Animated.View style={{
-          position: 'absolute',
-          left: 8 + dotX - 4,
-          top: 8 + dotY - 4,
-          width: 8,
-          height: 8,
-          borderRadius: 4,
-          backgroundColor: brightColor,
-          opacity: edgeGlow.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }),
-          shadowColor: brightColor,
-          shadowOffset: { width: 0, height: 0 },
-          shadowOpacity: 0.9,
-          shadowRadius: 6,
-          elevation: 6,
-        }} />
-      )}
+        {/* Progress arc */}
+        <Circle
+          cx={size / 2}
+          cy={size / 2}
+          r={r}
+          stroke="url(#ringGrad)"
+          strokeWidth={strokeWidth}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={`${circumference}`}
+          strokeDashoffset={offset}
+          transform={`rotate(-90 ${size / 2} ${size / 2})`}
+        />
+      </Svg>
     </View>
   );
 }
@@ -725,32 +644,34 @@ function TopInfoBar({
   coins,
   xp, 
   nextPrayer, 
+  nextPrayerTime,
   timeUntilNext,
   ringProgress,
   freezeCount,
   consistencyMultiplier,
   onMultiplierPress,
-  isRamadan,
-  ramadanDay,
-  ramadanMultiplier,
   difficultDayActive,
+  activeBoostIcon,
+  activeBoostName,
+  boostTimeRemaining,
 }: { 
   streaks: PrayerStreaks; 
   coins: number;
   xp: number; 
-  nextPrayer: string | null; 
+  nextPrayer: string | null;
+  nextPrayerTime: string | null;
   timeUntilNext: string;
   ringProgress: number;
   freezeCount: number;
   consistencyMultiplier: number;
   onMultiplierPress: () => void;
-  isRamadan: boolean;
-  ramadanDay: number;
-  ramadanMultiplier: number;
   difficultDayActive: boolean;
+  activeBoostIcon?: string;
+  activeBoostName?: string;
+  boostTimeRemaining?: string;
 }) {
   const bestStreak = Math.max(...Object.values(streaks));
-  const combinedMultiplier = consistencyMultiplier * ramadanMultiplier;
+  const combinedMultiplier = consistencyMultiplier;
   const screenWidth = Dimensions.get('window').width;
 
   return (
@@ -771,18 +692,38 @@ function TopInfoBar({
         </View>
       )}
 
-      {/* ── Context label — subtle next prayer indicator ── */}
-      {nextPrayer ? (
-        <Text style={{
-          fontSize: 11,
-          fontWeight: '500',
-          color: 'rgba(232,224,214,0.5)',
-          letterSpacing: 1,
-          textTransform: 'uppercase',
-          marginBottom: 10,
+      {/* Active Boost banner */}
+      {activeBoostName && boostTimeRemaining && (
+        <View style={{
+          backgroundColor: 'rgba(168,85,247,0.15)',
+          borderRadius: 9,
+          paddingVertical: 4,
+          paddingHorizontal: 10,
+          marginBottom: 8,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 4,
         }}>
-          Next: {nextPrayer}
-        </Text>
+          <Text style={{ fontSize: 10 }}>{activeBoostIcon}</Text>
+          <Text style={{ fontSize: 10, fontWeight: '600', color: '#c084fc' }}>
+            {activeBoostName} · {boostTimeRemaining}
+          </Text>
+        </View>
+      )}
+
+      {/* ── Context label — subtle next prayer indicator with time ── */}
+      {nextPrayer ? (
+        <View style={{ alignItems: 'center', marginBottom: 10 }}>
+          <Text style={{
+            fontSize: 11,
+            fontWeight: '500',
+            color: 'rgba(232,224,214,0.5)',
+            letterSpacing: 1,
+            textTransform: 'uppercase',
+          }}>
+            Next: {nextPrayer}{nextPrayerTime ? ` · ${formatTime12h(nextPrayerTime)}` : ''}
+          </Text>
+        </View>
       ) : (
         <Text style={{
           fontSize: 11,
@@ -878,7 +819,7 @@ function TopInfoBar({
 
           {/* Streak */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Text style={{ fontSize: 11 }}>🔥</Text>
+            <Image source={ICON_FIRE} style={{ width: 14, height: 14 }} resizeMode="contain" />
             <Text style={{ fontSize: 13, fontWeight: '800', color: bestStreak > 0 ? THEME.warning : THEME.textSecondary }}>
               {bestStreak}
             </Text>
@@ -886,7 +827,7 @@ function TopInfoBar({
 
           {/* Coins */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Text style={{ fontSize: 11 }}>🪙</Text>
+            <Image source={ICON_COIN} style={{ width: 14, height: 14 }} resizeMode="contain" />
             <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.coin }}>
               {coins}
             </Text>
@@ -894,7 +835,7 @@ function TopInfoBar({
 
           {/* XP */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Text style={{ fontSize: 11 }}>✨</Text>
+            <Image source={ICON_XP} style={{ width: 14, height: 14 }} resizeMode="contain" />
             <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.success }}>
               {xp}
             </Text>
@@ -902,7 +843,7 @@ function TopInfoBar({
 
           {/* Combined Multiplier */}
           <TouchableOpacity onPress={onMultiplierPress} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Text style={{ fontSize: 11 }}>⚡</Text>
+            <Image source={ICON_LIGHTNING} style={{ width: 14, height: 14 }} resizeMode="contain" />
             <Text style={{ fontSize: 13, fontWeight: '800', color: combinedMultiplier > 1 ? THEME.coin : THEME.textSecondary }}>
               {combinedMultiplier}×
             </Text>
@@ -949,6 +890,15 @@ const BreathingGlow = React.memo(function BreathingGlow({ color, size }: { color
 });
 
 // Floating Prayer Bar - Bottom overlay with prayer icons
+// Format 24h "HH:MM" to compact 12h string like "5:30am"
+function formatTime12h(time24: string): string {
+  if (!time24) return '';
+  const [h, m] = time24.split(':').map(Number);
+  const period = h >= 12 ? 'pm' : 'am';
+  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
+  return `${h12}:${String(m).padStart(2, '0')}${period}`;
+}
+
 function FloatingPrayerBar({
   timings,
   nextPrayer,
@@ -968,135 +918,136 @@ function FloatingPrayerBar({
 }) {
   const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
 
-  // Combine window status with completion status
   const getPrayerStatus = (prayer: string): 'completed' | 'active' | 'missed' | 'upcoming' => {
     if (completedPrayers.has(prayer)) return 'completed';
     return getPrayerWindowStatus(prayer);
   };
 
   return (
-    <View style={{
-      paddingTop: 10,
-      paddingBottom: 8,
-      paddingHorizontal: 16,
-      flexDirection: 'row',
-      justifyContent: 'space-around',
-      alignItems: 'flex-start',
-    }}>
-      {prayers.map((prayer) => {
-        const status = getPrayerStatus(prayer);
-        const isCompleted = status === 'completed';
-        const isActive = status === 'active';
-        const isMissed = status === 'missed';
-        const isUpcoming = status === 'upcoming';
-        const canTap = debugPrayersUnlocked || isActive || isCompleted;
-        
-        // Subtle ring color for status
-        let ringColor = 'rgba(255,255,255,0.1)'; // upcoming
-        if (isCompleted) ringColor = THEME.success;
-        else if (isActive) ringColor = THEME.accent;
-        else if (isMissed) ringColor = 'rgba(239, 68, 68, 0.5)';
+    <View style={{ paddingHorizontal: 12, paddingBottom: 4, paddingTop: 6 }}>
+      {/* Liquid glass container */}
+      <BlurView intensity={40} tint="dark" style={{
+        borderRadius: 22,
+        overflow: 'hidden',
+      }}>
+        <LinearGradient
+          colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.03)', 'rgba(255,255,255,0.06)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.10)',
+          }}
+        >
+          <View style={{
+            paddingTop: 12,
+            paddingBottom: 10,
+            paddingHorizontal: 8,
+            flexDirection: 'row',
+            justifyContent: 'space-around',
+            alignItems: 'flex-start',
+          }}>
+            {prayers.map((prayer) => {
+              const status = getPrayerStatus(prayer);
+              const isCompleted = status === 'completed';
+              const isActive = status === 'active';
+              const isMissed = status === 'missed';
+              const canTap = debugPrayersUnlocked || isActive || isCompleted;
 
-        // Text color
-        let textColor = THEME.textSecondary;
-        if (isCompleted) textColor = THEME.success;
-        else if (isActive) textColor = THEME.accent;
-        else if (isMissed) textColor = THEME.danger;
-        
-        return (
-          <View
-            key={prayer}
-            style={{
-              alignItems: 'center',
-            }}
-          >
-            <TouchableOpacity 
-              onPress={() => onTogglePrayer(prayer)}
-              disabled={!canTap}
-              activeOpacity={canTap ? 0.7 : 1}
-              style={{
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: 52,
-                height: 52,
-                borderRadius: 26,
-                borderWidth: 2,
-                borderColor: ringColor,
-                backgroundColor: 'transparent',
-              }}
-            >
-              {/* Breathing glow for active prayer */}
-              {isActive && <BreathingGlow color={THEME.accent} size={52} />}
-              {/* Prayer icon - ALWAYS fully visible */}
-              <Image 
-                source={PRAYER_ICONS[prayer as keyof typeof PRAYER_ICONS]}
-                style={{ 
-                  width: 48, 
-                  height: 48, 
-                  borderRadius: 24,
-                }}
-                resizeMode="cover"
-              />
-            
-            {/* Small corner badge for completed - just a tiny checkmark */}
-            {isCompleted && (
-              <View style={{ 
-                position: 'absolute', 
-                bottom: -2, 
-                right: -2, 
-                backgroundColor: THEME.success,
-                borderRadius: 9,
-                width: 16,
-                height: 16,
-                justifyContent: 'center',
-                alignItems: 'center',
-                borderWidth: 2,
-                borderColor: THEME.bg,
-              }}>
-                <MaterialCommunityIcons name="check" size={10} color="#fff" />
-              </View>
-            )}
-            </TouchableOpacity>
-            
-            {/* Prayer Name - always visible, now OUTSIDE the TouchableOpacity */}
-            <Text 
-              style={{
-                marginTop: 5,
-                fontSize: 9,
-                fontWeight: '600',
-                color: textColor,
-                textTransform: 'uppercase',
-                letterSpacing: 0.5,
-              }}
-            >
-              {prayer}
-            </Text>
-            
-            {/* Per-prayer streak count */}
-            {(streaks[prayer] || 0) > 0 && (
-              <View style={{
-                flexDirection: 'row',
-                alignItems: 'center',
-                marginTop: 2,
-              }}>
-                <MaterialCommunityIcons name="fire" size={10} color={THEME.warning} />
-                <Text style={{
-                  fontSize: 9,
-                  fontWeight: '700',
-                  color: THEME.warning,
-                }}>
-                  {streaks[prayer]}
-                </Text>
-              </View>
-            )}
+              let ringColor = 'rgba(255,255,255,0.08)';
+              if (isCompleted) ringColor = THEME.success;
+              else if (isActive) ringColor = THEME.accent;
+              else if (isMissed) ringColor = 'rgba(239, 68, 68, 0.5)';
+
+              let textColor = 'rgba(255,255,255,0.4)';
+              if (isCompleted) textColor = THEME.success;
+              else if (isActive) textColor = '#fff';
+              else if (isMissed) textColor = THEME.danger;
+
+              return (
+                <View key={prayer} style={{ alignItems: 'center', flex: 1 }}>
+                  <TouchableOpacity
+                    onPress={() => onTogglePrayer(prayer)}
+                    disabled={!canTap}
+                    activeOpacity={canTap ? 0.7 : 1}
+                    style={{
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 50,
+                      height: 50,
+                      borderRadius: 25,
+                      borderWidth: 2,
+                      borderColor: ringColor,
+                      backgroundColor: isActive ? 'rgba(232,168,124,0.08)' : 'transparent',
+                    }}
+                  >
+                    {isActive && <BreathingGlow color={THEME.accent} size={50} />}
+                    <Image
+                      source={PRAYER_ICONS[prayer as keyof typeof PRAYER_ICONS]}
+                      style={{ width: 46, height: 46, borderRadius: 23 }}
+                      resizeMode="cover"
+                    />
+                    {isCompleted && (
+                      <View style={{
+                        position: 'absolute',
+                        bottom: -2,
+                        right: -2,
+                        backgroundColor: THEME.success,
+                        borderRadius: 8,
+                        width: 16,
+                        height: 16,
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        borderWidth: 1.5,
+                        borderColor: 'rgba(15,21,38,0.8)',
+                      }}>
+                        <MaterialCommunityIcons name="check" size={10} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+
+                  <Text style={{
+                    marginTop: 5,
+                    fontSize: 9,
+                    fontWeight: isActive ? '800' : '600',
+                    color: textColor,
+                    textTransform: 'uppercase',
+                    letterSpacing: 0.5,
+                  }}>
+                    {prayer}
+                  </Text>
+
+                  {timings && timings[prayer] && (
+                    <Text style={{
+                      fontSize: 10,
+                      fontWeight: '700',
+                      color: isCompleted ? 'rgba(74,222,128,0.7)' : isActive ? 'rgba(232,168,124,0.9)' : 'rgba(255,255,255,0.3)',
+                      marginTop: 2,
+                    }}>
+                      {formatTime12h(timings[prayer])}
+                    </Text>
+                  )}
+
+                  {(streaks[prayer] || 0) > 0 && (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1 }}>
+                      <MaterialCommunityIcons name="fire" size={10} color={THEME.warning} />
+                      <Text style={{ fontSize: 9, fontWeight: '700', color: THEME.warning }}>
+                        {streaks[prayer]}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              );
+            })}
           </View>
-        );
-      })}
+        </LinearGradient>
+      </BlurView>
     </View>
   );
 }
 
-// Bottom Tab Bar - Finch-style navigation
+// Bottom Tab Bar - Liquid glass navigation
 function BottomTabBar({
   activeTab,
   onTabChange,
@@ -1107,72 +1058,91 @@ function BottomTabBar({
   challengeClaimable: number;
 }) {
   const tabs = [
-    { key: 'garden', icon: 'tree' as const, label: 'Garden', color: THEME.accent, badge: 0 },
-    { key: 'challenges', icon: 'trophy' as const, label: 'Challenges', color: THEME.accent, badge: challengeClaimable },
-    { key: 'shop', icon: 'store' as const, label: 'Shop', color: THEME.accent, badge: 0 },
-    { key: 'history', icon: 'calendar-month' as const, label: 'History', color: THEME.accent, badge: 0 },
-    { key: 'more', icon: 'dots-horizontal' as const, label: 'More', color: THEME.accent, badge: 0 },
+    { key: 'garden', icon: 'tree' as const, label: 'Garden', badge: 0 },
+    { key: 'challenges', icon: 'trophy' as const, label: 'Challenges', badge: challengeClaimable },
+    { key: 'shop', icon: 'store' as const, label: 'Shop', badge: 0 },
+    { key: 'history', icon: 'calendar-month' as const, label: 'History', badge: 0 },
+    { key: 'more', icon: 'dots-horizontal' as const, label: 'More', badge: 0 },
   ];
 
   return (
-    <View style={{
-      flexDirection: 'row',
-      backgroundColor: THEME.bg,
-      paddingTop: 10,
-      paddingBottom: 6,
-      paddingHorizontal: 8,
-      borderTopWidth: 1,
-      borderTopColor: THEME.divider,
-    }}>
-      {tabs.map((tab) => {
-        const isActive = tab.key === activeTab;
-        return (
-          <TouchableOpacity
-            key={tab.key}
-            onPress={() => onTabChange(tab.key)}
-            activeOpacity={isActive ? 1 : 0.7}
-            style={{
-              flex: 1,
-              alignItems: 'center',
-              paddingVertical: 4,
-            }}
-          >
-            <View>
-              <MaterialCommunityIcons
-                name={tab.icon}
-                size={24}
-                color={isActive ? tab.color : THEME.tabInactive}
-              />
-              {!!(tab.badge > 0) && (
+    <View style={{ paddingHorizontal: 12, paddingBottom: 4, paddingTop: 2 }}>
+      <BlurView intensity={35} tint="dark" style={{
+        borderRadius: 20,
+        overflow: 'hidden',
+      }}>
+        <LinearGradient
+          colors={['rgba(255,255,255,0.07)', 'rgba(255,255,255,0.02)', 'rgba(255,255,255,0.05)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={{
+            flexDirection: 'row',
+            paddingTop: 10,
+            paddingBottom: 8,
+            paddingHorizontal: 4,
+            borderRadius: 20,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.08)',
+          }}
+        >
+          {tabs.map((tab) => {
+            const isActive = tab.key === activeTab;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => onTabChange(tab.key)}
+                activeOpacity={isActive ? 1 : 0.7}
+                style={{
+                  flex: 1,
+                  alignItems: 'center',
+                  paddingVertical: 4,
+                }}
+              >
                 <View style={{
-                  position: 'absolute',
-                  top: -4,
-                  right: -6,
-                  backgroundColor: THEME.danger,
-                  borderRadius: 7,
-                  minWidth: 14,
-                  height: 14,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 12,
                   justifyContent: 'center',
                   alignItems: 'center',
-                  paddingHorizontal: 3,
+                  backgroundColor: isActive ? 'rgba(232,168,124,0.15)' : 'transparent',
                 }}>
-                  <Text style={{ color: '#fff', fontSize: 9, fontWeight: '700' }}>
-                    {tab.badge}
-                  </Text>
+                  <MaterialCommunityIcons
+                    name={tab.icon}
+                    size={22}
+                    color={isActive ? THEME.accent : 'rgba(255,255,255,0.4)'}
+                  />
+                  {!!(tab.badge > 0) && (
+                    <View style={{
+                      position: 'absolute',
+                      top: 2,
+                      right: 0,
+                      backgroundColor: THEME.danger,
+                      borderRadius: 6,
+                      minWidth: 12,
+                      height: 12,
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      paddingHorizontal: 2,
+                    }}>
+                      <Text style={{ color: '#fff', fontSize: 8, fontWeight: '700' }}>
+                        {tab.badge}
+                      </Text>
+                    </View>
+                  )}
                 </View>
-              )}
-            </View>
-            <Text style={{
-              fontSize: 10,
-              fontWeight: isActive ? '700' : '400',
-              color: isActive ? tab.color : THEME.tabInactive,
-              marginTop: 2,
-            }}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        );
-      })}
+                <Text style={{
+                  fontSize: 10,
+                  fontWeight: isActive ? '700' : '500',
+                  color: isActive ? THEME.accent : 'rgba(255,255,255,0.35)',
+                  marginTop: 2,
+                }}>
+                  {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </LinearGradient>
+      </BlurView>
     </View>
   );
 }
@@ -1258,181 +1228,80 @@ function MoreMenu({
   );
 }
 
-// Particle component for XP burst effect
-function Particle({ delay, angle }: { delay: number; angle: number }) {
+// ─── Unified Reward Toast ──────────────────────────────────────────────────────
+// Single notification combining XP + coins with clear visual hierarchy.
+// One sound, one haptic, one animation — no sensory overload.
+function RewardToast({ xp, baseXp, multiplier, coins, visible, onComplete }: {
+  xp: number;
+  baseXp: number;
+  multiplier: number;
+  coins: number;
+  visible: boolean;
+  onComplete: () => void;
+}) {
   const fadeAnim = useState(new Animated.Value(0))[0];
-  const translateX = useState(new Animated.Value(0))[0];
-  const translateY = useState(new Animated.Value(0))[0];
-  const scaleAnim = useState(new Animated.Value(1))[0];
-
-  // Varied size and color per particle
-  const size = 4 + Math.random() * 5;
-  const colors = ['#10b981', '#34d399', '#6ee7b7', '#fbbf24', '#a7f3d0'];
-  const color = colors[Math.floor(Math.random() * colors.length)];
-
-  useEffect(() => {
-    fadeAnim.setValue(1);
-    translateX.setValue(0);
-    translateY.setValue(0);
-    scaleAnim.setValue(1);
-
-    const distance = 35 + Math.random() * 25;
-    const xDist = Math.cos(angle) * distance;
-    const yDist = Math.sin(angle) * distance;
-
-    Animated.sequence([
-      Animated.delay(delay),
-      Animated.parallel([
-        Animated.timing(translateX, {
-          toValue: xDist,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: yDist,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 0,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fadeAnim, {
-          toValue: 0,
-          duration: 700,
-          useNativeDriver: true,
-        }),
-      ]),
-    ]).start();
-  }, []);
-
-  return (
-    <Animated.View
-      style={{
-        position: 'absolute',
-        width: size,
-        height: size,
-        borderRadius: size / 2,
-        backgroundColor: color,
-        opacity: fadeAnim,
-        transform: [{ translateX }, { translateY }, { scale: scaleAnim }],
-      }}
-    />
-  );
-}
-
-// XP Popup Component - With particles, sound, and haptics
-function XPPopup({ amount, baseAmount, multiplier, visible, onComplete }: { amount: number; baseAmount: number; multiplier: number; visible: boolean; onComplete: () => void }) {
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  const translateY = useState(new Animated.Value(0))[0];
-  const scaleAnim = useState(new Animated.Value(0.3))[0];
-  const rotateAnim = useState(new Animated.Value(0))[0];
-  const glowAnim = useState(new Animated.Value(0))[0];
-  const [showParticles, setShowParticles] = useState(false);
+  const translateY = useState(new Animated.Value(20))[0];
+  const scaleAnim = useState(new Animated.Value(0.8))[0];
 
   useEffect(() => {
     if (visible) {
-      // Play haptic feedback - medium impact for XP
+      // Single haptic + sound for the whole reward
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-      
-      // Play sound effect
       playSound();
 
-      // Reset values
-      fadeAnim.setValue(1);
-      translateY.setValue(0);
-      scaleAnim.setValue(0.3);
-      rotateAnim.setValue(-0.05);
-      glowAnim.setValue(0);
-      setShowParticles(true);
-      
-      // Multi-stage animation
+      fadeAnim.setValue(0);
+      translateY.setValue(20);
+      scaleAnim.setValue(0.8);
+
       Animated.parallel([
-        // Badge pop-in with stronger bounce
+        // Fade in
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 200,
+          useNativeDriver: true,
+        }),
+        // Slide up into place
+        Animated.spring(translateY, {
+          toValue: 0,
+          tension: 200,
+          friction: 18,
+          useNativeDriver: true,
+        }),
+        // Gentle scale
         Animated.spring(scaleAnim, {
           toValue: 1,
-          tension: 180,
-          friction: 6,
+          tension: 200,
+          friction: 18,
           useNativeDriver: true,
         }),
-        // Slight rotation wobble
-        Animated.sequence([
-          Animated.timing(rotateAnim, {
-            toValue: 0.06,
-            duration: 100,
-            useNativeDriver: true,
-          }),
-          Animated.timing(rotateAnim, {
-            toValue: -0.04,
-            duration: 100,
-            useNativeDriver: true,
-          }),
-          Animated.timing(rotateAnim, {
-            toValue: 0.02,
-            duration: 80,
-            useNativeDriver: true,
-          }),
-          Animated.timing(rotateAnim, {
-            toValue: 0,
-            duration: 80,
-            useNativeDriver: true,
-          }),
-        ]),
-        // Glow pulse (two pulses for emphasis)
-        Animated.sequence([
-          Animated.timing(glowAnim, {
-            toValue: 1,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0.2,
-            duration: 200,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0.8,
-            duration: 150,
-            useNativeDriver: true,
-          }),
-          Animated.timing(glowAnim, {
-            toValue: 0,
-            duration: 400,
-            useNativeDriver: true,
-          }),
-        ]),
-        // Float up
-        Animated.timing(translateY, {
-          toValue: -80,
-          duration: 1400,
-          useNativeDriver: true,
-        }),
-        // Fade out
-        Animated.sequence([
-          Animated.delay(800),
-          Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-        ]),
       ]).start(() => {
-        setShowParticles(false);
-        onComplete();
+        // Hold, then fade out
+        setTimeout(() => {
+          Animated.parallel([
+            Animated.timing(fadeAnim, {
+              toValue: 0,
+              duration: 400,
+              easing: Easing.out(Easing.ease),
+              useNativeDriver: true,
+            }),
+            Animated.timing(translateY, {
+              toValue: -12,
+              duration: 400,
+              useNativeDriver: true,
+            }),
+          ]).start(onComplete);
+        }, 1200);
       });
     }
   }, [visible]);
 
   const playSound = async () => {
     try {
-      // Set audio mode to play sound even when phone is on silent
       await Audio.setAudioModeAsync({
         playsInSilentModeIOS: true,
         shouldDuckAndroid: false,
         staysActiveInBackground: false,
       });
-      
       const { sound } = await Audio.Sound.createAsync(
         require('./assets/sounds/xp_sound.mp3'),
         { shouldPlay: true, volume: 0.5 }
@@ -1444,197 +1313,85 @@ function XPPopup({ amount, baseAmount, multiplier, visible, onComplete }: { amou
         }
       });
     } catch (error) {
-      // Silently fail if sound file doesn't exist yet
+      // Silently fail if sound file doesn't exist
     }
   };
 
   if (!visible) return null;
 
-  // Generate 12 particles in a circle pattern for richer burst
-  const particles = Array.from({ length: 12 }, (_, i) => ({
-    angle: (Math.PI * 2 * i) / 12,
-    delay: i * 15,
-  }));
-
-  return (
-    <View style={{ 
-      position: 'absolute', 
-      top: '35%', 
-      left: 0,
-      right: 0,
-      alignItems: 'center',
-      zIndex: 1000,
-    }}>
-      {/* Main animated container - particles and badge move together */}
-      <Animated.View
-        style={{
-          opacity: fadeAnim,
-          transform: [
-            { translateY },
-            { scale: scaleAnim },
-            { rotate: rotateAnim.interpolate({
-              inputRange: [-1, 1],
-              outputRange: ['-1rad', '1rad'],
-            }) },
-          ],
-          alignItems: 'center',
-          justifyContent: 'center',
-        }}
-      >
-        {/* Glow background - behind everything */}
-        <Animated.View
-          style={{
-            position: 'absolute',
-            width: 80,
-            height: 80,
-            borderRadius: 40,
-            backgroundColor: '#10b981',
-            opacity: glowAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [0, 0.3],
-            }),
-            zIndex: 1,
-          }}
-        />
-
-        {/* Particles - burst from center */}
-        {showParticles && particles.map((p, i) => (
-          <View key={i} style={{ position: 'absolute', zIndex: 2 }}>
-            <Particle delay={p.delay} angle={p.angle} />
-          </View>
-        ))}
-
-        {/* Badge content - icon + text on top */}
-        <View style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          zIndex: 3,
-        }}>
-          {/* Small pixel art icon */}
-          <Image 
-            source={XP_BADGE}
-            style={{ 
-              width: 24, 
-              height: 24,
-              marginRight: 8,
-            }}
-            resizeMode="contain"
-          />
-          
-          {/* XP text */}
-          <View style={{ alignItems: 'center' }}>
-            {multiplier > 1 ? (
-              <>
-                <Text style={{
-                  fontSize: 16,
-                  fontWeight: '800',
-                  color: '#10b981',
-                  letterSpacing: 0.5,
-                  textShadowColor: 'rgba(0, 0, 0, 0.9)',
-                  textShadowOffset: { width: 0, height: 2 },
-                  textShadowRadius: 6,
-                }}>
-                  +{amount} XP
-                </Text>
-                <Text style={{
-                  fontSize: 10,
-                  fontWeight: '600',
-                  color: '#fbbf24',
-                  textShadowColor: 'rgba(0, 0, 0, 0.9)',
-                  textShadowOffset: { width: 0, height: 1 },
-                  textShadowRadius: 4,
-                  marginTop: 1,
-                }}>
-                  {baseAmount} × {multiplier}×
-                </Text>
-              </>
-            ) : (
-              <Text style={{
-                fontSize: 16,
-                fontWeight: '800',
-                color: '#10b981',
-                letterSpacing: 0.5,
-                textShadowColor: 'rgba(0, 0, 0, 0.9)',
-                textShadowOffset: { width: 0, height: 2 },
-                textShadowRadius: 6,
-              }}>
-                +{amount} XP
-              </Text>
-            )}
-          </View>
-        </View>
-      </Animated.View>
-    </View>
-  );
-}
-
-// ─── Coin Popup Component ──────────────────────────────────────────────────────
-function CoinPopup({ amount, visible, onComplete }: { amount: number; visible: boolean; onComplete: () => void }) {
-  const fadeAnim = useState(new Animated.Value(0))[0];
-  const translateY = useState(new Animated.Value(0))[0];
-  const scaleAnim = useState(new Animated.Value(0.5))[0];
-
-  useEffect(() => {
-    if (visible) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-
-      fadeAnim.setValue(1);
-      translateY.setValue(0);
-      scaleAnim.setValue(0.5);
-
-      Animated.parallel([
-        Animated.spring(scaleAnim, {
-          toValue: 1,
-          tension: 200,
-          friction: 7,
-          useNativeDriver: true,
-        }),
-        Animated.timing(translateY, {
-          toValue: -50,
-          duration: 1200,
-          useNativeDriver: true,
-        }),
-        Animated.sequence([
-          Animated.delay(600),
-          Animated.timing(fadeAnim, {
-            toValue: 0,
-            duration: 600,
-            useNativeDriver: true,
-          }),
-        ]),
-      ]).start(onComplete);
-    }
-  }, [visible]);
-
-  if (!visible) return null;
+  const hasMultiplier = multiplier > 1;
 
   return (
     <View style={{
       position: 'absolute',
-      top: '45%',
+      top: '36%',
       left: 0,
       right: 0,
       alignItems: 'center',
-      zIndex: 999,
+      zIndex: 1000,
+      pointerEvents: 'none',
     }}>
       <Animated.View style={{
         opacity: fadeAnim,
         transform: [{ translateY }, { scale: scaleAnim }],
-        backgroundColor: 'rgba(251, 191, 36, 0.2)',
-        borderRadius: 20,
-        paddingHorizontal: 16,
-        paddingVertical: 8,
+        backgroundColor: 'rgba(15, 20, 35, 0.85)',
+        borderRadius: 16,
+        borderWidth: 1,
+        borderColor: 'rgba(16, 185, 129, 0.25)',
+        paddingVertical: 12,
+        paddingHorizontal: 20,
+        alignItems: 'center',
+        minWidth: 120,
       }}>
-        <Text style={{
-          fontSize: 18,
-          fontWeight: '800',
-          color: '#fbbf24',
-          textShadowColor: 'rgba(0, 0, 0, 0.8)',
-          textShadowOffset: { width: 0, height: 2 },
-          textShadowRadius: 6,
-        }}>
-          +{amount} 🪙
-        </Text>
+        {/* XP — hero element */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Image
+            source={XP_BADGE}
+            style={{ width: 20, height: 20 }}
+            resizeMode="contain"
+          />
+          <Text style={{
+            fontSize: 20,
+            fontWeight: '800',
+            color: '#10b981',
+            letterSpacing: 0.3,
+          }}>
+            +{xp} XP
+          </Text>
+        </View>
+
+        {/* Multiplier breakdown — secondary, only if active */}
+        {hasMultiplier && (
+          <Text style={{
+            fontSize: 10,
+            fontWeight: '600',
+            color: '#fbbf24',
+            marginTop: 2,
+            opacity: 0.9,
+          }}>
+            {baseXp} × {multiplier.toFixed(1)}
+          </Text>
+        )}
+
+        {/* Thin divider */}
+        <View style={{
+          width: 40,
+          height: 1,
+          backgroundColor: 'rgba(232, 224, 214, 0.1)',
+          marginVertical: 6,
+        }} />
+
+        {/* Coins — compact secondary line */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Text style={{
+            fontSize: 13,
+            fontWeight: '700',
+            color: '#fbbf24',
+          }}>
+            +{coins}
+          </Text>
+          <Image source={ICON_COIN} style={{ width: 13, height: 13 }} resizeMode="contain" />
+        </View>
       </Animated.View>
     </View>
   );
@@ -1684,15 +1441,15 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
   if (!visible) return null;
 
   const getTrophy = () => {
-    if (streak >= 100) return '👑';
-    if (streak >= 30) return '🏆';
-    return '⭐';
+    if (streak >= 100) return ICON_CROWN;
+    if (streak >= 30) return ICON_TROPHY;
+    return ICON_STAR;
   };
 
   const getTitle = () => {
-    if (streak >= 100) return 'LEGENDARY!';
-    if (streak >= 30) return 'INCREDIBLE!';
-    return 'MILESTONE!';
+    if (streak >= 100) return '100 Day Streak!';
+    if (streak >= 30) return '30 Day Streak!';
+    return '7 Day Streak!';
   };
 
   const getColor = () => {
@@ -1739,7 +1496,7 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
             }),
           }} />
 
-          <Text style={{ fontSize: 56, marginBottom: 8 }}>{getTrophy()}</Text>
+          <Image source={getTrophy()} style={{ width: 56, height: 56, marginBottom: 8 }} resizeMode="contain" />
           <Text style={{
             fontSize: 24,
             fontWeight: '900',
@@ -1763,7 +1520,7 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
             marginBottom: 20,
             textAlign: 'center',
           }}>
-            Your dedication is paying off. Keep going!
+            Keep it up — your garden is thriving.
           </Text>
 
           {bonus > 0 && (
@@ -1780,7 +1537,7 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
                 color: '#fbbf24',
                 textAlign: 'center',
               }}>
-                +{bonus} 🪙 Bonus!
+                +{bonus} Coins Bonus!
               </Text>
             </View>
           )}
@@ -1810,8 +1567,8 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
 }
 
 // Main Prayer State Management Hook
-function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, difficultDayActive: boolean = false) {
-  const { timings, deadlines, nextPrayer, loading } = usePrayerTimes();
+function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, difficultDayActive: boolean = false, boostXpMultiplier: number = 1, boostCoinBonus: number = 0, prayerConfig?: PrayerTimesConfig) {
+  const { timings, deadlines, nextPrayer, loading, detectedMethodKey } = usePrayerTimes(prayerConfig);
   const [completedPrayers, setCompletedPrayers] = useState<Set<string>>(new Set());
   const [streaks, setStreaks] = useState<PrayerStreaks>({ ...DEFAULT_STREAKS });
   const [xp, setXp] = useState(0);
@@ -1822,12 +1579,15 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
   const [timeUntilNext, setTimeUntilNext] = useState('--:--');
   const [ringProgress, setRingProgress] = useState(0);
   const [currentTime, setCurrentTime] = useState(new Date());
-  const [xpPopup, setXpPopup] = useState<{ visible: boolean; amount: number; baseAmount: number; multiplier: number }>({ visible: false, amount: 0, baseAmount: 0, multiplier: 1 });
-  const [coinPopup, setCoinPopup] = useState<{ visible: boolean; amount: number }>({ visible: false, amount: 0 });
+  const [rewardPopup, setRewardPopup] = useState<{ visible: boolean; xp: number; baseXp: number; multiplier: number; coins: number }>({ visible: false, xp: 0, baseXp: 0, multiplier: 1, coins: 0 });
   const [milestonePopup, setMilestonePopup] = useState<{ visible: boolean; prayer: string; streak: number; bonus: number }>({ visible: false, prayer: '', streak: 0, bonus: 0 });
   // Missed prayers pending freeze resolution (deferred streak reset)
   const [missedPrayers, setMissedPrayers] = useState<string[]>([]);
   const [stateLoaded, setStateLoaded] = useState(false);
+
+  // Tracks the calendar-date string for which the Fajr reset has already been done.
+  // Populated from AsyncStorage on load so app restarts after Fajr don't re-wipe prayers.
+  const fajrResetDoneRef = useRef<string | null>(null);
 
   // Update current time every minute for prayer window calculations
   useEffect(() => {
@@ -1905,18 +1665,47 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     return () => clearInterval(interval);
   }, [timings, nextPrayer]);
 
+  // ── Live Fajr reset ──────────────────────────────────────────────────────────
+  // When the app is running and Fajr time arrives, clear the previous day's
+  // completed prayers. Gated on stateLoaded so we don't race with loadState.
+  useEffect(() => {
+    if (!timings?.Fajr || !stateLoaded) return;
+
+    const today = new Date().toDateString();
+    const now = new Date();
+    const [fajrH, fajrM] = timings.Fajr.split(':').map(Number);
+    const fajrToday = new Date();
+    fajrToday.setHours(fajrH, fajrM, 0, 0);
+
+    if (now >= fajrToday && fajrResetDoneRef.current !== today) {
+      fajrResetDoneRef.current = today;
+      setCompletedPrayers(new Set());
+      AsyncStorage.setItem(COMPLETED_PRAYERS_KEY, JSON.stringify({ date: today, prayers: [] }));
+      AsyncStorage.setItem('@GrowPray:fajrResetDate', today);
+    }
+  }, [timings?.Fajr, currentTime, stateLoaded]);
+
   const loadState = async () => {
     try {
       const today = new Date().toDateString();
-      
-      // Load completed prayers for today
+
+      // Load completed prayers — keep yesterday's if we haven't crossed Fajr yet
+      // (the live Fajr effect will clear them at the right time once timings load)
       const storedPrayers = await AsyncStorage.getItem(COMPLETED_PRAYERS_KEY);
       let savedPrayersData = null;
       if (storedPrayers) {
         savedPrayersData = JSON.parse(storedPrayers);
+        const prevDay = new Date();
+        prevDay.setDate(prevDay.getDate() - 1);
+        const prevDayStr = prevDay.toDateString();
         if (savedPrayersData.date === today) {
+          // Same calendar day — restore as-is
+          setCompletedPrayers(new Set(savedPrayersData.prayers));
+        } else if (savedPrayersData.date === prevDayStr) {
+          // Yesterday's prayers: keep them visible until the live Fajr effect clears them
           setCompletedPrayers(new Set(savedPrayersData.prayers));
         } else {
+          // Older than yesterday — clear immediately
           await AsyncStorage.setItem(COMPLETED_PRAYERS_KEY, JSON.stringify({ date: today, prayers: [] }));
         }
       }
@@ -1985,6 +1774,12 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
       const storedHistory = await AsyncStorage.getItem(PRAYER_HISTORY_KEY);
       if (storedHistory) {
         setPrayerHistory(JSON.parse(storedHistory));
+      }
+
+      // Restore fajr reset ref so we don't double-reset if app is opened after Fajr
+      const storedFajrReset = await AsyncStorage.getItem('@GrowPray:fajrResetDate');
+      if (storedFajrReset) {
+        fajrResetDoneRef.current = storedFajrReset;
       }
 
       setStateLoaded(true);
@@ -2118,12 +1913,10 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
       
       // Award XP (flat rate — prayer is within its Islamic deadline)
       const baseXp = XP_ON_TIME;
-      const xpEarned = Math.round(baseXp * xpMultiplier * 10) / 10; // Round to 1 decimal
+      const totalXpMultiplier = xpMultiplier * boostXpMultiplier;
+      const xpEarned = Math.round(baseXp * totalXpMultiplier * 10) / 10; // Round to 1 decimal
       const newXp = xp + xpEarned;
       setXp(newXp);
-      
-      // Show XP popup (include multiplier info for display)
-      setXpPopup({ visible: true, amount: xpEarned, baseAmount: baseXp, multiplier: xpMultiplier });
       
       // Persist XP
       await AsyncStorage.setItem(XP_KEY, JSON.stringify(newXp));
@@ -2136,8 +1929,8 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
         lastDate: new Date().toDateString() 
       }));
 
-      // --- Coin earning (premium multiplier applied) ---
-      let coinsEarned = COINS_PER_PRAYER * coinMultiplier;
+      // --- Coin earning (premium multiplier + boost bonus applied) ---
+      let coinsEarned = COINS_PER_PRAYER * coinMultiplier + boostCoinBonus;
 
       // Check for all-5-prayers bonus
       if (newCompleted.size === 5) {
@@ -2154,10 +1947,8 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
       setCoins(newCoins);
       await AsyncStorage.setItem(COINS_KEY, JSON.stringify(newCoins));
 
-      // Show coin popup after a slight delay so it doesn't overlap XP popup
-      setTimeout(() => {
-        setCoinPopup({ visible: true, amount: coinsEarned });
-      }, 300);
+      // Show unified reward toast (XP + coins together)
+      setRewardPopup({ visible: true, xp: xpEarned, baseXp, multiplier: totalXpMultiplier, coins: coinsEarned });
 
       // Show streak milestone celebration for 7/30/100 day streaks
       if (newPrayerStreak === 7 || newPrayerStreak === 30 || newPrayerStreak === 100) {
@@ -2166,7 +1957,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
         setTimeout(() => {
           setMilestonePopup({ visible: true, prayer, streak: newPrayerStreak, bonus: milestoneBonus });
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-        }, 1200);
+        }, 1800);
       }
     }
     setCompletedPrayers(newCompleted);
@@ -2195,9 +1986,9 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     }
   };
 
-  // Hide XP popup
-  const hideXpPopup = () => {
-    setXpPopup({ visible: false, amount: 0, baseAmount: 0, multiplier: 1 });
+  // Hide reward popup
+  const hideRewardPopup = () => {
+    setRewardPopup({ visible: false, xp: 0, baseXp: 0, multiplier: 1, coins: 0 });
   };
 
   // Debug: same as togglePrayerCompleted but bypasses the active-window check
@@ -2209,30 +2000,26 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     } else {
       newCompleted.add(prayer);
       const baseXp = XP_ON_TIME;
-      const xpEarned = Math.round(baseXp * xpMultiplier * 10) / 10;
+      const totalXpMultiplier = xpMultiplier * boostXpMultiplier;
+      const xpEarned = Math.round(baseXp * totalXpMultiplier * 10) / 10;
       const newXp = xp + xpEarned;
       setXp(newXp);
-      setXpPopup({ visible: true, amount: xpEarned, baseAmount: baseXp, multiplier: xpMultiplier });
       await AsyncStorage.setItem(XP_KEY, JSON.stringify(newXp));
       const newStreaks = { ...streaks, [prayer]: (streaks[prayer] || 0) + 1 };
       setStreaks(newStreaks);
       await AsyncStorage.setItem(STREAKS_KEY, JSON.stringify({ counts: newStreaks, lastDate: new Date().toDateString() }));
-      let coinsEarned = COINS_PER_PRAYER * coinMultiplier;
+      let coinsEarned = COINS_PER_PRAYER * coinMultiplier + boostCoinBonus;
       if (newCompleted.size === 5) coinsEarned += COINS_ALL_FIVE_BONUS;
       const newCoins = coins + coinsEarned;
       setCoins(newCoins);
       await AsyncStorage.setItem(COINS_KEY, JSON.stringify(newCoins));
-      setTimeout(() => setCoinPopup({ visible: true, amount: coinsEarned }), 300);
+      setRewardPopup({ visible: true, xp: xpEarned, baseXp, multiplier: totalXpMultiplier, coins: coinsEarned });
     }
     setCompletedPrayers(newCompleted);
     try {
       const today = new Date().toDateString();
       await AsyncStorage.setItem(COMPLETED_PRAYERS_KEY, JSON.stringify({ date: today, prayers: Array.from(newCompleted) }));
     } catch (e) {}
-  };
-
-  const hideCoinPopup = () => {
-    setCoinPopup({ visible: false, amount: 0 });
   };
 
   const hideMilestonePopup = () => {
@@ -2262,10 +2049,8 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     streaks,
     xp,
     coins,
-    xpPopup,
-    hideXpPopup,
-    coinPopup,
-    hideCoinPopup,
+    rewardPopup,
+    hideRewardPopup,
     milestonePopup,
     hideMilestonePopup,
     timeUntilNext,
@@ -2280,11 +2065,14 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     stateLoaded,
     resolveStreakFreeze,
     prayerHistory,
+    detectedMethodKey,
   };
 }
 
 const ONBOARDING_KEY = '@JannahGarden:onboardingComplete';
 const TOOLTIP_KEY = '@JannahGarden:tooltipShown';
+const MADHAB_KEY = '@GrowPray:madhab';
+const CALC_METHOD_KEY = '@GrowPray:calcMethod';
 
 // Freeze Prompt Modal — shown when missed prayers detected and user has freezes
 function FreezePromptModal({
@@ -2336,7 +2124,7 @@ function FreezePromptModal({
           alignItems: 'center',
         }}>
           {/* Header */}
-          <Text style={{ fontSize: 40, marginBottom: 8 }}>🛡️</Text>
+          <Image source={SINGLE_FREEZE_ICON} style={{ width: 52, height: 52, marginBottom: 8 }} resizeMode="contain" />
           <Text style={{
             fontSize: 20,
             fontWeight: '800',
@@ -2375,7 +2163,7 @@ function FreezePromptModal({
                 }}>
                   <Text style={{ fontSize: 14, color: '#fca5a5' }}>{prayer}</Text>
                   <Text style={{ fontSize: 14, color: '#fca5a5', fontWeight: '600' }}>
-                    🔥 {streaks[prayer]} day streak
+                    {streaks[prayer]} day streak
                   </Text>
                 </View>
               ))}
@@ -2415,7 +2203,7 @@ function FreezePromptModal({
                     {prayer}
                   </Text>
                   <Text style={{ fontSize: 13, color: THEME.accent }}>
-                    🔥 {streaks[prayer]} → Protected
+                    {streaks[prayer]} → Protected
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -2445,7 +2233,7 @@ function FreezePromptModal({
                   }}
                 >
                   <Text style={{ fontSize: 16, fontWeight: '700', color: THEME.text }}>
-                    🛡️ Use All Prayers Freeze
+                    Use All Prayers Freeze
                   </Text>
                   <Text style={{ fontSize: 12, color: THEME.accent, marginTop: 2 }}>
                     Protect all streaks • {freezeInventory.all} remaining
@@ -2474,7 +2262,7 @@ function FreezePromptModal({
                   }}
                 >
                   <Text style={{ fontSize: 16, fontWeight: '700', color: THEME.text }}>
-                    🛡️ Use Single Prayer Freeze
+                    Use Single Prayer Freeze
                   </Text>
                   <Text style={{ fontSize: 12, color: THEME.accent, marginTop: 2 }}>
                     Protect one streak • {freezeInventory.single} remaining
@@ -2558,6 +2346,155 @@ function LoadingOverlay({ ready, onImageLoaded }: { ready: boolean; onImageLoade
   );
 }
 
+// ─── Plant Tree Modal (isolated to prevent parent re-renders from blocking scroll) ─
+const PlantTreeModal = React.memo(function PlantTreeModal({
+  plantTarget,
+  onClose,
+  onOpenShop,
+  onPlant,
+  treeInventory,
+  getOwnedTreeTypes,
+  plantModalScale,
+  plantModalOpacity,
+}: {
+  plantTarget: { row: number; col: number } | null;
+  onClose: () => void;
+  onOpenShop: () => void;
+  onPlant: (treeType: string) => void;
+  treeInventory: Record<string, number>;
+  getOwnedTreeTypes: () => string[];
+  plantModalScale: Animated.Value;
+  plantModalOpacity: Animated.Value;
+}) {
+  const [selectedTreeType, setSelectedTreeType] = useState<string>('Basic');
+
+  // Keep latest refs so we read fresh data on open without re-rendering during scroll
+  const inventoryRef = useRef(treeInventory);
+  inventoryRef.current = treeInventory;
+  const getOwnedRef = useRef(getOwnedTreeTypes);
+  getOwnedRef.current = getOwnedTreeTypes;
+
+  // Snapshot owned types when modal opens (not on every parent render)
+  const [ownedTypes, setOwnedTypes] = useState<string[]>([]);
+  const [snapshotInventory, setSnapshotInventory] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    if (plantTarget !== null) {
+      setSelectedTreeType('Basic');
+      setOwnedTypes(getOwnedRef.current());
+      setSnapshotInventory(inventoryRef.current);
+    }
+  }, [plantTarget]);
+
+  return (
+    <Modal
+      visible={plantTarget !== null}
+      transparent
+      animationType="none"
+      onRequestClose={onClose}
+    >
+      <View style={{ flex: 1 }}>
+        {/* Backdrop — sibling, not parent, so it can't steal ScrollView gestures */}
+        <Pressable onPress={onClose} style={StyleSheet.absoluteFill}>
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} />
+        </Pressable>
+
+        {/* Content float — pointerEvents="box-none" lets taps outside pass to backdrop */}
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }} pointerEvents="box-none">
+          <Animated.View style={{
+            backgroundColor: THEME.bg,
+            borderRadius: 20,
+            padding: 24,
+            alignItems: 'center',
+            width: '100%',
+            maxWidth: 340,
+            transform: [{ scale: plantModalScale }],
+            opacity: plantModalOpacity,
+          }}>
+            <Image source={ICON_SEEDLING} style={{ width: 36, height: 36, marginBottom: 8 }} resizeMode="contain" />
+            <Text style={{ fontSize: 18, fontWeight: '700', color: THEME.accent, marginBottom: 8 }}>
+              Plant a Tree
+            </Text>
+            <Text style={{ fontSize: 14, color: THEME.text, textAlign: 'center', marginBottom: 16, lineHeight: 20 }}>
+              Choose a tree type and watch it grow as you pray.
+            </Text>
+
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              scrollEventThrottle={16}
+              removeClippedSubviews
+              contentContainerStyle={{ gap: 8, paddingHorizontal: 4, marginBottom: 16 }}
+            >
+              {ownedTypes.map((typeId) => {
+                const catalogItem = TREE_CATALOG.find(t => t.id === typeId);
+                if (!catalogItem) return null;
+                const isSelected = selectedTreeType === typeId;
+                const count = typeId === 'Basic' ? Infinity : (snapshotInventory[typeId] || 0);
+                return (
+                  <TouchableOpacity
+                    key={typeId}
+                    onPress={() => setSelectedTreeType(typeId)}
+                    style={{
+                      alignItems: 'center',
+                      paddingHorizontal: 12,
+                      paddingVertical: 8,
+                      borderRadius: 12,
+                      borderWidth: isSelected ? 2 : 0,
+                      borderColor: isSelected ? THEME.accent : 'transparent',
+                      backgroundColor: isSelected ? 'rgba(232, 168, 124, 0.15)' : 'rgba(255,255,255,0.04)',
+                      minWidth: 72,
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, color: THEME.text, fontWeight: '600' }}>{catalogItem.name.replace(' Tree', '')}</Text>
+                    {count !== Infinity && (
+                      <Text style={{ fontSize: 10, color: THEME.textSecondary, marginTop: 2 }}>x{count}</Text>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            {ownedTypes.length <= 1 && (
+              <TouchableOpacity onPress={onOpenShop} style={{ marginBottom: 12 }}>
+                <Text style={{ fontSize: 12, color: '#fbbf24', fontWeight: '600' }}>
+                  Visit Shop for more tree types
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
+              <TouchableOpacity
+                onPress={onClose}
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 12, alignItems: 'center' }}
+              >
+                <Text style={{ color: THEME.textSecondary, fontSize: 14, fontWeight: '600' }}>Not Now</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => onPlant(selectedTreeType)}
+                style={{
+                  flex: 1,
+                  backgroundColor: '#22c55e',
+                  paddingVertical: 12,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                }}
+              >
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Plant!</Text>
+              </TouchableOpacity>
+            </View>
+          </Animated.View>
+        </View>
+      </View>
+    </Modal>
+  );
+}, (prev, next) => {
+  // Only re-render when visibility changes (plantTarget null↔non-null)
+  return (prev.plantTarget === null) === (next.plantTarget === null)
+    && prev.plantTarget?.row === next.plantTarget?.row
+    && prev.plantTarget?.col === next.plantTarget?.col;
+});
+
 export default function App() {
   const [isReady, setIsReady] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null); // null = loading
@@ -2565,6 +2502,7 @@ export default function App() {
   const [showRestModal, setShowRestModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [showExpansionModal, setShowExpansionModal] = useState(false);
+  const [expansionDismissed, setExpansionDismissed] = useState(false);
   const [showShopModal, setShowShopModal] = useState(false);
   const [showDebugModal, setShowDebugModal] = useState(false);
   const [debugPrayersUnlocked, setDebugPrayersUnlocked] = useState(false);
@@ -2574,12 +2512,47 @@ export default function App() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<'garden' | 'shop' | 'challenges' | 'history'>('garden');
+
+  // ── Prayer calculation settings ──────────────────────────────────────────
+  const [madhab, setMadhab] = useState<Madhab>('standard');
+  const [calcMethodKey, setCalcMethodKey] = useState<PrayerMethodKey | null>(null);
+
+  // Load prayer settings from AsyncStorage
+  useEffect(() => {
+    (async () => {
+      const [savedMadhab, savedMethod] = await Promise.all([
+        AsyncStorage.getItem(MADHAB_KEY),
+        AsyncStorage.getItem(CALC_METHOD_KEY),
+      ]);
+      if (savedMadhab === 'hanafi' || savedMadhab === 'standard') setMadhab(savedMadhab);
+      if (savedMethod && savedMethod in PRAYER_METHODS) setCalcMethodKey(savedMethod as PrayerMethodKey);
+    })();
+  }, []);
+
+  const prayerConfig = useMemo<PrayerTimesConfig>(() => ({
+    madhab,
+    methodKey: calcMethodKey,
+  }), [madhab, calcMethodKey]);
+
+  const handleSetMadhab = useCallback(async (m: Madhab) => {
+    setMadhab(m);
+    await AsyncStorage.setItem(MADHAB_KEY, m);
+  }, []);
+
+  const handleSetCalcMethod = useCallback(async (key: PrayerMethodKey | null) => {
+    setCalcMethodKey(key);
+    if (key) {
+      await AsyncStorage.setItem(CALC_METHOD_KEY, key);
+    } else {
+      await AsyncStorage.removeItem(CALC_METHOD_KEY);
+    }
+  }, []);
+
   // Streak freeze inventory
   const [freezeInventory, setFreezeInventory] = useState<{ single: number; all: number }>({ single: 0, all: 0 });
   // Tile interaction modals
   const [skipTileTarget, setSkipTileTarget] = useState<{ row: number; col: number } | null>(null);
   const [plantTarget, setPlantTarget] = useState<{ row: number; col: number } | null>(null);
-  const [selectedTreeType, setSelectedTreeType] = useState<string>('Basic');
   const [choppingTrees, setChoppingTrees] = useState<Set<string>>(new Set());
   const [removeTreeTarget, setRemoveTreeTarget] = useState<{ row: number; col: number } | null>(null);
   const tooltipFade = useRef(new Animated.Value(0)).current;
@@ -2592,15 +2565,28 @@ export default function App() {
   
   const premium = usePremium();
   const consistency = useConsistencyMultiplier();
-  const ramadan = useRamadanMode();
   const difficultDay = useDifficultDay(premium.isPremium);
-  // XP multiplier stacks: consistency × Ramadan
-  const combinedXpMultiplier = consistency.multiplier * ramadan.multiplier;
+  // XP multiplier from consistency
+  const combinedXpMultiplier = consistency.multiplier;
+
+  // Boosts — refs used internally by useBoosts, so we can pass initial values
+  // and wire them to prayerState after it's created
+  const boostCoinsRef = useRef(0);
+  const boostSpendRef = useRef<(amount: number, reason: string) => void>(() => {});
+  const boosts = useBoosts(boostCoinsRef.current, boostSpendRef.current);
+
   const prayerState = usePrayerState(
     premium.limits.coinMultiplier,
     combinedXpMultiplier,
     difficultDay.isActive,
+    boosts.xpMultiplier,
+    boosts.coinBonus,
+    prayerConfig,
   );
+
+  // Wire boost refs to prayerState (useBoosts reads these via ref on user action)
+  boostCoinsRef.current = prayerState.coins;
+  boostSpendRef.current = (amount: number, _reason: string) => prayerState.spendCoins(amount);
   const challengesHook = useChallenges();
   const [showPaywall, setShowPaywall] = useState(false);
   const [paywallReason, setPaywallReason] = useState<'garden_limit' | 'premium_tree' | 'settings' | 'general'>('general');
@@ -2619,14 +2605,23 @@ export default function App() {
 
   // Prompt user when garden is ready to expand (opt-in, with delay to prevent rapid re-triggering)
   // Guard against loading: never show while AsyncStorage load is in progress
+  // If user dismissed the prompt, don't auto-show again until a new expansion tier is reached
   useEffect(() => {
-    if (gardenState.loading || !gardenState.canExpand || showExpansionModal) return;
+    if (gardenState.loading || !gardenState.canExpand || showExpansionModal || expansionDismissed) return;
     const timer = setTimeout(() => {
       setShowExpansionModal(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }, 500);
     return () => clearTimeout(timer);
-  }, [gardenState.loading, gardenState.canExpand, showExpansionModal]);
+  }, [gardenState.loading, gardenState.canExpand, showExpansionModal, expansionDismissed]);
+
+  // Reset dismissal flag when a new expansion tier becomes available
+  const lastDismissedSizeRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (gardenState.canExpand && gardenState.pendingGridSize !== lastDismissedSizeRef.current) {
+      setExpansionDismissed(false);
+    }
+  }, [gardenState.canExpand, gardenState.pendingGridSize]);
 
   // Clear tile transitions after animations complete (~2s max stagger + animation time)
   useEffect(() => {
@@ -2752,7 +2747,6 @@ export default function App() {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setTimeout(() => {
       setPlantTarget({ row, col });
-      setSelectedTreeType('Basic'); // Reset to default
     }, 75);
   }, []);
 
@@ -2762,6 +2756,41 @@ export default function App() {
     setTimeout(() => {
       setRemoveTreeTarget({ row, col });
     }, 75);
+  }, []);
+
+  // Refs for stable callbacks (avoid re-creating on every state change)
+  const plantTargetRef = useRef(plantTarget);
+  plantTargetRef.current = plantTarget;
+  const challengesRef = useRef(challengesHook);
+  challengesRef.current = challengesHook;
+  const prayerXpRef = useRef(prayerState.xp);
+  prayerXpRef.current = prayerState.xp;
+
+  // Handle plant confirmation from PlantTreeModal — stable callback via refs
+  const handlePlantConfirm = useCallback(async (selectedTreeType: string) => {
+    const target = plantTargetRef.current;
+    if (target) {
+      const canUse = await gardenStateRef.current.useTreeFromInventory(selectedTreeType);
+      if (canUse) {
+        const success = await gardenStateRef.current.plantTree(
+          target.row, target.col, selectedTreeType, prayerXpRef.current
+        );
+        if (success) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          challengesRef.current.recordTreePlanted();
+        }
+      }
+    }
+    setPlantTarget(null);
+  }, []);
+
+  // Stable close handler
+  const handlePlantClose = useCallback(() => setPlantTarget(null), []);
+
+  // Handle opening shop from plant modal
+  const handleOpenShopFromPlant = useCallback(() => {
+    setPlantTarget(null);
+    setShowShopModal(true);
   }, []);
 
   // Handle shop tree purchase
@@ -2840,7 +2869,7 @@ export default function App() {
   const noopResetProgress = useCallback(() => {}, []);
 
   // When any fullscreen modal is open, freeze the garden to free the JS thread
-  const isAnyModalOpen = showSettingsModal || showChallengesModal || showShopModal || showPaywall || showRestModal || showDifficultDayModal || showExpansionModal || showHistoryModal || activeTab !== 'garden';
+  const isAnyModalOpen = showSettingsModal || showChallengesModal || showShopModal || showPaywall || showRestModal || showDifficultDayModal || showHistoryModal || activeTab !== 'garden';
 
   // Load freeze inventory from storage
   useEffect(() => {
@@ -2889,7 +2918,7 @@ export default function App() {
     setFreezePromptResolved(true);
 
     // Show success banner
-    setShowFreezeProtectedBanner(`${prayer} streak protected! 🛡️`);
+    setShowFreezeProtectedBanner(`${prayer} streak protected!`);
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setShowFreezeProtectedBanner(null), 3000);
   }, [freezeInventory, prayerState]);
@@ -2907,7 +2936,7 @@ export default function App() {
     setFreezePromptResolved(true);
 
     // Show success banner
-    setShowFreezeProtectedBanner('All streaks protected! 🛡️');
+    setShowFreezeProtectedBanner('All streaks protected!');
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     setTimeout(() => setShowFreezeProtectedBanner(null), 3000);
   }, [freezeInventory, prayerState]);
@@ -3042,6 +3071,29 @@ export default function App() {
           require('./assets/Garden Assets/Icons/Asr.png'),
           require('./assets/Garden Assets/Icons/Maghrib.png'),
           require('./assets/Garden Assets/Icons/Isha.png'),
+          // Shop icons (coins & freezes)
+          require('./assets/Garden Assets/Icons/Icon_Coin.png'),
+          require('./assets/Garden Assets/Icons/Icon_Handful.png'),
+          require('./assets/Garden Assets/Icons/Icon_Pouch.png'),
+          require('./assets/Garden Assets/Icons/Icon_Chest.png'),
+          require('./assets/Garden Assets/Icons/Icon_Treasury.png'),
+          require('./assets/Garden Assets/Icons/Streak_Freeze.png'),
+          require('./assets/Garden Assets/Icons/5_Streak_Freeze.png'),
+          // UI icons
+          require('./assets/Garden Assets/Icons/Icon_Fire.png'),
+          require('./assets/Garden Assets/Icons/Icon_XP.png'),
+          require('./assets/Garden Assets/Icons/Icon_Lightning.png'),
+          require('./assets/Garden Assets/Icons/Icon_Seedling.png'),
+          require('./assets/Garden Assets/Icons/Icon_Moon.png'),
+          require('./assets/Garden Assets/Icons/Icon_Trophy.png'),
+          require('./assets/Garden Assets/Icons/Icon_Crown.png'),
+          require('./assets/Garden Assets/Icons/Icon_Star.png'),
+          require('./assets/Garden Assets/Icons/Icon_Sparkle.png'),
+          require('./assets/Garden Assets/Icons/Icon_Bell.png'),
+          require('./assets/Garden Assets/Icons/Icon_Location.png'),
+          require('./assets/Garden Assets/Icons/Icon_Tree.png'),
+          require('./assets/Garden Assets/Icons/Icon_Warning.png'),
+          require('./assets/Garden Assets/Icons/Icon_Hands.png'),
         ]);
       } catch (error) {
         console.error('Error loading assets:', error);
@@ -3108,6 +3160,33 @@ export default function App() {
         frozen={isAnyModalOpen}
       />
       
+      {/* Subtle expand button — shown when expansion is available but was dismissed */}
+      {gardenState.canExpand && !showExpansionModal && expansionDismissed && activeTab === 'garden' && (
+        <TouchableOpacity
+          onPress={() => {
+            setShowExpansionModal(true);
+            Haptics.selectionAsync();
+          }}
+          activeOpacity={0.7}
+          style={{
+            position: 'absolute',
+            bottom: 12,
+            right: 12,
+            backgroundColor: 'rgba(34, 197, 94, 0.15)',
+            borderRadius: 12,
+            paddingVertical: 6,
+            paddingHorizontal: 10,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+            zIndex: 50,
+          }}
+        >
+          <Image source={ICON_SEEDLING} style={{ width: 12, height: 12 }} resizeMode="contain" />
+          <Text style={{ fontSize: 11, fontWeight: '600', color: 'rgba(34, 197, 94, 0.8)' }}>Expand</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Rest Overlay - Shows when in rest mode */}
       {isResting && (
         <RestOverlay 
@@ -3116,20 +3195,14 @@ export default function App() {
         />
       )}
       
-      {/* XP Popup - Floating animation when earning XP */}
-      <XPPopup 
-        amount={prayerState.xpPopup.amount}
-        baseAmount={prayerState.xpPopup.baseAmount}
-        multiplier={prayerState.xpPopup.multiplier}
-        visible={prayerState.xpPopup.visible}
-        onComplete={prayerState.hideXpPopup}
-      />
-
-      {/* Coin Popup - Floating "+X 🪙" animation */}
-      <CoinPopup
-        amount={prayerState.coinPopup.amount}
-        visible={prayerState.coinPopup.visible}
-        onComplete={prayerState.hideCoinPopup}
+      {/* Reward Toast — unified XP + coins notification */}
+      <RewardToast
+        xp={prayerState.rewardPopup.xp}
+        baseXp={prayerState.rewardPopup.baseXp}
+        multiplier={prayerState.rewardPopup.multiplier}
+        coins={prayerState.rewardPopup.coins}
+        visible={prayerState.rewardPopup.visible}
+        onComplete={prayerState.hideRewardPopup}
       />
 
       {/* Streak Milestone Celebration */}
@@ -3154,6 +3227,11 @@ export default function App() {
         visible={showSettingsModal}
         onClose={closeSettingsModal}
         streaks={prayerState.streaks}
+        madhab={madhab}
+        onChangeMadhab={handleSetMadhab}
+        calcMethodKey={calcMethodKey}
+        detectedMethodKey={prayerState.detectedMethodKey}
+        onChangeCalcMethod={handleSetCalcMethod}
         notificationsEnabled={notificationsEnabled}
         onToggleNotifications={toggleNotifications}
         isPremium={premium.isPremium}
@@ -3193,7 +3271,7 @@ export default function App() {
             width: '100%',
             maxWidth: 340,
           }}>
-            <Text style={{ fontSize: 48, marginBottom: 12 }}>🌱</Text>
+            <Image source={ICON_SEEDLING} style={{ width: 48, height: 48, marginBottom: 12 }} resizeMode="contain" />
             <Text style={{ fontSize: 22, fontWeight: '800', color: THEME.accent, marginBottom: 8 }}>
               Ready to Expand!
             </Text>
@@ -3221,11 +3299,15 @@ export default function App() {
               }}
             >
               <Text style={{ color: '#fff', fontSize: 16, fontWeight: '700' }}>
-                Expand! 🌿
+                Expand!
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => setShowExpansionModal(false)}
+              onPress={() => {
+                setShowExpansionModal(false);
+                setExpansionDismissed(true);
+                lastDismissedSizeRef.current = gardenState.pendingGridSize;
+              }}
               style={{
                 paddingHorizontal: 24,
                 paddingVertical: 10,
@@ -3263,19 +3345,24 @@ export default function App() {
             transform: [{ scale: skipModalScale }],
             opacity: skipModalOpacity,
           }}>
-            <Text style={{ fontSize: 36, marginBottom: 8 }}>🌱</Text>
+            <Image source={ICON_SEEDLING} style={{ width: 36, height: 36, marginBottom: 8 }} resizeMode="contain" />
             <Text style={{ fontSize: 18, fontWeight: '700', color: THEME.accent, marginBottom: 8 }}>
               Speed Up Recovery?
             </Text>
             <Text style={{ fontSize: 14, color: THEME.text, textAlign: 'center', marginBottom: 16, lineHeight: 20 }}>
               This tile is recovering. Spend coins to restore it instantly!
             </Text>
-            <Text style={{ fontSize: 20, fontWeight: '800', color: '#fbbf24', marginBottom: 4 }}>
-              🪙 {skipTileTarget ? gardenState.getSkipCost(skipTileTarget.row, skipTileTarget.col) : 0} coins
-            </Text>
-            <Text style={{ fontSize: 12, color: THEME.textSecondary, marginBottom: 20 }}>
-              You have: 🪙 {prayerState.coins}
-            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4 }}>
+              <Image source={ICON_COIN} style={{ width: 18, height: 18 }} resizeMode="contain" />
+              <Text style={{ fontSize: 20, fontWeight: '800', color: '#fbbf24' }}>
+                {skipTileTarget ? gardenState.getSkipCost(skipTileTarget.row, skipTileTarget.col) : 0} coins
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, marginBottom: 20 }}>
+              <Text style={{ fontSize: 12, color: THEME.textSecondary }}>You have:</Text>
+              <Image source={ICON_COIN} style={{ width: 11, height: 11 }} resizeMode="contain" />
+              <Text style={{ fontSize: 12, color: THEME.textSecondary }}>{prayerState.coins}</Text>
+            </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
                 onPress={() => setSkipTileTarget(null)}
@@ -3316,137 +3403,16 @@ export default function App() {
       </Modal>
 
       {/* Plant Tree Modal — tap recovered tile (with dead tree removed) to plant */}
-      <Modal
-        visible={plantTarget !== null}
-        transparent
-        animationType="none"
-        onRequestClose={() => setPlantTarget(null)}
-      >
-        <TouchableWithoutFeedback onPress={() => setPlantTarget(null)}>
-          <View style={{
-            flex: 1,
-            backgroundColor: 'rgba(0,0,0,0.6)',
-            justifyContent: 'center',
-            alignItems: 'center',
-            padding: 32,
-          }}>
-            <TouchableWithoutFeedback>
-              <Animated.View style={{
-                backgroundColor: THEME.bg,
-                borderRadius: 20,
-                padding: 24,
-                alignItems: 'center',
-                width: '100%',
-                maxWidth: 340,
-                transform: [{ scale: plantModalScale }],
-                opacity: plantModalOpacity,
-              }}>
-            <Text style={{ fontSize: 36, marginBottom: 8 }}>🌱</Text>
-            <Text style={{ fontSize: 18, fontWeight: '700', color: THEME.accent, marginBottom: 8 }}>
-              Plant a Tree
-            </Text>
-            <Text style={{ fontSize: 14, color: THEME.text, textAlign: 'center', marginBottom: 16, lineHeight: 20 }}>
-              Choose a tree type and watch it grow as you pray.
-            </Text>
-
-            {/* Tree type picker */}
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={{ gap: 8, paddingHorizontal: 4, marginBottom: 16 }}
-            >
-              {(() => {
-                const ownedTypes = gardenState.getOwnedTreeTypes();
-                return ownedTypes.map((typeId) => {
-                  const catalogItem = TREE_CATALOG.find(t => t.id === typeId);
-                  if (!catalogItem) return null;
-                  const isSelected = selectedTreeType === typeId;
-                  const count = typeId === 'Basic' ? Infinity : (gardenState.treeInventory[typeId] || 0);
-                  return (
-                    <TouchableOpacity
-                      key={typeId}
-                      onPress={() => setSelectedTreeType(typeId)}
-                      style={{
-                        alignItems: 'center',
-                        paddingHorizontal: 12,
-                        paddingVertical: 8,
-                        borderRadius: 12,
-                        borderWidth: isSelected ? 2 : 0,
-                        borderColor: isSelected ? THEME.accent : 'transparent',
-                        backgroundColor: isSelected ? 'rgba(232, 168, 124, 0.15)' : 'rgba(255,255,255,0.04)',
-                        minWidth: 72,
-                      }}
-                    >
-                      <Text style={{ fontSize: 11, color: THEME.text, fontWeight: '600' }}>{catalogItem.name.replace(' Tree', '')}</Text>
-                      {count !== Infinity && (
-                        <Text style={{ fontSize: 10, color: THEME.textSecondary, marginTop: 2 }}>x{count}</Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                });
-              })()}
-            </ScrollView>
-
-            {gardenState.getOwnedTreeTypes().length <= 1 && (
-              <TouchableOpacity
-                onPress={() => {
-                  setPlantTarget(null);
-                  setShowShopModal(true);
-                }}
-                style={{ marginBottom: 12 }}
-              >
-                <Text style={{ fontSize: 12, color: '#fbbf24', fontWeight: '600' }}>
-                  🏠 Visit Shop for more tree types
-                </Text>
-              </TouchableOpacity>
-            )}
-
-            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
-              <TouchableOpacity
-                onPress={() => setPlantTarget(null)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: THEME.textSecondary, fontSize: 14, fontWeight: '600' }}>Not Now</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={async () => {
-                  if (plantTarget) {
-                    // Consume from inventory (Basic is free/unlimited)
-                    const canUse = await gardenState.useTreeFromInventory(selectedTreeType);
-                    if (canUse) {
-                      const success = await gardenState.plantTree(
-                        plantTarget.row, plantTarget.col, selectedTreeType, prayerState.xp
-                      );
-                      if (success) {
-                        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                        // Track for weekly challenges
-                        challengesHook.recordTreePlanted();
-                      }
-                    }
-                  }
-                  setPlantTarget(null);
-                }}
-                style={{
-                  flex: 1,
-                  backgroundColor: '#22c55e',
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Plant! 🌳</Text>
-              </TouchableOpacity>
-            </View>
-          </Animated.View>
-            </TouchableWithoutFeedback>
-        </View>
-        </TouchableWithoutFeedback>
-      </Modal>
+      <PlantTreeModal
+        plantTarget={plantTarget}
+        onClose={handlePlantClose}
+        onOpenShop={handleOpenShopFromPlant}
+        onPlant={handlePlantConfirm}
+        treeInventory={gardenState.treeInventory}
+        getOwnedTreeTypes={gardenState.getOwnedTreeTypes}
+        plantModalScale={plantModalScale}
+        plantModalOpacity={plantModalOpacity}
+      />
 
       {/* Remove Planted Tree Modal */}
       <Modal
@@ -3537,7 +3503,7 @@ export default function App() {
               }}>
                 {/* Header */}
                 <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                  <Text style={{ fontSize: 32, marginBottom: 8 }}>⚡</Text>
+                  <Image source={ICON_LIGHTNING} style={{ width: 32, height: 32, marginBottom: 8 }} resizeMode="contain" />
                   <Text style={{ color: THEME.text, fontSize: 20, fontWeight: '800' }}>
                     Consistency Multiplier
                   </Text>
@@ -3589,7 +3555,7 @@ export default function App() {
                   )}
                   {!consistency.nextTier && (
                     <Text style={{ color: '#4ade80', fontSize: 11, marginTop: 6, fontWeight: '600' }}>
-                      🏆 Maximum tier reached!
+                      Maximum tier reached!
                     </Text>
                   )}
                 </View>
@@ -3655,8 +3621,8 @@ export default function App() {
                   marginBottom: 16,
                 }}>
                   <Text style={{ color: '#9ca3af', fontSize: 11, lineHeight: 16 }}>
-                    ⚠️ Missing any prayer resets your streak to 0.{'\n'}
-                    💡 Use streak freezes from the shop to protect your prayers — if no prayer breaks, your perfect day streak stays alive!
+                    Missing any prayer resets your streak to 0.{'\n'}
+                    Use streak freezes from the shop to protect your progress.
                   </Text>
                 </View>
 
@@ -3694,6 +3660,11 @@ export default function App() {
         freezeInventory={freezeInventory}
         onPurchaseFreeze={handlePurchaseFreeze}
         onPurchaseCoins={handlePurchaseCoins}
+        boostInventory={boosts.inventory}
+        activeBoost={boosts.activeBoost}
+        boostTimeRemainingMs={boosts.timeRemainingMs}
+        onPurchaseBoost={boosts.purchaseBoost}
+        onActivateBoost={boosts.activateBoost}
       />
 
       {/* Challenges Modal */}
@@ -3946,7 +3917,7 @@ export default function App() {
 
       {/* Tab page views — full screen when non-garden tab is active */}
       {activeTab !== 'garden' && (
-        <SafeAreaView edges={['top']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: THEME.bg }}>
+        <SafeAreaView edges={['top']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(10,14,28,0.75)' }}>
           {activeTab === 'shop' && (
             <ShopModal
               asPage
@@ -3960,6 +3931,11 @@ export default function App() {
               freezeInventory={freezeInventory}
               onPurchaseFreeze={handlePurchaseFreeze}
               onPurchaseCoins={handlePurchaseCoins}
+              boostInventory={boosts.inventory}
+              activeBoost={boosts.activeBoost}
+              boostTimeRemainingMs={boosts.timeRemainingMs}
+              onPurchaseBoost={boosts.purchaseBoost}
+              onActivateBoost={boosts.activateBoost}
             />
           )}
           {activeTab === 'challenges' && (
@@ -4033,15 +4009,16 @@ export default function App() {
             coins={prayerState.coins}
             xp={prayerState.xp}
             nextPrayer={isResting ? null : prayerState.nextPrayer}
+            nextPrayerTime={(!isResting && prayerState.nextPrayer && prayerState.timings) ? prayerState.timings[prayerState.nextPrayer] : null}
             timeUntilNext={isResting ? 'Resting' : prayerState.timeUntilNext}
             ringProgress={isResting ? 0 : prayerState.ringProgress}
             freezeCount={freezeInventory.single + freezeInventory.all}
             consistencyMultiplier={consistency.multiplier}
             onMultiplierPress={() => setShowMultiplierModal(true)}
-            isRamadan={ramadan.isRamadan}
-            ramadanDay={ramadan.ramadanDay}
-            ramadanMultiplier={ramadan.multiplier}
             difficultDayActive={difficultDay.isActive}
+            activeBoostIcon={boosts.activeBoost ? BOOST_CATALOG.find(b => b.id === boosts.activeBoost!.boostId)?.icon : undefined}
+            activeBoostName={boosts.activeBoost ? BOOST_CATALOG.find(b => b.id === boosts.activeBoost!.boostId)?.name : undefined}
+            boostTimeRemaining={boosts.activeBoost ? (() => { const ms = boosts.timeRemainingMs; const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return h > 0 ? `${h}h ${m}m left` : `${m}m left`; })() : undefined}
           />
         )}
         </SafeAreaView>
@@ -4051,11 +4028,11 @@ export default function App() {
       </View>
       {/* End content area */}
 
-      {/* Bottom area: Prayer Bar + Tab Bar — in normal flex flow */}
+      {/* Bottom area: Prayer Bar + Tab Bar — liquid glass */}
       <SafeAreaView 
         edges={['bottom']} 
         style={{ 
-          backgroundColor: THEME.bg,
+          backgroundColor: activeTab === 'garden' ? 'transparent' : 'rgba(10,14,28,0.75)',
           zIndex: 300,
         }}
       >
