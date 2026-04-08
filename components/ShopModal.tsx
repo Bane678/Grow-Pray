@@ -659,14 +659,12 @@ export function ShopModal({
             })}
           </View>
 
-          {/* Content */}
-          <ScrollView
-            style={styles.scrollArea}
-            contentContainerStyle={{ paddingBottom: 16 }}
-            showsVerticalScrollIndicator={false}
-          >
-            {activeTab === 'trees' && (
-              <>
+          {/* Content — one per-tab ScrollView always mounted so images stay decoded */}
+          <View style={{ flex: 1, minHeight: 400 }}>
+
+            {/* Trees */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'trees' ? 1 : 0 }} pointerEvents={activeTab === 'trees' ? 'box-none' : 'none'}>
+              <ScrollView style={[styles.scrollArea, { flex: 1 }]} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
                 {/* Common */}
                 <Text style={styles.sectionTitle}>Common</Text>
                 {TREE_CATALOG.filter(t => t.rarity === 'common').map(renderTreeCard)}
@@ -678,11 +676,12 @@ export function ShopModal({
                 {/* Premium */}
                 <Text style={[styles.sectionTitle, { marginTop: 16 }]}>Premium</Text>
                 {TREE_CATALOG.filter(t => t.rarity === 'premium').map(renderTreeCard)}
-              </>
-            )}
+              </ScrollView>
+            </View>
 
-            {activeTab === 'freezes' && (
-              <>
+            {/* Freezes */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'freezes' ? 1 : 0 }} pointerEvents={activeTab === 'freezes' ? 'box-none' : 'none'}>
+              <ScrollView style={[styles.scrollArea, { flex: 1 }]} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
                 {/* Single Prayer Freeze */}
                 <View style={[styles.freezeCard, { borderColor: 'rgba(74, 222, 128, 0.3)' }]}>
                   <View style={styles.freezeIconContainer}>
@@ -771,11 +770,12 @@ export function ShopModal({
                     • Freezes are consumed on use
                   </Text>
                 </View>
-              </>
-            )}
+              </ScrollView>
+            </View>
 
-            {activeTab === 'coins' && (
-              <>
+            {/* Coins */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'coins' ? 1 : 0 }} pointerEvents={activeTab === 'coins' ? 'box-none' : 'none'}>
+              <ScrollView style={[styles.scrollArea, { flex: 1 }]} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
                 <Text style={[styles.sectionTitle, { marginBottom: 4 }]}>Buy Coins</Text>
                 <Text style={{ color: '#9ca3af', fontSize: 12, marginBottom: 12, lineHeight: 16 }}>
                   Use coins to buy trees, streak freezes, and more.
@@ -842,11 +842,12 @@ export function ShopModal({
                     • Coins never expire
                   </Text>
                 </View>
-              </>
-            )}
+              </ScrollView>
+            </View>
 
-            {activeTab === 'boosts' && (
-              <>
+            {/* Boosts */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'boosts' ? 1 : 0 }} pointerEvents={activeTab === 'boosts' ? 'box-none' : 'none'}>
+              <ScrollView style={[styles.scrollArea, { flex: 1 }]} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
                 {/* Active boost banner */}
                 {activeBoost && boostTimeRemainingMs > 0 && (() => {
                   const def = BOOST_CATALOG.find(b => b.id === activeBoost.boostId);
@@ -962,9 +963,10 @@ export function ShopModal({
                     • Activate before prayer for maximum benefit
                   </Text>
                 </View>
-              </>
-            )}
-          </ScrollView>
+              </ScrollView>
+            </View>
+
+          </View>
     </>
   );
 

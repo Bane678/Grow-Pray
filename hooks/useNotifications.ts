@@ -66,14 +66,17 @@ export function useNotifications(
   deadlines: PrayerDeadlines | null = null,
   lastXPGainTimestamp?: number,
   hasGarden?: boolean,
+  notifReady: boolean = true,
 ) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
-  // Request permissions on mount
+  // Request permissions once notifReady is true (i.e. after onboarding)
   useEffect(() => {
+    if (!notifReady) return;
+
     registerForPushNotifications();
     loadNotificationPreference();
 
@@ -94,7 +97,7 @@ export function useNotifications(
         responseListener.current.remove();
       }
     };
-  }, []);
+  }, [notifReady]);
 
   // Schedule prayer notifications whenever timings change or prayers are completed
   useEffect(() => {

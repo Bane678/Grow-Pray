@@ -21,6 +21,7 @@ import { useBoosts, BOOST_CATALOG } from './hooks/useBoosts';
 
 import { Asset } from 'expo-asset';
 import * as SplashScreen from 'expo-splash-screen';
+import * as Location from 'expo-location';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { usePrayerTimes, type PrayerTimesConfig, type Madhab, type PrayerMethodKey, PRAYER_METHODS } from './hooks/usePrayerTimes';
 import { useNotifications } from './hooks/useNotifications';
@@ -28,9 +29,22 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { Audio } from 'expo-av';
-import Svg, { Circle, Defs, LinearGradient as SvgGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, LinearGradient as SvgGradient, RadialGradient, Stop, Path, Rect, ClipPath, G } from 'react-native-svg';
 
 const SINGLE_FREEZE_ICON = require('./assets/Garden Assets/Icons/Streak_Freeze.png');
+
+// Preload reward sound once at app startup — avoids 200-400ms createAsync delay on first tap
+let _rewardSound: Audio.Sound | null = null;
+(async () => {
+  try {
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, shouldDuckAndroid: false, staysActiveInBackground: false });
+    const { sound } = await Audio.Sound.createAsync(
+      require('./assets/sounds/xp_sound.mp3'),
+      { shouldPlay: false, volume: 0.5 }
+    );
+    _rewardSound = sound;
+  } catch (_) { /* silent fail — sound is non-critical */ }
+})();
 
 // Custom pixel-art icons
 const ICON_COIN = require('./assets/Garden Assets/Icons/Icon_Coin.png');
@@ -50,6 +64,38 @@ const ICON_WARNING = require('./assets/Garden Assets/Icons/Icon_Warning.png');
 const ICON_HANDS = require('./assets/Garden Assets/Icons/Icon_Hands.png');
 const ICON_GEAR = require('./assets/Garden Assets/Icons/Icon_Gear.png');
 const ICON_SCROLL = require('./assets/Garden Assets/Icons/Icon_Scroll.png');
+
+// ─── Error Boundary ──────────────────────────────────────────────────────────
+// Catches any unhandled JS error so the app shows a recovery UI
+// instead of a blank white screen or OS crash dialog.
+class ErrorBoundary extends React.Component<
+  { children: React.ReactNode },
+  { hasError: boolean; error: Error | null }
+> {
+  constructor(props: { children: React.ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error) {
+    return { hasError: true, error };
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <View style={{ flex: 1, backgroundColor: '#0f1526', justifyContent: 'center', alignItems: 'center', padding: 32 }}>
+          <Text style={{ fontSize: 48, marginBottom: 16 }}>😔</Text>
+          <Text style={{ color: '#ffffff', fontSize: 20, fontWeight: '700', textAlign: 'center', marginBottom: 12 }}>
+            Something went wrong
+          </Text>
+          <Text style={{ color: 'rgba(255,255,255,0.5)', fontSize: 14, textAlign: 'center', lineHeight: 20 }}>
+            Please close and reopen the app.
+          </Text>
+        </View>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 // Keep the native splash visible until our custom loading screen image is ready
 SplashScreen.preventAutoHideAsync().catch(() => {});
@@ -91,6 +137,7 @@ const DEFAULT_STREAKS: PrayerStreaks = { Fajr: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, 
 
 // XP rewards
 const XP_ON_TIME = 5;      // XP for completing during active window
+const JUMMAH_XP_BONUS = 3; // Extra XP per prayer on Fridays (Jummah blessing)
 
 // Coin rewards
 const COINS_PER_PRAYER = 2;          // Base coins per prayer
@@ -672,193 +719,177 @@ function TopInfoBar({
 }) {
   const bestStreak = Math.max(...Object.values(streaks));
   const combinedMultiplier = consistencyMultiplier;
-  const screenWidth = Dimensions.get('window').width;
 
   return (
-    <View style={{ alignItems: 'center', paddingTop: 16 }}>
+    <View style={{ paddingTop: 6 }}>
 
-      {/* Difficult Day banner — compact */}
-      {difficultDayActive && (
-        <View style={{
-          backgroundColor: THEME.purpleMuted,
-          borderRadius: 9,
-          paddingVertical: 4,
-          paddingHorizontal: 10,
-          marginBottom: 8,
-        }}>
-          <Text style={{ fontSize: 10, fontWeight: '600', color: THEME.purple }}>
-            Difficult Day Active
+      {/* ── Top-edge stats row ── */}
+      <View style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 16,
+        paddingHorizontal: 20,
+        paddingVertical: 6,
+      }}>
+        {/* Streak */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Image source={ICON_FIRE} style={{ width: 13, height: 13 }} resizeMode="contain" />
+          <Text style={{ fontSize: 13, fontWeight: '800', color: bestStreak > 0 ? THEME.warning : THEME.textSecondary }}>
+            {bestStreak}
           </Text>
         </View>
-      )}
 
-      {/* Active Boost banner */}
-      {activeBoostName && boostTimeRemaining && (
-        <View style={{
-          backgroundColor: 'rgba(168,85,247,0.15)',
-          borderRadius: 9,
-          paddingVertical: 4,
-          paddingHorizontal: 10,
-          marginBottom: 8,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: 4,
-        }}>
-          <Text style={{ fontSize: 10 }}>{activeBoostIcon}</Text>
-          <Text style={{ fontSize: 10, fontWeight: '600', color: '#c084fc' }}>
-            {activeBoostName} · {boostTimeRemaining}
+        {/* Coins */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Image source={ICON_COIN} style={{ width: 13, height: 13 }} resizeMode="contain" />
+          <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.coin }}>
+            {coins}
           </Text>
         </View>
-      )}
+
+        {/* XP */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Image source={ICON_XP} style={{ width: 13, height: 13 }} resizeMode="contain" />
+          <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.success }}>
+            {xp}
+          </Text>
+        </View>
+
+        {/* Multiplier */}
+        <TouchableOpacity onPress={onMultiplierPress} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+          <Image source={ICON_LIGHTNING} style={{ width: 13, height: 13 }} resizeMode="contain" />
+          <Text style={{ fontSize: 13, fontWeight: '800', color: combinedMultiplier > 1 ? THEME.coin : THEME.textSecondary }}>
+            {combinedMultiplier}×
+          </Text>
+        </TouchableOpacity>
+
+        {/* Freeze (only if > 0) */}
+        {freezeCount > 0 && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <MaterialCommunityIcons name="shield-check" size={12} color={THEME.purple} />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.purple }}>
+              {freezeCount}
+            </Text>
+          </View>
+        )}
+      </View>
+
+      {/* Banners */}
+      <View style={{ alignItems: 'center' }}>
+        {/* Difficult Day banner */}
+        {difficultDayActive && (
+          <View style={{
+            backgroundColor: THEME.purpleMuted,
+            borderRadius: 9,
+            paddingVertical: 4,
+            paddingHorizontal: 10,
+            marginBottom: 6,
+            marginTop: 4,
+          }}>
+            <Text style={{ fontSize: 10, fontWeight: '600', color: THEME.purple }}>
+              Difficult Day Active
+            </Text>
+          </View>
+        )}
+
+        {/* Active Boost banner */}
+        {activeBoostName && boostTimeRemaining && (
+          <View style={{
+            backgroundColor: 'rgba(168,85,247,0.15)',
+            borderRadius: 9,
+            paddingVertical: 4,
+            paddingHorizontal: 10,
+            marginBottom: 6,
+            marginTop: 4,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 4,
+          }}>
+            <Text style={{ fontSize: 10 }}>{activeBoostIcon}</Text>
+            <Text style={{ fontSize: 10, fontWeight: '600', color: '#c084fc' }}>
+              {activeBoostName} · {boostTimeRemaining}
+            </Text>
+          </View>
+        )}
+      </View>
 
       {/* ── Context label — subtle next prayer indicator with time ── */}
-      {nextPrayer ? (
-        <View style={{ alignItems: 'center', marginBottom: 10 }}>
+      <View style={{ alignItems: 'center' }}>
+        {nextPrayer ? (
+          <View style={{ alignItems: 'center', marginBottom: 10, marginTop: 6 }}>
+            <Text style={{
+              fontSize: 11,
+              fontWeight: '500',
+              color: 'rgba(232,224,214,0.5)',
+              letterSpacing: 1,
+              textTransform: 'uppercase',
+            }}>
+              Next: {nextPrayer}{nextPrayerTime ? ` · ${formatTime12h(nextPrayerTime)}` : ''}
+            </Text>
+          </View>
+        ) : (
           <Text style={{
             fontSize: 11,
             fontWeight: '500',
-            color: 'rgba(232,224,214,0.5)',
+            color: 'rgba(74,222,128,0.5)',
             letterSpacing: 1,
             textTransform: 'uppercase',
+            marginBottom: 10,
+            marginTop: 6,
           }}>
-            Next: {nextPrayer}{nextPrayerTime ? ` · ${formatTime12h(nextPrayerTime)}` : ''}
+            All Prayers Complete
           </Text>
-        </View>
-      ) : (
-        <Text style={{
-          fontSize: 11,
-          fontWeight: '500',
-          color: 'rgba(74,222,128,0.5)',
-          letterSpacing: 1,
-          textTransform: 'uppercase',
-          marginBottom: 10,
-        }}>
-          All Prayers Complete
-        </Text>
-      )}
+        )}
 
-      {/* ── Moonlight glow behind timer ── */}
-      <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-        {/* Outer soft glow */}
-        <View pointerEvents="none" style={{
-          position: 'absolute',
-          width: 180,
-          height: 180,
-          borderRadius: 90,
-          backgroundColor: 'rgba(140,170,220,0.04)',
-        }} />
-        {/* Inner brighter glow */}
-        <View pointerEvents="none" style={{
-          position: 'absolute',
-          width: 120,
-          height: 120,
-          borderRadius: 60,
-          backgroundColor: 'rgba(160,190,240,0.06)',
-        }} />
-
-        {/* ── Countdown Circle — focal element ── */}
-        <View style={{ width: 96, height: 96, alignItems: 'center', justifyContent: 'center' }}>
-          <PremiumCountdownRing
-            progress={ringProgress}
-            size={80}
-            strokeWidth={3.5}
-            isComplete={!nextPrayer}
-          />
-          {/* Center text */}
-          <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{
-              fontSize: 18,
-              fontWeight: '800',
-              color: THEME.text,
-              letterSpacing: -0.5,
-            }}>
-              {nextPrayer ? timeUntilNext : '✓'}
-            </Text>
-            <Text style={{
-              fontSize: 9,
-              fontWeight: '500',
-              color: THEME.textSecondary,
-              marginTop: 1,
-            }}>
-              {nextPrayer ? `until ${nextPrayer}` : 'All done'}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* 18px gap between timer and stats */}
-      <View style={{ height: 18 }} />
-
-      {/* ── Floating Pill Stats Panel — Liquid Glass ── */}
-      <View style={{
-        width: screenWidth * 0.65,
-        borderRadius: 18,
-        overflow: 'hidden',
-      }}>
-        <BlurView intensity={25} tint="dark" style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'space-evenly',
-          paddingVertical: 9,
-          paddingHorizontal: 6,
-          borderRadius: 18,
-          borderWidth: 1,
-          borderColor: 'rgba(255,255,255,0.12)',
-        }}>
-          {/* Glass surface fill */}
-          <View style={{
-            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
-            backgroundColor: 'rgba(20,30,50,0.30)',
-            borderRadius: 18,
+        {/* ── Moonlight glow behind timer ── */}
+        <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+          {/* Outer soft glow */}
+          <View pointerEvents="none" style={{
+            position: 'absolute',
+            width: 180,
+            height: 180,
+            borderRadius: 90,
+            backgroundColor: 'rgba(140,170,220,0.04)',
           }} />
-          {/* Top-edge highlight */}
-          <View style={{
-            position: 'absolute', top: 0, left: 12, right: 12, height: 1,
-            backgroundColor: 'rgba(255,255,255,0.08)',
+          {/* Inner brighter glow */}
+          <View pointerEvents="none" style={{
+            position: 'absolute',
+            width: 120,
+            height: 120,
+            borderRadius: 60,
+            backgroundColor: 'rgba(160,190,240,0.06)',
           }} />
 
-          {/* Streak */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Image source={ICON_FIRE} style={{ width: 14, height: 14 }} resizeMode="contain" />
-            <Text style={{ fontSize: 13, fontWeight: '800', color: bestStreak > 0 ? THEME.warning : THEME.textSecondary }}>
-              {bestStreak}
-            </Text>
-          </View>
-
-          {/* Coins */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Image source={ICON_COIN} style={{ width: 14, height: 14 }} resizeMode="contain" />
-            <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.coin }}>
-              {coins}
-            </Text>
-          </View>
-
-          {/* XP */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Image source={ICON_XP} style={{ width: 14, height: 14 }} resizeMode="contain" />
-            <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.success }}>
-              {xp}
-            </Text>
-          </View>
-
-          {/* Combined Multiplier */}
-          <TouchableOpacity onPress={onMultiplierPress} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-            <Image source={ICON_LIGHTNING} style={{ width: 14, height: 14 }} resizeMode="contain" />
-            <Text style={{ fontSize: 13, fontWeight: '800', color: combinedMultiplier > 1 ? THEME.coin : THEME.textSecondary }}>
-              {combinedMultiplier}×
-            </Text>
-          </TouchableOpacity>
-
-          {/* Freeze (only if > 0) */}
-          {freezeCount > 0 && (
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-              <MaterialCommunityIcons name="shield-check" size={12} color={THEME.purple} />
-              <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.purple }}>
-                {freezeCount}
+          {/* ── Countdown Circle — sole focal element ── */}
+          <View style={{ width: 96, height: 96, alignItems: 'center', justifyContent: 'center' }}>
+            <PremiumCountdownRing
+              progress={ringProgress}
+              size={80}
+              strokeWidth={3.5}
+              isComplete={!nextPrayer}
+            />
+            {/* Center text */}
+            <View style={{ position: 'absolute', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{
+                fontSize: 18,
+                fontWeight: '800',
+                color: THEME.text,
+                letterSpacing: -0.5,
+              }}>
+                {nextPrayer ? timeUntilNext : '✓'}
+              </Text>
+              <Text style={{
+                fontSize: 9,
+                fontWeight: '500',
+                color: THEME.textSecondary,
+                marginTop: 1,
+              }}>
+                {nextPrayer ? `until ${nextPrayer}` : 'All done'}
               </Text>
             </View>
-          )}
-        </BlurView>
+          </View>
+        </View>
       </View>
     </View>
   );
@@ -1297,24 +1328,11 @@ function RewardToast({ xp, baseXp, multiplier, coins, visible, onComplete }: {
 
   const playSound = async () => {
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        shouldDuckAndroid: false,
-        staysActiveInBackground: false,
-      });
-      const { sound } = await Audio.Sound.createAsync(
-        require('./assets/sounds/xp_sound.mp3'),
-        { shouldPlay: true, volume: 0.5 }
-      );
-      await sound.playAsync();
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (status.isLoaded && status.didJustFinish) {
-          sound.unloadAsync();
-        }
-      });
-    } catch (error) {
-      // Silently fail if sound file doesn't exist
-    }
+      if (_rewardSound) {
+        await _rewardSound.setPositionAsync(0);
+        _rewardSound.playAsync().catch(() => {});
+      }
+    } catch (_) { /* silent fail */ }
   };
 
   if (!visible) return null;
@@ -1912,7 +1930,9 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
       newCompleted.add(prayer);
       
       // Award XP (flat rate — prayer is within its Islamic deadline)
-      const baseXp = XP_ON_TIME;
+      // Friday (Jummah) bonus: getDay() === 5 is Friday
+      const isFriday = new Date().getDay() === 5;
+      const baseXp = XP_ON_TIME + (isFriday ? JUMMAH_XP_BONUS : 0);
       const totalXpMultiplier = xpMultiplier * boostXpMultiplier;
       const xpEarned = Math.round(baseXp * totalXpMultiplier * 10) / 10; // Round to 1 decimal
       const newXp = xp + xpEarned;
@@ -1999,7 +2019,8 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
       newCompleted.delete(prayer);
     } else {
       newCompleted.add(prayer);
-      const baseXp = XP_ON_TIME;
+      const isFridayDebug = new Date().getDay() === 5;
+      const baseXp = XP_ON_TIME + (isFridayDebug ? JUMMAH_XP_BONUS : 0);
       const totalXpMultiplier = xpMultiplier * boostXpMultiplier;
       const xpEarned = Math.round(baseXp * totalXpMultiplier * 10) / 10;
       const newXp = xp + xpEarned;
@@ -2073,6 +2094,8 @@ const ONBOARDING_KEY = '@JannahGarden:onboardingComplete';
 const TOOLTIP_KEY = '@JannahGarden:tooltipShown';
 const MADHAB_KEY = '@GrowPray:madhab';
 const CALC_METHOD_KEY = '@GrowPray:calcMethod';
+const MANUAL_CITY_KEY = '@GrowPray:manualCity';
+const MANUAL_COORDS_KEY = '@GrowPray:manualCoords';
 
 // Freeze Prompt Modal — shown when missed prayers detected and user has freezes
 function FreezePromptModal({
@@ -2293,6 +2316,138 @@ function FreezePromptModal({
   );
 }
 
+// ─── Preparing Screen ────────────────────────────────────────────────────────────
+// Shows after onboarding while the garden renders in the background.
+// Each step is tied to a REAL loading/rendering flag AND advances sequentially
+// with a minimum visible time so the user can see each step complete.
+// Does NOT dismiss until the garden is fully rendered on screen.
+type LoadingProgress = {
+  prayerData: boolean;     // AsyncStorage prayer state loaded
+  gardenData: boolean;     // AsyncStorage garden state loaded
+  gardenRendered: boolean; // GardenScene has laid out and painted
+};
+
+const PREPARING_STEPS: { label: string; key: keyof LoadingProgress }[] = [
+  { label: 'Setting up your prayer times', key: 'prayerData' },
+  { label: 'Restoring your garden', key: 'gardenData' },
+  { label: 'Rendering your garden', key: 'gardenRendered' },
+];
+
+const MIN_STEP_MS = 600; // Minimum visible time per step so user can see progress
+
+const PREPARING_ICON = require('./assets/Garden Assets/Icons/Icon_Seedling.png');
+
+function PreparingScreen({ progress, onDone }: { progress: LoadingProgress; onDone: () => void }) {
+  // How many steps have been visually checked off (advances sequentially)
+  const [visibleChecked, setVisibleChecked] = useState(0);
+  const checkAnims = useRef(PREPARING_STEPS.map(() => new Animated.Value(0))).current;
+  const barWidth = useRef(new Animated.Value(0)).current;
+  const fadeOut = useRef(new Animated.Value(1)).current;
+  const finished = useRef(false);
+  const stepTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Sequential step advancement: advance to the next step only when
+  // (a) the previous step animation has had its minimum display time AND
+  // (b) the current step's real loading flag is true.
+  useEffect(() => {
+    if (visibleChecked >= PREPARING_STEPS.length) return;
+    const currentStep = PREPARING_STEPS[visibleChecked];
+    if (!progress[currentStep.key]) return; // wait for real flag
+
+    // Real flag is ready — wait minimum display time then check off
+    stepTimerRef.current = setTimeout(() => {
+      Animated.spring(checkAnims[visibleChecked], {
+        toValue: 1,
+        friction: 6,
+        tension: 120,
+        useNativeDriver: true,
+      }).start();
+      setVisibleChecked(prev => prev + 1);
+    }, MIN_STEP_MS);
+
+    return () => {
+      if (stepTimerRef.current) clearTimeout(stepTimerRef.current);
+    };
+  }, [visibleChecked, progress]);
+
+  // Update progress bar as steps are visually checked off
+  useEffect(() => {
+    Animated.timing(barWidth, {
+      toValue: visibleChecked / PREPARING_STEPS.length,
+      duration: 400,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: false,
+    }).start();
+  }, [visibleChecked]);
+
+  // Dismiss only when ALL steps are visually checked AND all real flags are true
+  useEffect(() => {
+    const allStepsShown = visibleChecked >= PREPARING_STEPS.length;
+    const allFlagsReady = PREPARING_STEPS.every(s => progress[s.key]);
+    if (allStepsShown && allFlagsReady && !finished.current) {
+      finished.current = true;
+      setTimeout(() => {
+        Animated.timing(fadeOut, {
+          toValue: 0,
+          duration: 300,
+          useNativeDriver: true,
+        }).start(() => onDone());
+      }, 500);
+    }
+  }, [visibleChecked, progress]);
+
+  return (
+    <Animated.View style={[StyleSheet.absoluteFill, { zIndex: 10002, opacity: fadeOut }]}>
+      <LinearGradient colors={['#08111c', '#0d1b2d', '#132437']} style={StyleSheet.absoluteFillObject} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', paddingHorizontal: 32 }}>
+        <Image source={PREPARING_ICON} style={{ width: 48, height: 48, marginBottom: 24 }} resizeMode="contain" />
+        <Text style={{ color: '#ffffff', fontSize: 24, fontWeight: '800', marginBottom: 8, textAlign: 'center' }}>
+          Preparing your garden
+        </Text>
+        <Text style={{ color: 'rgba(247,241,232,0.6)', fontSize: 15, marginBottom: 32, textAlign: 'center' }}>
+          Tailoring everything to your preferences…
+        </Text>
+        <View style={{ width: '100%', height: 6, backgroundColor: 'rgba(255,255,255,0.10)', borderRadius: 999, marginBottom: 32, overflow: 'hidden' }}>
+          <Animated.View style={{
+            height: '100%',
+            borderRadius: 999,
+            backgroundColor: '#d9a75f',
+            width: barWidth.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+          }} />
+        </View>
+        <View style={{ width: '100%', gap: 18 }}>
+          {PREPARING_STEPS.map((step, i) => {
+            const scale = checkAnims[i].interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] });
+            const checked = i < visibleChecked;
+            return (
+              <View key={step.key} style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <Animated.View style={{
+                  width: 28, height: 28, borderRadius: 14,
+                  backgroundColor: checked ? 'rgba(217,167,95,0.22)' : 'rgba(255,255,255,0.06)',
+                  borderWidth: 1.5,
+                  borderColor: checked ? '#d9a75f' : 'rgba(255,255,255,0.12)',
+                  alignItems: 'center', justifyContent: 'center',
+                  transform: [{ scale }],
+                  opacity: checkAnims[i],
+                }}>
+                  {checked && <MaterialCommunityIcons name="check" size={16} color="#d9a75f" />}
+                </Animated.View>
+                <Text style={{
+                  color: checked ? '#f4efe6' : 'rgba(247,241,232,0.4)',
+                  fontSize: 16, fontWeight: '600', flex: 1,
+                }}>
+                  {step.label}
+                </Text>
+              </View>
+            );
+          })}
+        </View>
+      </View>
+    </Animated.View>
+  );
+}
+
+// ─── Loading Overlay ─────────────────────────────────────────────────────────────
 // ─── Loading Overlay ─────────────────────────────────────────────────────────────
 // Sits on top of the entire app tree at zIndex 9999. Stays fully visible while
 // assets, garden state, and prayer state are loading behind it. Once `ready`
@@ -2495,9 +2650,59 @@ const PlantTreeModal = React.memo(function PlantTreeModal({
     && prev.plantTarget?.col === next.plantTarget?.col;
 });
 
-export default function App() {
-  const [isReady, setIsReady] = useState(false);
+// Render icons off-screen at their exact display sizes so iOS decodes bitmaps
+// before the components that use them first appear.
+const PRAYER_PRERENDER_SOURCES = [
+  require('./assets/Garden Assets/Icons/Fajr.png'),
+  require('./assets/Garden Assets/Icons/Dhuhr.png'),
+  require('./assets/Garden Assets/Icons/Asr.png'),
+  require('./assets/Garden Assets/Icons/Maghrib.png'),
+  require('./assets/Garden Assets/Icons/Isha.png'),
+];
+function PrayerIconsPrerender() {
+  return (
+    <View style={{ position: 'absolute', top: -9999, left: 0 }} pointerEvents="none">
+      {/* Prayer icons at exact FloatingPrayerBar size */}
+      {PRAYER_PRERENDER_SOURCES.map((src, i) => (
+        <Image key={i} source={src} style={{ width: 46, height: 46 }} resizeMode="cover" />
+      ))}
+      {/* Sparkle at both sizes used by PaywallModal (header: 40x40, welcome: 60x60) */}
+      <Image source={require('./assets/Garden Assets/Icons/Icon_Sparkle.png')} style={{ width: 40, height: 40 }} resizeMode="contain" />
+      <Image source={require('./assets/Garden Assets/Icons/Icon_Sparkle.png')} style={{ width: 60, height: 60 }} resizeMode="contain" />
+      {/* RewardToast images — XP badge and coin icon at their exact display sizes */}
+      <Image source={XP_BADGE} style={{ width: 20, height: 20 }} resizeMode="contain" />
+      <Image source={ICON_COIN} style={{ width: 13, height: 13 }} resizeMode="contain" />
+    </View>
+  );
+}
+
+// Freezes children when hidden — prevents re-renders of invisible tab pages
+// so the JS thread stays responsive on the active tab.  Images inside the
+// frozen tree remain mounted (bitmaps stay decoded), but React skips the
+// entire subtree reconciliation when visible === false.
+function FreezeWhenHidden({ visible, children }: { visible: boolean; children: React.ReactNode }) {
+  const ref = useRef<React.ReactNode>(children);
+  if (visible) ref.current = children;
+  return <>{ref.current}</>;
+}
+
+function AppInner() {
+  const [assetsProgress, setAssetsProgress] = useState({
+    groundTiles: false,
+    trees: false,
+    uiAssets: false,
+  });
+  const isReady = assetsProgress.groundTiles && assetsProgress.trees && assetsProgress.uiAssets;
+  // Tracks when the loading overlay has fully faded out — gates auto-showing prompts
+  const [appFullyReady, setAppFullyReady] = useState(false);
+
+  const appMountTime = useRef(Date.now());
   const [showOnboarding, setShowOnboarding] = useState<boolean | null>(null); // null = loading
+  const [showPreparing, setShowPreparing] = useState(false);
+  const [gardenRendered, setGardenRendered] = useState(false);
+  // Garden starts invisible when coming from onboarding; fades in after PreparingScreen
+  const gardenRevealAnim = useRef(new Animated.Value(1)).current;
+  const cameFromOnboarding = useRef(false);
   const [showTooltip, setShowTooltip] = useState(false);
   const [showRestModal, setShowRestModal] = useState(false);
   const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -2512,27 +2717,61 @@ export default function App() {
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [activeTab, setActiveTab] = useState<'garden' | 'shop' | 'challenges' | 'history'>('garden');
+  // Track which tabs have been opened at least once — mount lazily, keep alive after
+  const visitedTabs = useRef<Set<string>>(new Set()).current;
+  if (activeTab !== 'garden') visitedTabs.add(activeTab);
 
   // ── Prayer calculation settings ──────────────────────────────────────────
   const [madhab, setMadhab] = useState<Madhab>('standard');
   const [calcMethodKey, setCalcMethodKey] = useState<PrayerMethodKey | null>(null);
+  const [manualCity, setManualCity] = useState('');
+  const [manualCoords, setManualCoords] = useState<{ lat: number; lng: number; countryCode?: string } | undefined>(undefined);
 
   // Load prayer settings from AsyncStorage
   useEffect(() => {
     (async () => {
-      const [savedMadhab, savedMethod] = await Promise.all([
+      const [savedMadhab, savedMethod, savedCity, savedCoords] = await Promise.all([
         AsyncStorage.getItem(MADHAB_KEY),
         AsyncStorage.getItem(CALC_METHOD_KEY),
+        AsyncStorage.getItem(MANUAL_CITY_KEY),
+        AsyncStorage.getItem(MANUAL_COORDS_KEY),
       ]);
       if (savedMadhab === 'hanafi' || savedMadhab === 'standard') setMadhab(savedMadhab);
       if (savedMethod && savedMethod in PRAYER_METHODS) setCalcMethodKey(savedMethod as PrayerMethodKey);
+      if (savedCity) setManualCity(savedCity);
+      if (savedCoords) { try { setManualCoords(JSON.parse(savedCoords)); } catch {} }
     })();
+  }, []);
+
+  const handleManualCitySearch = useCallback(async (city: string): Promise<{ lat: number; lng: number; countryCode?: string; displayName: string } | null> => {
+    try {
+      const results = await Location.geocodeAsync(city);
+      if (!results || results.length === 0) return null;
+      const { latitude, longitude } = results[0];
+      let countryCode: string | undefined;
+      try {
+        const rev = await Location.reverseGeocodeAsync({ latitude, longitude });
+        countryCode = rev[0]?.isoCountryCode ?? undefined;
+      } catch {}
+      const coords = { lat: latitude, lng: longitude, countryCode: countryCode || undefined };
+      setManualCoords(coords);
+      setManualCity(city);
+      await Promise.all([
+        AsyncStorage.setItem(MANUAL_CITY_KEY, city),
+        AsyncStorage.setItem(MANUAL_COORDS_KEY, JSON.stringify(coords)),
+      ]);
+      return { ...coords, displayName: city };
+    } catch {
+      return null;
+    }
   }, []);
 
   const prayerConfig = useMemo<PrayerTimesConfig>(() => ({
     madhab,
     methodKey: calcMethodKey,
-  }), [madhab, calcMethodKey]);
+    manualCoords,
+    locationReady: showOnboarding === false,
+  }), [madhab, calcMethodKey, manualCoords, showOnboarding]);
 
   const handleSetMadhab = useCallback(async (m: Madhab) => {
     setMadhab(m);
@@ -2603,17 +2842,46 @@ export default function App() {
   const earnCoinsRef = useRef(prayerState.earnCoins);
   earnCoinsRef.current = prayerState.earnCoins;
 
+  // Clean up choppingTrees only after gardenData confirms the removal is committed.
+  // This prevents the flash where choppingTrees loses a key before isDeadTreeRemoved
+  // returns true, which would briefly re-show the static dead tree.
+  useEffect(() => {
+    if (choppingTrees.size === 0) return;
+    setChoppingTrees(prev => {
+      if (prev.size === 0) return prev;
+      const next = new Set(prev);
+      let changed = false;
+      for (const key of prev) {
+        const [r, c] = key.split(',').map(Number);
+        if (gardenState.isDeadTreeRemoved(r, c)) {
+          next.delete(key);
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+  }, [gardenState.isDeadTreeRemoved]);
+
+  // Mark app as fully ready once loading overlay has completely faded out
+  useEffect(() => {
+    if (!isReady || gardenState.loading || !prayerState.stateLoaded || appFullyReady) return;
+    const elapsed = Date.now() - appMountTime.current;
+    const delay = Math.max(0, MIN_SPLASH_MS - elapsed) + 400 + 300; // fade (400ms) + buffer (300ms)
+    const t = setTimeout(() => setAppFullyReady(true), delay);
+    return () => clearTimeout(t);
+  }, [isReady, gardenState.loading, prayerState.stateLoaded, appFullyReady]);
+
   // Prompt user when garden is ready to expand (opt-in, with delay to prevent rapid re-triggering)
   // Guard against loading: never show while AsyncStorage load is in progress
   // If user dismissed the prompt, don't auto-show again until a new expansion tier is reached
   useEffect(() => {
-    if (gardenState.loading || !gardenState.canExpand || showExpansionModal || expansionDismissed) return;
+    if (!appFullyReady || gardenState.loading || !gardenState.canExpand || showExpansionModal || expansionDismissed) return;
     const timer = setTimeout(() => {
       setShowExpansionModal(true);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }, 500);
     return () => clearTimeout(timer);
-  }, [gardenState.loading, gardenState.canExpand, showExpansionModal, expansionDismissed]);
+  }, [appFullyReady, gardenState.loading, gardenState.canExpand, showExpansionModal, expansionDismissed]);
 
   // Reset dismissal flag when a new expansion tier becomes available
   const lastDismissedSizeRef = useRef<number | null>(null);
@@ -2716,30 +2984,22 @@ export default function App() {
 
   // Handle dead tree tap (on recovering tiles → start chopping animation)
   const handleDeadTreePress = useCallback((row: number, col: number) => {
+    // Only allow one tree to be chopped at a time
+    if (choppingTrees.size > 0) return;
     const key = `${row},${col}`;
     setChoppingTrees(prev => new Set(prev).add(key));
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-  }, []);
+  }, [choppingTrees]);
 
   // Called when chopping animation completes
   const handleChoppingComplete = useCallback(async (row: number, col: number) => {
-    const key = `${row},${col}`;
-    
     // Use refs to avoid re-creating this callback when gardenState/prayerState change
     const reward = await gardenStateRef.current.removeDeadTree(row, col);
     if (reward > 0) {
       earnCoinsRef.current(reward, 'dead_tree_removal');
     }
-    
-    // Small delay to let React complete render cycle before clearing animation
-    await new Promise(resolve => setTimeout(resolve, 50));
-    
-    // Now remove from chopping set to unmount animation cleanly
-    setChoppingTrees(prev => {
-      const next = new Set(prev);
-      next.delete(key);
-      return next;
-    });
+    // choppingTrees cleanup is handled by the useEffect watching gardenState.isDeadTreeRemoved,
+    // which fires only after gardenData is committed — eliminating the race condition.
   }, []);
 
   // Handle recovered tile tap (where dead tree was removed → offer to plant)
@@ -2889,9 +3149,9 @@ export default function App() {
   const [freezePromptResolved, setFreezePromptResolved] = useState(false);
   const [showFreezeProtectedBanner, setShowFreezeProtectedBanner] = useState<string | null>(null);
 
-  // Show freeze prompt when missed prayers detected and state is loaded
+  // Show freeze prompt when missed prayers detected and app is fully visible
   useEffect(() => {
-    if (!prayerState.stateLoaded || freezePromptResolved) return;
+    if (!appFullyReady || !prayerState.stateLoaded || freezePromptResolved) return;
     if (prayerState.missedPrayers.length === 0) return;
 
     const hasFreezes = freezeInventory.single > 0 || freezeInventory.all > 0;
@@ -2950,14 +3210,33 @@ export default function App() {
 
   // Check if onboarding is needed
   useEffect(() => {
-    AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
+    AsyncStorage.getItem('@JannahGarden:onboardingComplete').then(val => {
       setShowOnboarding(val !== 'true');
-    });
+    }).catch(() => setShowOnboarding(false));
   }, []);
 
   const handleOnboardingComplete = useCallback(() => {
+    cameFromOnboarding.current = true;
+    // Hide the garden before it first renders — revealed after PreparingScreen
+    gardenRevealAnim.setValue(0);
     setShowOnboarding(false);
-    // Show tooltip after onboarding
+    setShowPreparing(true);
+  }, []);
+
+  const handleGardenRenderReady = useCallback(() => {
+    setGardenRendered(true);
+  }, []);
+
+  const handlePreparingDone = useCallback(() => {
+    setShowPreparing(false);
+    // Fade the garden in as the PreparingScreen fades out
+    Animated.timing(gardenRevealAnim, {
+      toValue: 1,
+      duration: 600,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+    // Show tooltip after preparing screen fades
     AsyncStorage.getItem(TOOLTIP_KEY).then((val) => {
       if (val !== 'true') {
         setShowTooltip(true);
@@ -3000,29 +3279,32 @@ export default function App() {
     isResting ? null : prayerState.deadlines,
     gardenState.lastXPGainTimestamp,
     gardenState.totalRecoveredTiles > 0,
+    showOnboarding === false,
   );
 
   // Pre-load the loading screen image first, then load everything else
   useEffect(() => {
     const loadAssets = async () => {
       try {
-        // Step 1: Pre-load the loading screen image so it's immediately available
+        // Pre-load the loading screen image so it's immediately available
         await Asset.loadAsync([LOADING_SCREEN_IMAGE]);
 
-        // Step 2: Load all remaining game assets behind the loading screen
+        // Batch 1: Ground tiles & decorations
         await Asset.loadAsync([
-          // Ground tiles
           require('./assets/Garden Assets/Ground Tiles/Dead_Tile.png'),
           require('./assets/Garden Assets/Ground Tiles/Recovering_Tile.png'),
           require('./assets/Garden Assets/Ground Tiles/Recovered_Tile.png'),
-          // Tile decorations
           require('./assets/Garden Assets/Ground Tiles/Dead_Grass_Tuft.png'),
           require('./assets/Garden Assets/Ground Tiles/Pebbles.png'),
           require('./assets/Garden Assets/Ground Tiles/Wildflowers.png'),
           require('./assets/Garden Assets/Ground Tiles/Grass_Blades.png'),
           require('./assets/Garden Assets/Ground Tiles/Mushrooms.png'),
           require('./assets/Garden Assets/Ground Tiles/Clovers.png'),
-          // Trees
+        ]);
+        setAssetsProgress(p => ({ ...p, groundTiles: true }));
+
+        // Batch 2: All tree sprites
+        await Asset.loadAsync([
           require('./assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png'),
           require('./assets/Garden Assets/Tree Types/Basic Trees/Growing_Tree_converted.png'),
           require('./assets/Garden Assets/Tree Types/Basic Trees/Grown_Tree_converted.png'),
@@ -3056,7 +3338,11 @@ export default function App() {
           require('./assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Growing.png'),
           require('./assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Grown.png'),
           require('./assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Flourished.png'),
-          // Effects
+        ]);
+        setAssetsProgress(p => ({ ...p, trees: true }));
+
+        // Batch 3: Effects & UI icons
+        await Asset.loadAsync([
           require('./assets/Garden Assets/Effects/Ember_Mote.png'),
           require('./assets/Garden Assets/Effects/Dew_Sparkle.png'),
           require('./assets/Garden Assets/Effects/Pollen_Mote.png'),
@@ -3064,14 +3350,12 @@ export default function App() {
           require('./assets/Garden Assets/Effects/Fruit_Common.png'),
           require('./assets/Garden Assets/Effects/Fruit_Premium.png'),
           require('./assets/Garden Assets/Effects/xp_badge.png'),
-          // Icons
           require('./assets/Garden Assets/Icons/Axe.png'),
           require('./assets/Garden Assets/Icons/Fajr.png'),
           require('./assets/Garden Assets/Icons/Dhuhr.png'),
           require('./assets/Garden Assets/Icons/Asr.png'),
           require('./assets/Garden Assets/Icons/Maghrib.png'),
           require('./assets/Garden Assets/Icons/Isha.png'),
-          // Shop icons (coins & freezes)
           require('./assets/Garden Assets/Icons/Icon_Coin.png'),
           require('./assets/Garden Assets/Icons/Icon_Handful.png'),
           require('./assets/Garden Assets/Icons/Icon_Pouch.png'),
@@ -3079,7 +3363,6 @@ export default function App() {
           require('./assets/Garden Assets/Icons/Icon_Treasury.png'),
           require('./assets/Garden Assets/Icons/Streak_Freeze.png'),
           require('./assets/Garden Assets/Icons/5_Streak_Freeze.png'),
-          // UI icons
           require('./assets/Garden Assets/Icons/Icon_Fire.png'),
           require('./assets/Garden Assets/Icons/Icon_XP.png'),
           require('./assets/Garden Assets/Icons/Icon_Lightning.png'),
@@ -3095,10 +3378,11 @@ export default function App() {
           require('./assets/Garden Assets/Icons/Icon_Warning.png'),
           require('./assets/Garden Assets/Icons/Icon_Hands.png'),
         ]);
+        setAssetsProgress(p => ({ ...p, uiAssets: true }));
       } catch (error) {
         console.error('Error loading assets:', error);
-      } finally {
-        setIsReady(true);
+        // Mark all done on error so app doesn't hang
+        setAssetsProgress({ groundTiles: true, trees: true, uiAssets: true });
       }
     };
 
@@ -3121,7 +3405,8 @@ export default function App() {
   if (showOnboarding) {
     return (
       <>
-        <OnboardingScreen onComplete={handleOnboardingComplete} />
+        <OnboardingScreen onComplete={handleOnboardingComplete} onMadhabChange={setMadhab} />
+        <PrayerIconsPrerender />
         <LoadingOverlay
           ready={isReady}
           onImageLoaded={() => SplashScreen.hideAsync().catch(() => {})}
@@ -3129,6 +3414,10 @@ export default function App() {
       </>
     );
   }
+
+  // After onboarding: show "Preparing" overlay while data loads,
+  // then cloud-reveal transition, then the bare garden.
+  const appDataReady = isReady && !gardenState.loading && prayerState.stateLoaded;
 
   return (
     <SafeAreaProvider>
@@ -3138,11 +3427,14 @@ export default function App() {
         resizeMode="cover"
       >
       <StatusBar style="light" />
+      {/* Decode prayer icons off-screen before FloatingPrayerBar first mounts */}
+      <PrayerIconsPrerender />
       
       {/* Content area — fills space above bottom bar */}
       <View style={{ flex: 1 }}>
 
-      {/* Fullscreen Garden Scene - Behind everything, receives XP for tree growth */}
+      {/* Fullscreen Garden Scene - invisible until PreparingScreen fades out */}
+      <Animated.View style={[StyleSheet.absoluteFill, { opacity: gardenRevealAnim }]} pointerEvents="box-none">
       <GardenScene
         xp={prayerState.xp}
         gridSize={gardenState.gridSize}
@@ -3158,7 +3450,9 @@ export default function App() {
         onPlantedTreePress={handlePlantedTreePress}
         onChoppingComplete={handleChoppingComplete}
         frozen={isAnyModalOpen}
+        onRenderReady={handleGardenRenderReady}
       />
+      </Animated.View>
       
       {/* Subtle expand button — shown when expansion is available but was dismissed */}
       {gardenState.canExpand && !showExpansionModal && expansionDismissed && activeTab === 'garden' && (
@@ -3232,6 +3526,8 @@ export default function App() {
         calcMethodKey={calcMethodKey}
         detectedMethodKey={prayerState.detectedMethodKey}
         onChangeCalcMethod={handleSetCalcMethod}
+        manualCity={manualCity}
+        onManualCitySearch={handleManualCitySearch}
         notificationsEnabled={notificationsEnabled}
         onToggleNotifications={toggleNotifications}
         isPremium={premium.isPremium}
@@ -3915,13 +4211,14 @@ export default function App() {
         </View>
       </Modal>
 
-      {/* Tab page views — full screen when non-garden tab is active */}
-      {activeTab !== 'garden' && (
-        <SafeAreaView edges={['top']} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(10,14,28,0.75)' }}>
-          {activeTab === 'shop' && (
+      {/* Tab page views — lazy mount on first visit, then keep alive + frozen when hidden */}
+      {visitedTabs.has('shop') && (
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'shop' ? 1 : 0 }} pointerEvents={activeTab === 'shop' ? 'auto' : 'none'}>
+        <FreezeWhenHidden visible={activeTab === 'shop'}>
+          <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: 'rgba(10,14,28,0.75)' }}>
             <ShopModal
               asPage
-              visible
+              visible={activeTab === 'shop'}
               onClose={() => setActiveTab('garden')}
               coins={prayerState.coins}
               inventory={gardenState.treeInventory}
@@ -3937,27 +4234,40 @@ export default function App() {
               onPurchaseBoost={boosts.purchaseBoost}
               onActivateBoost={boosts.activateBoost}
             />
-          )}
-          {activeTab === 'challenges' && (
+          </SafeAreaView>
+        </FreezeWhenHidden>
+        </View>
+      )}
+      {visitedTabs.has('challenges') && (
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'challenges' ? 1 : 0 }} pointerEvents={activeTab === 'challenges' ? 'auto' : 'none'}>
+        <FreezeWhenHidden visible={activeTab === 'challenges'}>
+          <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: 'rgba(10,14,28,0.75)' }}>
             <ChallengesModal
               asPage
-              visible
+              visible={activeTab === 'challenges'}
               onClose={() => setActiveTab('garden')}
               challenges={challengesHook.challengesList}
               onClaimReward={handleClaimChallengeReward}
             />
-          )}
-          {activeTab === 'history' && (
+          </SafeAreaView>
+        </FreezeWhenHidden>
+        </View>
+      )}
+      {visitedTabs.has('history') && (
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'history' ? 1 : 0 }} pointerEvents={activeTab === 'history' ? 'auto' : 'none'}>
+        <FreezeWhenHidden visible={activeTab === 'history'}>
+          <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: 'rgba(10,14,28,0.75)' }}>
             <PrayerHistoryModal
               asPage
-              visible
+              visible={activeTab === 'history'}
               onClose={() => setActiveTab('garden')}
               streaks={prayerState.streaks}
               prayerHistory={prayerState.prayerHistory}
               completedToday={prayerState.completedPrayers}
             />
-          )}
-        </SafeAreaView>
+          </SafeAreaView>
+        </FreezeWhenHidden>
+        </View>
       )}
 
       {/* Top Info Bar - Floating overlay with gradient backdrop */}
@@ -4117,10 +4427,32 @@ export default function App() {
         </Animated.View>
       )}
     </ImageBackground>
-      <LoadingOverlay
-        ready={isReady && !gardenState.loading && prayerState.stateLoaded}
-        onImageLoaded={() => SplashScreen.hideAsync().catch(() => {})}
-      />
+      {/* Preparing overlay — hides the garden while it loads after onboarding */}
+      {showPreparing && (
+        <PreparingScreen
+          progress={{
+            prayerData: prayerState.stateLoaded,
+            gardenData: !gardenState.loading,
+            gardenRendered: gardenRendered,
+          }}
+          onDone={handlePreparingDone}
+        />
+      )}
+      {/* Normal loading overlay for returning users (skip if we came from onboarding) */}
+      {!cameFromOnboarding.current && !showPreparing && (
+        <LoadingOverlay
+          ready={appDataReady}
+          onImageLoaded={() => SplashScreen.hideAsync().catch(() => {})}
+        />
+      )}
     </SafeAreaProvider>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppInner />
+    </ErrorBoundary>
   );
 }

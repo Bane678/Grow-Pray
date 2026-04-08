@@ -175,6 +175,8 @@ function findEntryByDate(data: any[], dateStr: string): any | null {
 export interface PrayerTimesConfig {
     madhab: Madhab;
     methodKey: PrayerMethodKey | null;  // null = auto-detect from country
+    manualCoords?: { lat: number; lng: number; countryCode?: string };
+    locationReady?: boolean;  // must be true before location permission is requested
 }
 
 export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard', methodKey: null }) {
@@ -184,44 +186,55 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
     const [loading, setLoading] = useState(true);
     const [locationError, setLocationError] = useState<string | null>(null);
     const [detectedMethodKey, setDetectedMethodKey] = useState<PrayerMethodKey>('MWL');
-    const isMounted = useRef(true);
-
-    const { madhab, methodKey } = config;
+    const { madhab, methodKey, manualCoords, locationReady = true } = config;
 
     useEffect(() => {
-        isMounted.current = true;
+        if (!locationReady) return;
+
+        const token = { alive: true };
         setLoading(true);
 
         const safetyTimer = setTimeout(() => {
-            if (isMounted.current) {
+            if (token.alive) {
                 console.warn('Prayer times safety timeout — using hardcoded fallback');
-                applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES);
+                applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES, token);
             }
         }, 12000);
 
-        getLocationAndFetchTimings().finally(() => clearTimeout(safetyTimer));
+        getLocationAndFetchTimings(token).finally(() => clearTimeout(safetyTimer));
 
         return () => {
-            isMounted.current = false;
+            token.alive = false;
             clearTimeout(safetyTimer);
         };
-    }, [madhab, methodKey]);
+    }, [madhab, methodKey, manualCoords, locationReady]);
 
-    const applyTimings = (t: Timings, d: PrayerDeadlines) => {
-        if (!isMounted.current) return;
+    const applyTimings = (t: Timings, d: PrayerDeadlines, token: { alive: boolean }) => {
+        if (!token.alive) return;
         setTimings(t);
         setDeadlines(d);
         calculateNextPrayer(t);
         setLoading(false);
     };
 
-    const getLocationAndFetchTimings = async () => {
+    const getLocationAndFetchTimings = async (token: { alive: boolean }) => {
         try {
             const { status } = await Location.requestForegroundPermissionsAsync();
 
             if (status !== 'granted') {
                 setLocationError('Location permission denied');
-                await fetchTimes(51.5074, -0.1278, 0, 'MWL');
+                // Use user-provided manual city coords if available, else London as last resort
+                if (manualCoords) {
+                    const autoKey = manualCoords.countryCode
+                        ? getMethodKeyForCountry(manualCoords.countryCode)
+                        : 'MWL';
+                    if (token.alive) setDetectedMethodKey(autoKey);
+                    await fetchTimes(manualCoords.lat, manualCoords.lng, 0, methodKey || autoKey, token);
+                } else {
+                    // True last resort — London. In practice this should rarely be reached
+                    // because the Settings modal now prompts for manual city entry.
+                    await fetchTimes(51.5074, -0.1278, 0, 'MWL', token);
+                }
                 return;
             }
 
@@ -244,19 +257,19 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
                 console.warn('Reverse geocode failed, using MWL:', geoErr);
             }
 
-            if (isMounted.current) setDetectedMethodKey(autoKey);
+            if (token.alive) setDetectedMethodKey(autoKey);
 
             // Use manual override if set, otherwise auto-detected
             const activeKey = methodKey || autoKey;
-            await fetchTimes(latitude, longitude, elevationM, activeKey);
+            await fetchTimes(latitude, longitude, elevationM, activeKey, token);
         } catch (error) {
             console.error('Location error:', error);
             setLocationError('Failed to get location');
-            await fetchTimes(51.5074, -0.1278, 0, 'MWL');
+            await fetchTimes(51.5074, -0.1278, 0, 'MWL', token);
         }
     };
 
-    const fetchTimes = async (lat: number, lng: number, elevation: number, key: PrayerMethodKey) => {
+    const fetchTimes = async (lat: number, lng: number, elevation: number, key: PrayerMethodKey, token: { alive: boolean }) => {
         const method = PRAYER_METHODS[key] || PRAYER_METHODS.MWL;
         const today = new Date();
         const yyyy = today.getFullYear();
@@ -309,17 +322,17 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
                     Isha: nextFajr,
                 };
 
-                applyTimings(t, d);
+                applyTimings(t, d, token);
                 return;
             }
         }
 
         // Muwaqqit failed — try Aladhan
         console.warn('Muwaqqit failed, trying Aladhan fallback...');
-        await fetchFromAladhan(lat, lng, method);
+        await fetchFromAladhan(lat, lng, method, token);
     };
 
-    const fetchFromAladhan = async (lat: number, lng: number, method: PrayerMethod) => {
+    const fetchFromAladhan = async (lat: number, lng: number, method: PrayerMethod, token: { alive: boolean }) => {
         const today = new Date();
         const dd = String(today.getDate()).padStart(2, '0');
         const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -340,10 +353,10 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
                 Fajr: at.Sunrise, Dhuhr: at.Asr, Asr: at.Sunset,
                 Maghrib: at.Isha, Isha: at.Fajr,
             };
-            applyTimings(t, d);
+            applyTimings(t, d, token);
         } else {
             console.warn('All API attempts failed — using hardcoded fallback');
-            applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES);
+            applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES, token);
         }
     };
 

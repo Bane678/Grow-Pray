@@ -79,8 +79,6 @@ export const ChallengesModal = memo(function ChallengesModal({ visible, onClose,
 
   const keyExtractor = useCallback((item: any) => item.id ?? '_info', []);
 
-  if (!visible && !asPage) return null;
-
   const resetLabel = section === 'daily'
     ? `Resets in ${dailyTimer.hours}h ${dailyTimer.minutes}m`
     : `Resets in ${weeklyTimer.days}d ${weeklyTimer.hours}h ${weeklyTimer.minutes}m`;

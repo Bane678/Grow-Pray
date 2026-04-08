@@ -74,11 +74,11 @@ const TRIGGER_MESSAGES: Record<string, { title: string; subtitle: string }> = {
   },
   settings: {
     title: 'Go Premium',
-    subtitle: 'Unlock the full Jannah Garden experience',
+    subtitle: 'Unlock the full Grow Pray experience',
   },
   general: {
     title: 'Upgrade to Premium',
-    subtitle: 'Unlock the full Jannah Garden experience',
+    subtitle: 'Unlock the full Grow Pray experience',
   },
 };
 

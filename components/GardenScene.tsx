@@ -30,7 +30,7 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 // ── Star field ────────────────────────────────────────────────────────────────
 // Stars span the full sky but get smaller and dimmer toward the bottom,
 // creating a natural gradient that avoids overcrowding.
-const STAR_DATA = Array.from({ length: 30 }, (_, i) => {
+const STAR_DATA = Array.from({ length: 18 }, (_, i) => {
     const yFrac = ((i * 31 + 7) % 92 + 4) / 100;           // 4–96% — full screen
     const depth = 1 - yFrac;                                 // 1 at top → 0 at bottom
     return {
@@ -107,36 +107,42 @@ const CloudDrift = React.memo(function CloudDrift() {
 });
 
 // ── Pollen / dust motes ───────────────────────────────────────────────────────
-// Spawn zone: approximate screen area where the isometric garden trees sit.
-// Pollen fans upward from the canopy at angles between -40° and -140° (upward arc).
-const GARDEN_CX = SCREEN_W * 0.50;
-const GARDEN_CY = SCREEN_H * 0.46;
+// Tree-anchored: motes spawn at actual tree canopy positions.
+// Each grown tree gets 1 mote, flourishing gets 2. Hard cap of 12 for performance.
+const MAX_MOTES = 12;
 
-const MOTE_COUNT = 16;
-const MOTE_SPECS = Array.from({ length: MOTE_COUNT }, (_, i) => {
-    // Spread spawn points across the tree canopy zone
-    const spawnX = GARDEN_CX + (((i * 83 + 17) % 61) - 30) / 30 * SCREEN_W * 0.20;
-    const spawnY = GARDEN_CY + (((i * 53 +  9) % 41) - 20) / 20 * SCREEN_H * 0.07;
+type MoteSpec = {
+    spawnX: number;
+    spawnY: number;
+    dx: number;
+    dy: number;
+    size: number;
+    dur: number;
+    delay: number;
+    wobble: number;
+    restDur: number;
+};
 
-    // Fan angle: evenly spread from -40° (right-up) to -140° (left-up)
-    const angleDeg = -40 - (i / (MOTE_COUNT - 1)) * 100;
-    const rad      = (angleDeg * Math.PI) / 180;
-    const dist     = 55 + (i * 13) % 65; // 55–120 px travel
-    const dx       = Math.cos(rad) * dist;  // negative = left
-    const dy       = Math.sin(rad) * dist;  // negative = up
-
+// Generate a deterministic mote spec from a tree position + seed index
+function makeMoteSpec(spawnX: number, spawnY: number, seed: number): MoteSpec {
+    // Fan angle: deterministic spread per seed
+    const angleDeg = -40 - ((seed * 73 + 11) % 101);  // -40° to -140°
+    const rad = (angleDeg * Math.PI) / 180;
+    const dist = 55 + (seed * 13) % 65;
     return {
-        spawnX, spawnY, dx, dy,
-        size:    1.5 + (i % 3) * 0.7,              // 1.5–2.9 px
-        dur:     5500 + (i * 390) % 3500,           // 5.5–9 s drift
-        delay:   (i * 490) % 5000,                  // stagger 0–5 s
-        wobble:  6  + (i * 4)  % 10,               // lateral breath amplitude
-        restDur: 700 + (i * 370) % 1300,            // pause before next cycle
-        color:   (['#e8a87c', '#d4b896', '#c8a060', '#e8d4a0'] as const)[i % 4],
+        spawnX,
+        spawnY,
+        dx: Math.cos(rad) * dist,
+        dy: Math.sin(rad) * dist,
+        size: 1.5 + (seed % 3) * 0.7,
+        dur: 5500 + (seed * 390) % 3500,
+        delay: (seed * 490) % 5000,
+        wobble: 6 + (seed * 4) % 10,
+        restDur: 700 + (seed * 370) % 1300,
     };
-});
+}
 
-function DustMote({ spec }: { spec: typeof MOTE_SPECS[0] }) {
+function DustMote({ spec }: { spec: MoteSpec }) {
     const opacity = useRef(new Animated.Value(0)).current;
     const tx      = useRef(new Animated.Value(0)).current;
     const ty      = useRef(new Animated.Value(0)).current;
@@ -169,12 +175,14 @@ function DustMote({ spec }: { spec: typeof MOTE_SPECS[0] }) {
                 Animated.timing(tx, { toValue: spec.dx, duration: spec.dur, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
                 Animated.timing(ty, { toValue: spec.dy, duration: spec.dur, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
             ]),
-            // Phase 2: invisible instant reset back to origin (opacity is 0 here)
+            // Phase 2: guard — wait a frame to ensure opacity=0 is committed before position snaps
+            Animated.delay(50),
+            // Phase 3: invisible reset back to origin
             Animated.parallel([
                 Animated.timing(tx, { toValue: 0, duration: 1, useNativeDriver: true }),
                 Animated.timing(ty, { toValue: 0, duration: 1, useNativeDriver: true }),
             ]),
-            // Phase 3: rest invisibly before next pollen release
+            // Phase 4: rest invisibly before next pollen release
             Animated.delay(spec.restDur),
         ]));
 
@@ -201,15 +209,42 @@ function DustMote({ spec }: { spec: typeof MOTE_SPECS[0] }) {
     );
 }
 
-const FloatingParticles = React.memo(function FloatingParticles({ count }: { count: number }) {
-    const visible = Math.min(count, MOTE_SPECS.length);
-    return <>{MOTE_SPECS.slice(0, visible).map((s, i) => <DustMote key={i} spec={s} />)}</>;
+const FloatingParticles = React.memo(function FloatingParticles({ treePositions }: {
+    treePositions: { x: number; y: number; isFlourishing: boolean }[];
+}) {
+    // Generate mote specs from tree positions — stable identity via useMemo
+    const specs = useMemo(() => {
+        const result: MoteSpec[] = [];
+        let seed = 0;
+        for (const tree of treePositions) {
+            if (result.length >= MAX_MOTES) break;
+            // Canopy offset: motes spawn above tree center
+            const canopyY = tree.y - 20;
+            // Small random scatter around canopy center
+            const scatter1X = ((seed * 47 + 13) % 21) - 10;
+            const scatter1Y = ((seed * 31 + 7) % 11) - 5;
+            result.push(makeMoteSpec(tree.x + scatter1X, canopyY + scatter1Y, seed));
+            seed++;
+            // Flourishing trees get a second mote
+            if (tree.isFlourishing && result.length < MAX_MOTES) {
+                const scatter2X = ((seed * 59 + 23) % 21) - 10;
+                const scatter2Y = ((seed * 37 + 11) % 11) - 5;
+                result.push(makeMoteSpec(tree.x + scatter2X, canopyY + scatter2Y, seed));
+                seed++;
+            }
+        }
+        return result;
+    }, [treePositions]);
+
+    return <>{specs.map((s, i) => <DustMote key={i} spec={s} />)}</>;
 });
 
 // ── Falling Leaves ────────────────────────────────────────────────────────────
 // Occasional small leaves drift down from the tree canopy zone.
 // Sparse and gentle — long rest periods between each cycle.
-const LEAF_COUNT = 6;
+const GARDEN_CX = SCREEN_W / 2;
+const GARDEN_CY = SCREEN_H * 0.42;
+const LEAF_COUNT = 3;
 const LEAF_SPECS = Array.from({ length: LEAF_COUNT }, (_, i) => {
     const spawnX = GARDEN_CX + (((i * 67 + 11) % 51) - 25) / 25 * SCREEN_W * 0.18;
     const spawnY = GARDEN_CY - SCREEN_H * 0.04 + (((i * 37 + 7) % 31) - 15) / 15 * SCREEN_H * 0.03;
@@ -241,6 +276,7 @@ function FallingLeaf({ spec }: { spec: typeof LEAF_SPECS[0] }) {
         const wobbleLoop = Animated.loop(Animated.sequence([
             Animated.timing(wobble, { toValue:  spec.wobbleAmp, duration: wobbleDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
             Animated.timing(wobble, { toValue: -spec.wobbleAmp, duration: wobbleDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(wobble, { toValue:  0,              duration: wobbleDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
         ]));
         wobbleLoop.start();
 
@@ -260,13 +296,15 @@ function FallingLeaf({ spec }: { spec: typeof LEAF_SPECS[0] }) {
                 Animated.timing(ty, { toValue: spec.dy, duration: spec.dur, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
                 Animated.timing(rotate, { toValue: 1, duration: spec.dur, easing: Easing.linear, useNativeDriver: true }),
             ]),
-            // Phase 2: invisible instant reset (opacity is 0)
+            // Phase 2: guard — wait a frame to ensure opacity=0 is committed before position snaps
+            Animated.delay(50),
+            // Phase 3: invisible instant reset (opacity is 0)
             Animated.parallel([
                 Animated.timing(tx, { toValue: 0, duration: 1, useNativeDriver: true }),
                 Animated.timing(ty, { toValue: 0, duration: 1, useNativeDriver: true }),
                 Animated.timing(rotate, { toValue: 0, duration: 1, useNativeDriver: true }),
             ]),
-            // Phase 3: rest before next leaf
+            // Phase 4: rest before next leaf
             Animated.delay(spec.restDur),
         ]));
 
@@ -370,7 +408,7 @@ const ASSETS = {
     fruitPremium:  require('../assets/Garden Assets/Effects/Fruit_Premium.png'),
 };
 
-const AXE_CUT_SOUND = require('../assets/sounds/Axe_Cut.mp3');
+const WOOD_CHOP_SOUND = require('../assets/sounds/Wood_Chopping_Noise.m4a');
 
 // Tree dimensions (actual asset is 848x1264)
 const TREE_WIDTH = 848;
@@ -1091,43 +1129,23 @@ const getPlantedTreeStageWithIndex = (currentXP: number, plantedAtXP: number) =>
     return { stage: TREE_STAGES[0], index: 0 };
 };
 
-// Chopping animation component - axe swing + progress bar + dissolve + reward text
-// Swing cycle: 250ms right + 500ms left + 250ms center = 1000ms
-// Chop sound plays at each swing peak (right hit at 250ms, left hit at 750ms)
-const SWING_CYCLE_MS = 1000;
-const CHOP_DURATION_MS = 2000; // Total chopping time (2 full swing cycles)
+// Chopping animation component — 3 distinct axe swings synced to Wood_Chopping_Noise.m4a
+// The sound has 3 chop hits at ~0.5s, ~1.3s, ~2.3s in a 3s file.
+// Chops 1 & 2: moderate swing (axe getting in). Chop 3: big swing (tree felled).
+const CHOP_DURATION_MS = 3000; // Matches the full sound length
 
 const ChoppingAnimation = React.memo(function ChoppingAnimation({
     onComplete,
 }: {
     onComplete: () => void;
 }) {
-    const swingAnim = useRef(new Animated.Value(0.5)).current; // Start centered (no jump)
+    const swingAnim = useRef(new Animated.Value(0.5)).current; // 0.5 = centered
+    const treeShake = useRef(new Animated.Value(0)).current;
     const progressAnim = useRef(new Animated.Value(0)).current;
     const dissolveOpacity = useRef(new Animated.Value(1)).current;
     const dissolveScale = useRef(new Animated.Value(1)).current;
     const rewardOpacity = useRef(new Animated.Value(0)).current;
     const rewardTranslateY = useRef(new Animated.Value(0)).current;
-    const swingLoopRef = useRef<Animated.CompositeAnimation | null>(null);
-    const soundRef = useRef<Audio.Sound | null>(null);
-    const chopTimersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
-
-    // Play a single chop sound
-    const playChopSound = useCallback(async () => {
-        try {
-            const { sound } = await Audio.Sound.createAsync(
-                AXE_CUT_SOUND,
-                { shouldPlay: true, volume: 0.6 }
-            );
-            sound.setOnPlaybackStatusUpdate((status) => {
-                if (status.isLoaded && status.didJustFinish) {
-                    sound.unloadAsync();
-                }
-            });
-        } catch (e) {
-            // Silently fail
-        }
-    }, []);
 
     useEffect(() => {
         // Set audio mode
@@ -1137,84 +1155,129 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
             staysActiveInBackground: false,
         }).catch(() => {});
 
-        // Axe swing loop — start from center position
-        const swingLoop = Animated.loop(
-            Animated.sequence([
-                Animated.timing(swingAnim, { toValue: 1, duration: 250, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-                Animated.timing(swingAnim, { toValue: 0, duration: 500, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-                Animated.timing(swingAnim, { toValue: 0.5, duration: 250, easing: Easing.inOut(Easing.quad), useNativeDriver: false }),
-            ])
-        );
-        swingLoopRef.current = swingLoop;
-        swingLoop.start();
+        let soundObj: Audio.Sound | null = null;
+        let cancelled = false;
 
-        // Schedule chop sounds at each swing peak
-        // First right-hit at 250ms, first left-hit at 750ms, then repeat every 1000ms
-        const timers: ReturnType<typeof setTimeout>[] = [];
-        const totalCycles = Math.floor(CHOP_DURATION_MS / SWING_CYCLE_MS);
-        for (let cycle = 0; cycle < totalCycles; cycle++) {
-            const base = cycle * SWING_CYCLE_MS;
-            // Right swing hit
-            timers.push(setTimeout(() => playChopSound(), base + 250));
-            // Left swing hit
-            timers.push(setTimeout(() => playChopSound(), base + 750));
-        }
-        chopTimersRef.current = timers;
+        // Preload sound first, then start animation + playback together
+        Audio.Sound.createAsync(WOOD_CHOP_SOUND, { shouldPlay: false, volume: 0.7 })
+            .then(async ({ sound }) => {
+                if (cancelled) { sound.unloadAsync(); return; }
+                soundObj = sound;
+                sound.setOnPlaybackStatusUpdate((status) => {
+                    if (status.isLoaded && status.didJustFinish) {
+                        sound.unloadAsync();
+                    }
+                });
+                // Start sound and animation in the same microtask — no await before startChopAnimation
+                sound.playAsync().catch(() => {});
+                startChopAnimation();
+            })
+            .catch(() => {
+                // If sound fails, still run the animation
+                if (!cancelled) startChopAnimation();
+            });
 
-        // Progress bar fills over CHOP_DURATION_MS
+        const startChopAnimation = () => {
+
+        // ── Helper: one chop = swing + shake in sync ──
+        // Wind-up lifts the axe BACK (negative rotation), then the strike swings it
+        // DOWN/FORWARD (positive rotation) into the tree. The tree shakes at the
+        // exact frame the strike peaks, not after.
+        const makeChop = (amplitude: number, windUpDur: number, shakeIntensity: number) => {
+            const strikeDur = windUpDur * 0.45;   // strike is fast and snappy
+            const reboundDur = windUpDur * 0.7;
+            const liftBack = 0.5 - 0.5 * amplitude;  // negative rotation = raise axe
+            const strikeDown = 0.5 + 0.5 * amplitude; // positive rotation = swing into tree
+            const shakeD = 35;
+
+            return Animated.parallel([
+                // Axe swing: lift back → strike down → rebound to center
+                Animated.sequence([
+                    Animated.timing(swingAnim, { toValue: liftBack,   duration: windUpDur, easing: Easing.out(Easing.quad),  useNativeDriver: false }),
+                    Animated.timing(swingAnim, { toValue: strikeDown, duration: strikeDur, easing: Easing.in(Easing.cubic),  useNativeDriver: false }),
+                    Animated.timing(swingAnim, { toValue: 0.5,        duration: reboundDur, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+                ]),
+                // Tree shake fires at impact (after windUp + strikeDur)
+                Animated.sequence([
+                    Animated.delay(windUpDur + strikeDur),
+                    Animated.timing(treeShake, { toValue:  shakeIntensity,       duration: shakeD, useNativeDriver: false }),
+                    Animated.timing(treeShake, { toValue: -shakeIntensity * 0.6, duration: shakeD, useNativeDriver: false }),
+                    Animated.timing(treeShake, { toValue:  shakeIntensity * 0.3, duration: shakeD, useNativeDriver: false }),
+                    Animated.timing(treeShake, { toValue:  0,                    duration: shakeD, useNativeDriver: false }),
+                ]),
+            ]);
+        };
+
+        // ── 3-chop sequence synced to sound hits at ~0.5s, ~1.3s, ~2.3s ──
+        const chopSequence = Animated.sequence([
+            // Chop 1: moderate (wind-up 350ms + strike ~158ms + rebound ~245ms ≈ 753ms)
+            // Impact at ~508ms — matches first sound hit at ~500ms
+            makeChop(0.6, 350, 2.5),
+            // Gap to chop 2
+            Animated.delay(50),
+            // Chop 2: slightly harder
+            makeChop(0.65, 360, 3),
+            // Gap to final chop
+            Animated.delay(80),
+            // Chop 3: big finishing blow — tree felled
+            makeChop(0.9, 420, 6),
+            // Let the final shake settle
+            Animated.delay(120),
+        ]);
+
+        chopSequence.start(({ finished }) => {
+            if (!finished) return;
+            // ── Dissolve phase: fade + shrink tree, float "+5" reward ──
+            Animated.parallel([
+                Animated.timing(dissolveOpacity, {
+                    toValue: 0,
+                    duration: 600,
+                    easing: Easing.out(Easing.quad),
+                    useNativeDriver: false,
+                }),
+                Animated.timing(dissolveScale, {
+                    toValue: 0.3,
+                    duration: 600,
+                    easing: Easing.in(Easing.quad),
+                    useNativeDriver: false,
+                }),
+                Animated.sequence([
+                    Animated.timing(rewardOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
+                    Animated.delay(450),
+                    Animated.timing(rewardOpacity, { toValue: 0, duration: 400, useNativeDriver: false }),
+                ]),
+                Animated.timing(rewardTranslateY, {
+                    toValue: -40,
+                    duration: 1000,
+                    easing: Easing.out(Easing.quad),
+                    useNativeDriver: false,
+                }),
+            ]).start(({ finished: dissolveFinished }) => {
+                if (dissolveFinished) {
+                    setTimeout(() => onComplete(), 100);
+                }
+            });
+        });
+
+        // Progress bar fills over the chop duration
         Animated.timing(progressAnim, {
             toValue: 1,
             duration: CHOP_DURATION_MS,
             easing: Easing.linear,
             useNativeDriver: false,
-        }).start(({ finished }) => {
-            if (finished) {
-                // Stop swing
-                swingLoop.stop();
+        }).start();
 
-                // Dissolve phase: fade + shrink tree, float "+5" reward
-                Animated.parallel([
-                    Animated.timing(dissolveOpacity, {
-                        toValue: 0,
-                        duration: 600,
-                        easing: Easing.out(Easing.quad),
-                        useNativeDriver: false,
-                    }),
-                    Animated.timing(dissolveScale, {
-                        toValue: 0.3,
-                        duration: 600,
-                        easing: Easing.in(Easing.quad),
-                        useNativeDriver: false,
-                    }),
-                    Animated.sequence([
-                        Animated.timing(rewardOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
-                        Animated.delay(450),
-                        Animated.timing(rewardOpacity, { toValue: 0, duration: 400, useNativeDriver: false }),
-                    ]),
-                    Animated.timing(rewardTranslateY, {
-                        toValue: -40,
-                        duration: 1000,
-                        easing: Easing.out(Easing.quad),
-                        useNativeDriver: false,
-                    }),
-                ]).start(({ finished: dissolveFinished }) => {
-                    if (dissolveFinished) {
-                        // Delay to ensure all React renders complete before removing from state
-                        setTimeout(() => onComplete(), 100);
-                    }
-                });
-            }
-        });
+        }; // end startChopAnimation
 
         return () => {
-            // Cleanup timers and sounds on unmount
-            chopTimersRef.current.forEach(t => clearTimeout(t));
+            cancelled = true;
+            if (soundObj) soundObj.unloadAsync().catch(() => {});
         };
     }, []);
 
     const rotation = swingAnim.interpolate({
         inputRange: [0, 0.5, 1],
-        outputRange: ['-20deg', '0deg', '20deg'],
+        outputRange: ['-25deg', '0deg', '25deg'],
     });
 
     return (
@@ -1222,7 +1285,7 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
             {/* Tree + axe wrapped in dissolve container */}
             <Animated.View style={{
                 opacity: dissolveOpacity,
-                transform: [{ scale: dissolveScale }],
+                transform: [{ scale: dissolveScale }, { translateX: treeShake }],
                 width: SCALED_DEAD_TREE_WIDTH,
                 height: SCALED_DEAD_TREE_HEIGHT,
             }}>
@@ -1234,10 +1297,6 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
                     width: 48,
                     height: 48,
                     zIndex: 10,
-                    shadowColor: '#ffffff',
-                    shadowOffset: { width: 0, height: 0 },
-                    shadowOpacity: 0.9,
-                    shadowRadius: 3,
                     transform: [{ rotate: rotation }],
                 }}>
                     <Image
@@ -1324,7 +1383,7 @@ interface IsometricGridProps {
     onChoppingComplete?: (row: number, col: number) => void;
     onStageChange?: (stage: string) => void;
     isZoomedOut?: boolean;
-    frozen?: boolean;
+    onCenterTreeLoaded?: () => void;
 }
 
 function IsometricGrid({
@@ -1344,7 +1403,7 @@ function IsometricGrid({
     onChoppingComplete,
     onStageChange,
     isZoomedOut = false,
-    frozen = false,
+    onCenterTreeLoaded,
 }: IsometricGridProps) {
     const [currentStage, setCurrentStage] = useState(getTreeStage(xp));
     const glowAnim  = useRef(new Animated.Value(0)).current;
@@ -1803,13 +1862,10 @@ function IsometricGrid({
     const fxCenterX = centerTileX + SCALED_WIDTH / 2;
     const fxCenterY = centerTileY + SCALED_HEIGHT / 2;
 
-    // When frozen (a modal covers the garden), disable gestures only.
-    // Keep opacity:1 — hiding with opacity:0 causes the garden to flash-disappear
-    // any time isAnyModalOpen briefly flips (e.g. during state updates on notifications).
+    // Touch-blocking is handled externally via pointerEvents on the wrapper.
     return (
         <TapGestureHandler
             onHandlerStateChange={onTapStateChange}
-            enabled={!frozen}
         >
             <View
                 style={{
@@ -1891,6 +1947,7 @@ function IsometricGrid({
                         height: scaledTreeHeight,
                     }}
                     resizeMode="contain"
+                    onLoad={onCenterTreeLoaded}
                 />
             </Animated.View>
 
@@ -1907,6 +1964,8 @@ function IsometricGrid({
     );
 }
 
+const MemoIsometricGrid = React.memo(IsometricGrid);
+
 interface GardenSceneProps {
     xp?: number;
     gridSize?: number;
@@ -1922,6 +1981,7 @@ interface GardenSceneProps {
     onPlantedTreePress?: (row: number, col: number) => void;
     onChoppingComplete?: (row: number, col: number) => void;
     frozen?: boolean;
+    onRenderReady?: () => void;
 }
 
 export const GardenScene = React.memo(function GardenScene({
@@ -1939,48 +1999,86 @@ export const GardenScene = React.memo(function GardenScene({
     onPlantedTreePress,
     onChoppingComplete,
     frozen = false,
+    onRenderReady,
 }: GardenSceneProps) {
-    // ── Debounced visual freeze ────────────────────────────────────────────
-    // Gesture disabling uses `frozen` directly (immediate).
-    // Visual hiding (opacity:0 + particle unmount) uses `visuallyFrozen`,
-    // which is delayed 80ms before going true. This filters transient frozen
-    // flickers caused by notifications (<80ms), while still hiding the garden
-    // for real modal opens (which stay frozen for hundreds of ms).
-    const [visuallyFrozen, setVisuallyFrozen] = useState(frozen);
+    // ── Fire onRenderReady when the center tree image actually decodes ──────
+    // onLoad fires on the native thread once the bitmap is decoded and ready
+    // to paint — a true signal that the garden's most prominent element is visible.
+    const renderReadyFired = useRef(false);
+    const handleCenterTreeLoaded = useCallback(() => {
+        if (renderReadyFired.current || !onRenderReady) return;
+        renderReadyFired.current = true;
+        onRenderReady();
+    }, [onRenderReady]);
+
+    // ── Native-driver opacity for freeze — no React re-render ──────────────
+    // We use an Animated.Value instead of useState so that hiding/showing the
+    // garden when a modal opens doesn't trigger React reconciliation (which
+    // would force IsometricGrid to re-render all N×N tiles).
+    // Delayed 80ms on freeze to filter transient flickers from notifications.
+    const gardenOpacity = useRef(new Animated.Value(frozen ? 0 : 1)).current;
     const frozenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
         if (frozen) {
-            frozenTimerRef.current = setTimeout(() => setVisuallyFrozen(true), 80);
+            frozenTimerRef.current = setTimeout(() => {
+                Animated.timing(gardenOpacity, { toValue: 0, duration: 0, useNativeDriver: true }).start();
+            }, 80);
         } else {
             if (frozenTimerRef.current) {
                 clearTimeout(frozenTimerRef.current);
                 frozenTimerRef.current = null;
             }
-            setVisuallyFrozen(false);
+            Animated.timing(gardenOpacity, { toValue: 1, duration: 0, useNativeDriver: true }).start();
         }
         return () => {
             if (frozenTimerRef.current) clearTimeout(frozenTimerRef.current);
         };
     }, [frozen]);
     // ── Particle count based on grown/flourishing trees ───────────────────
-    // Count planted trees that have reached 'grown' or 'flourishing' stage (index >= 2).
-    // Each mature tree adds ~2 pollen motes (max 16) and ~0.75 leaves (max 6).
-    const { moteCount, leafCount } = useMemo(() => {
+    // Compute screen positions of mature trees for tree-anchored pollen motes.
+    // Also count mature trees for falling leaves (ambient, not tree-anchored).
+    const { treePositions, leafCount } = useMemo(() => {
+        const positions: { x: number; y: number; isFlourishing: boolean }[] = [];
         let grownCount = 0;
+        const half = Math.floor(gridSize / 2);
+        const maxCenter = 10;
+        const startRow = maxCenter - half;
+        const startCol = maxCenter - half;
+        const maxLocal = gridSize - 1;
+        const centerOffsetX = maxLocal * STEP_X;
+
         for (let row = 0; row < gridSize; row++) {
             for (let col = 0; col < gridSize; col++) {
-                const planted = getPlantedTree(row, col);
-                if (planted) {
-                    const treeXP = xp - planted.plantedAtXP;
-                    const stage = getTreeStage(treeXP);
-                    if (stage.name === 'grown' || stage.name === 'flourishing') {
-                        grownCount++;
-                    }
+                const planted = getPlantedTree(startRow + row, startCol + col);
+                if (!planted) continue;
+                const treeXP = xp - planted.plantedAtXP;
+                const stage = getTreeStage(treeXP);
+                if (stage.name === 'grown' || stage.name === 'flourishing') {
+                    grownCount++;
+                    // Compute screen position in the grid's coordinate space
+                    const [rRow, rCol] = rotateLocal(row, col, 0, maxLocal);
+                    const tileX = (rCol - rRow) * STEP_X + centerOffsetX;
+                    const tileY = (rCol + rRow) * STEP_Y;
+                    const tileCX = tileX + SCALED_WIDTH / 2;
+                    const tileCY = tileY + SCALED_HEIGHT / 2;
+                    positions.push({ x: tileCX, y: tileCY, isFlourishing: stage.name === 'flourishing' });
                 }
             }
         }
+
+        // Also check center tree (main tree)
+        const centerStage = getTreeStage(xp);
+        if (centerStage.name === 'grown' || centerStage.name === 'flourishing') {
+            grownCount++;
+            const cHalf = Math.floor(gridSize / 2);
+            const [rRow, rCol] = rotateLocal(cHalf, cHalf, 0, maxLocal);
+            const tileX = (rCol - rRow) * STEP_X + centerOffsetX;
+            const tileY = (rCol + rRow) * STEP_Y;
+            positions.push({ x: tileX + SCALED_WIDTH / 2, y: tileY + SCALED_HEIGHT / 2, isFlourishing: centerStage.name === 'flourishing' });
+        }
+
         return {
-            moteCount: Math.min(MOTE_COUNT, Math.round(grownCount * 2)),
+            treePositions: positions,
             leafCount: Math.min(LEAF_COUNT, Math.round(grownCount * 0.75)),
         };
     }, [gridSize, xp, getPlantedTree]);
@@ -2027,7 +2125,8 @@ export const GardenScene = React.memo(function GardenScene({
             baseScale.current = clamped;
             baseScaleAnim.setValue(clamped);
             pinchScaleAnim.setValue(1);
-            setIsZoomedOut(clamped < 0.5);
+            const nowZoomedOut = clamped < 0.5;
+            setIsZoomedOut(prev => prev === nowZoomedOut ? prev : nowZoomedOut);
         }
     };
 
@@ -2116,8 +2215,9 @@ export const GardenScene = React.memo(function GardenScene({
                     >
                         <Animated.View style={styles.canvasContainer}>
                             <Animated.View style={[styles.scaleWrapper, { transform: [{ translateX: panX }, { translateY: panY }, { scale: displayScale }] }]}>
-                                <Animated.View style={{ opacity: visuallyFrozen ? 0 : 1 }}>
-                                <IsometricGrid
+                                {/* gardenOpacity is an Animated.Value — changes via native driver, no React re-render */}
+                                <Animated.View style={{ opacity: gardenOpacity }} pointerEvents={frozen ? 'none' : 'box-none'}>
+                                <MemoIsometricGrid
                                     xp={xp}
                                     gridSize={gridSize}
                                     rotation={0}
@@ -2133,8 +2233,15 @@ export const GardenScene = React.memo(function GardenScene({
                                     onPlantedTreePress={onPlantedTreePress}
                                     onChoppingComplete={onChoppingComplete}
                                     isZoomedOut={isZoomedOut}
-                                    frozen={frozen}
+                                    onCenterTreeLoaded={handleCenterTreeLoaded}
                                 />
+                                {/* Pollen motes — always mounted so we never pay the cost of
+                                    stopping/starting all animation loops on every modal open */}
+                                {!frozen && !isZoomedOut && treePositions.length > 0 && (
+                                    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+                                        <FloatingParticles treePositions={treePositions} />
+                                    </View>
+                                )}
                                 </Animated.View>
                             </Animated.View>
                         </Animated.View>
@@ -2142,13 +2249,12 @@ export const GardenScene = React.memo(function GardenScene({
                 </Animated.View>
             </PanGestureHandler>
 
-            {/* ── Foreground ambience — above garden ───────────────────────── */}
-            {!visuallyFrozen && !isZoomedOut && (
+            {/* ── Foreground ambience — above garden (leaves only; pollen is inside scaleWrapper) ── */}
+            {!frozen && !isZoomedOut && leafCount > 0 && (
             <Animated.View
                 pointerEvents="none"
                 style={[StyleSheet.absoluteFill, { zIndex: 199, transform: [{ translateX: panX }, { translateY: panY }, { scale: displayScale }] }]}
             >
-                <FloatingParticles count={moteCount} />
                 <FallingLeaves count={leafCount} />
             </Animated.View>
             )}
