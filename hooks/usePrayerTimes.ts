@@ -1,5 +1,14 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import * as Location from 'expo-location';
+import {
+    Coordinates,
+    CalculationMethod,
+    CalculationParameters,
+    PrayerTimes,
+    Madhab as AdhanMadhab,
+    HighLatitudeRule,
+    PolarCircleResolution,
+} from 'adhan';
 
 type Timings = {
     Fajr: string;
@@ -19,15 +28,15 @@ export type PrayerDeadlines = {
 };
 
 // ─── Calculation Methods ────────────────────────────────────────────────────────
-// Each method defines the Fajr/Isha sun angles used by Islamic authorities in
-// that region. Angles are passed directly to Muwaqqit (fa/ea params) so it
-// computes the correct astronomical time — no post-hoc minute offsets.
+// Each method maps to an adhan CalculationMethod. The fajrAngle/ishaAngle fields
+// are stored for reference; the actual computation is done on-device by adhan.
 
 export interface PrayerMethod {
     name: string;
     fajrAngle: number;        // degrees below horizon (negative), e.g. -18
     ishaAngle: number;        // degrees below horizon (negative), e.g. -17
-    aladhanMethod: number;    // Aladhan API method ID (fallback)
+    aladhanMethod: number;    // kept for backward compatibility only
+    highLatitude?: boolean;   // signals that MoonsightingCommittee method is used
 }
 
 export const PRAYER_METHODS: Record<string, PrayerMethod> = {
@@ -73,17 +82,42 @@ export const PRAYER_METHODS: Record<string, PrayerMethod> = {
         ishaAngle: -17,
         aladhanMethod: 13,
     },
+    UK: {
+        // Moonsighting Committee Worldwide method, recommended for UK & North America.
+        // Uses 18° Fajr/Isha angles with seasonal adjustments and automatically
+        // applies the 1/7th of night rule above 55° latitude (covers all of Scotland).
+        // Computed on-device by the adhan library — no API call needed.
+        name: 'Moonsighting Committee (UK)',
+        fajrAngle: -18,
+        ishaAngle: -18,
+        aladhanMethod: 3,
+        highLatitude: true,
+    },
 };
 
 export type PrayerMethodKey = keyof typeof PRAYER_METHODS;
 export type Madhab = 'hanafi' | 'standard';
 
+/** Per-prayer minute offsets — kept for type compatibility but no longer used in UI.
+ * @deprecated Replaced by automatic high-latitude method selection.
+ */
+export type PrayerOffsets = {
+    Fajr: number; Dhuhr: number; Asr: number; Maghrib: number; Isha: number;
+};
+export const DEFAULT_PRAYER_OFFSETS: PrayerOffsets = {
+    Fajr: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, Isha: 0,
+};
+
 // Map country codes → default calculation method key
 function getMethodKeyForCountry(countryCode: string): PrayerMethodKey {
     const cc = countryCode.toUpperCase();
 
-    if (['GB', 'IE', 'FR', 'DE', 'NL', 'BE', 'AT', 'CH', 'IT', 'ES', 'PT',
-         'DK', 'SE', 'NO', 'FI', 'IS', 'PL', 'CZ', 'HU', 'RO', 'BG', 'HR',
+    // High-latitude countries: standard 18° Fajr/Isha angles are unreachable in
+    // summer (sun stays above ~12° below horizon). Use 12° angles universally.
+    if (['GB', 'IE', 'IS', 'NO', 'SE', 'FI'].includes(cc)) return 'UK';
+
+    if (['FR', 'DE', 'NL', 'BE', 'AT', 'CH', 'IT', 'ES', 'PT',
+         'DK', 'PL', 'CZ', 'HU', 'RO', 'BG', 'HR',
          'SK', 'SI', 'GR', 'BA', 'RS', 'ME', 'MK', 'AL', 'XK', 'LU', 'LT',
          'LV', 'EE'].includes(cc)) return 'MWL';
     if (['US', 'CA', 'MX'].includes(cc)) return 'ISNA';
@@ -111,63 +145,45 @@ const FALLBACK_DEADLINES: PrayerDeadlines = {
     Fajr: '07:00', Dhuhr: '14:45', Asr: '17:30', Maghrib: '19:15', Isha: '05:30',
 };
 
-function toHHMM(time: string): string {
-    if (!time) return '00:00';
-    const parts = time.split(':');
-    return `${parts[0]}:${parts[1]}`;
-}
-
-function getTimezone(): string {
-    try { return Intl.DateTimeFormat().resolvedOptions().timeZone; }
-    catch { return 'UTC'; }
-}
-
-async function fetchWithRetry(url: string, retries = 2, timeoutMs = 8000): Promise<any> {
-    for (let attempt = 0; attempt < retries; attempt++) {
+function dateToHHMM(date: Date | undefined, timezone?: string): string {
+    if (!date || isNaN(date.getTime())) return '00:00';
+    if (timezone) {
         try {
-            const controller = new AbortController();
-            const timer = setTimeout(() => controller.abort(), timeoutMs);
-            const response = await fetch(url, { signal: controller.signal });
-            clearTimeout(timer);
-
-            if (!response.ok) {
-                console.warn(`API returned ${response.status} on attempt ${attempt + 1}`);
-                if (attempt < retries - 1) {
-                    await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-                    continue;
-                }
-                return null;
-            }
-
-            const text = await response.text();
-            try {
-                return JSON.parse(text);
-            } catch {
-                console.warn(`Non-JSON response (attempt ${attempt + 1}): ${text.slice(0, 120)}`);
-                if (attempt < retries - 1) {
-                    await new Promise(r => setTimeout(r, 1500 * (attempt + 1)));
-                    continue;
-                }
-                return null;
-            }
-        } catch (error: any) {
-            console.warn(`Fetch attempt ${attempt + 1} failed:`, error?.message || error);
-            if (attempt < retries - 1) {
-                await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
-            }
+            const parts = new Intl.DateTimeFormat('en-US', {
+                hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone,
+            }).formatToParts(date);
+            const h = parts.find(p => p.type === 'hour')?.value ?? '00';
+            const m = parts.find(p => p.type === 'minute')?.value ?? '00';
+            // Some locales return '24' for midnight with hour12:false
+            return `${h === '24' ? '00' : h.padStart(2, '0')}:${m.padStart(2, '0')}`;
+        } catch {
+            // Fall through to device-local time if timezone string is invalid
         }
     }
-    return null;
+    return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
 }
 
-function findEntryByDate(data: any[], dateStr: string): any | null {
-    for (const entry of data) {
-        if (entry.d === dateStr) return entry;
+function getAdhanParams(key: PrayerMethodKey, coordinates: Coordinates): CalculationParameters {
+    let params: CalculationParameters;
+    switch (key) {
+        case 'UK':          params = CalculationMethod.MoonsightingCommittee(); break;
+        case 'ISNA':        params = CalculationMethod.NorthAmerica(); break;
+        case 'EGYPT':       params = CalculationMethod.Egyptian(); break;
+        case 'UMM_AL_QURA': params = CalculationMethod.UmmAlQura(); break;
+        case 'KARACHI':     params = CalculationMethod.Karachi(); break;
+        case 'DUBAI':       params = CalculationMethod.Dubai(); break;
+        case 'TURKEY':      params = CalculationMethod.Turkey(); break;
+        case 'MWL':
+        default:            params = CalculationMethod.MuslimWorldLeague(); break;
     }
-    for (const entry of data) {
-        if (entry.fajr_date === dateStr || entry.sunset_date === dateStr) return entry;
-    }
-    return null;
+    // Automatically picks the best high-latitude rule for the user's coordinates.
+    // - Below ~48°: no special rule needed.
+    // - 48–55° (most of England, N. France, Germany): SeventhOfTheNight.
+    // - Above 55° (Scotland, Scandinavia, Iceland): TwilightAngle.
+    params.highLatitudeRule = HighLatitudeRule.recommended(coordinates);
+    // If sunrise/sunset are undefined (polar circles) use the nearest day instead.
+    params.polarCircleResolution = PolarCircleResolution.AqrabYaum;
+    return params;
 }
 
 // ─── Hook ───────────────────────────────────────────────────────────────────────
@@ -175,7 +191,7 @@ function findEntryByDate(data: any[], dateStr: string): any | null {
 export interface PrayerTimesConfig {
     madhab: Madhab;
     methodKey: PrayerMethodKey | null;  // null = auto-detect from country
-    manualCoords?: { lat: number; lng: number; countryCode?: string };
+    manualCoords?: { lat: number; lng: number; countryCode?: string; timezone?: string };
     locationReady?: boolean;  // must be true before location permission is requested
 }
 
@@ -194,19 +210,9 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
         const token = { alive: true };
         setLoading(true);
 
-        const safetyTimer = setTimeout(() => {
-            if (token.alive) {
-                console.warn('Prayer times safety timeout — using hardcoded fallback');
-                applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES, token);
-            }
-        }, 12000);
+        getLocationAndComputeTimings(token);
 
-        getLocationAndFetchTimings(token).finally(() => clearTimeout(safetyTimer));
-
-        return () => {
-            token.alive = false;
-            clearTimeout(safetyTimer);
-        };
+        return () => { token.alive = false; };
     }, [madhab, methodKey, manualCoords, locationReady]);
 
     const applyTimings = (t: Timings, d: PrayerDeadlines, token: { alive: boolean }) => {
@@ -217,24 +223,64 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
         setLoading(false);
     };
 
-    const getLocationAndFetchTimings = async (token: { alive: boolean }) => {
+    const computeTimes = (lat: number, lng: number, key: PrayerMethodKey, token: { alive: boolean }, timezone?: string) => {
         try {
+            const coordinates = new Coordinates(lat, lng);
+            const params = getAdhanParams(key, coordinates);
+            params.madhab = madhab === 'hanafi' ? AdhanMadhab.Hanafi : AdhanMadhab.Shafi;
+
+            const today = new Date();
+            const pt = new PrayerTimes(coordinates, today, params);
+
+            const tomorrow = new Date(today);
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            const ptTomorrow = new PrayerTimes(coordinates, tomorrow, params);
+
+            const fmt = (d: Date | undefined) => dateToHHMM(d, timezone);
+            const t: Timings = {
+                Fajr:    fmt(pt.fajr),
+                Sunrise: fmt(pt.sunrise),
+                Dhuhr:   fmt(pt.dhuhr),
+                Asr:     fmt(pt.asr),
+                Sunset:  fmt(pt.maghrib),
+                Maghrib: fmt(pt.maghrib),
+                Isha:    fmt(pt.isha),
+            };
+            const d: PrayerDeadlines = {
+                Fajr:    t.Sunrise,
+                Dhuhr:   t.Asr,
+                Asr:     t.Sunset,
+                Maghrib: t.Isha,
+                Isha:    fmt(ptTomorrow.fajr),
+            };
+
+            console.log(`[Prayer] adhan/${key} @ (${lat.toFixed(4)}, ${lng.toFixed(4)}) — Fajr ${t.Fajr}, Isha ${t.Isha}`);
+            applyTimings(t, d, token);
+        } catch (err) {
+            console.error('[Prayer] adhan computation failed, using fallback:', err);
+            applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES, token);
+        }
+    };
+
+    const getLocationAndComputeTimings = async (token: { alive: boolean }) => {
+        try {
+            // If the user has explicitly set a manual city, honour it unconditionally
+            // regardless of whether GPS permission is granted.
+            if (manualCoords) {
+                const autoKey = manualCoords.countryCode
+                    ? getMethodKeyForCountry(manualCoords.countryCode)
+                    : 'MWL';
+                if (token.alive) setDetectedMethodKey(autoKey);
+                computeTimes(manualCoords.lat, manualCoords.lng, methodKey || autoKey, token, manualCoords.timezone);
+                return;
+            }
+
             const { status } = await Location.requestForegroundPermissionsAsync();
 
             if (status !== 'granted') {
                 setLocationError('Location permission denied');
-                // Use user-provided manual city coords if available, else London as last resort
-                if (manualCoords) {
-                    const autoKey = manualCoords.countryCode
-                        ? getMethodKeyForCountry(manualCoords.countryCode)
-                        : 'MWL';
-                    if (token.alive) setDetectedMethodKey(autoKey);
-                    await fetchTimes(manualCoords.lat, manualCoords.lng, 0, methodKey || autoKey, token);
-                } else {
-                    // True last resort — London. In practice this should rarely be reached
-                    // because the Settings modal now prompts for manual city entry.
-                    await fetchTimes(51.5074, -0.1278, 0, 'MWL', token);
-                }
+                // No manual coords and no GPS — last resort is London
+                computeTimes(51.5074, -0.1278, 'UK', token);
                 return;
             }
 
@@ -242,10 +288,9 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
                 accuracy: Location.Accuracy.Balanced,
             });
 
-            const { latitude, longitude, altitude } = location.coords;
-            const elevationM = Math.max(altitude || 0, 0);
+            const { latitude, longitude } = location.coords;
 
-            // Auto-detect method from country
+            // Auto-detect calculation method from country
             let autoKey: PrayerMethodKey = 'MWL';
             try {
                 const geocode = await Location.reverseGeocodeAsync({ latitude, longitude });
@@ -259,104 +304,12 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
 
             if (token.alive) setDetectedMethodKey(autoKey);
 
-            // Use manual override if set, otherwise auto-detected
             const activeKey = methodKey || autoKey;
-            await fetchTimes(latitude, longitude, elevationM, activeKey, token);
+            computeTimes(latitude, longitude, activeKey, token);
         } catch (error) {
             console.error('Location error:', error);
             setLocationError('Failed to get location');
-            await fetchTimes(51.5074, -0.1278, 0, 'MWL', token);
-        }
-    };
-
-    const fetchTimes = async (lat: number, lng: number, elevation: number, key: PrayerMethodKey, token: { alive: boolean }) => {
-        const method = PRAYER_METHODS[key] || PRAYER_METHODS.MWL;
-        const today = new Date();
-        const yyyy = today.getFullYear();
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const dd = String(today.getDate()).padStart(2, '0');
-        const tz = encodeURIComponent(getTimezone());
-
-        // Pass Fajr/Isha angles directly to Muwaqqit
-        const url = `https://api.muwaqqit.com/api.json?lt=${lat}&ln=${lng}&d=${yyyy}-${mm}-${dd}&tz=${tz}&ht=${Math.round(elevation)}&fa=${method.fajrAngle}&ea=${method.ishaAngle}`;
-
-        console.log(`[Prayer] ${method.name} — Fajr ${method.fajrAngle}°, Isha ${method.ishaAngle}°, Asr: ${madhab}`);
-
-        const data = await fetchWithRetry(url);
-        const entries = data && Array.isArray(data) ? data
-            : data && Array.isArray(data?.list) ? data.list
-            : null;
-
-        if (entries) {
-            const todayStr = `${yyyy}-${mm}-${dd}`;
-            const todayEntry = findEntryByDate(entries, todayStr);
-
-            if (todayEntry) {
-                // Select Asr field based on madhab
-                const asrTime = madhab === 'hanafi'
-                    ? toHHMM(todayEntry.mithlain_time)   // Hanafi: shadow = 2× object length
-                    : toHHMM(todayEntry.mithl_time);     // Standard: shadow = 1× object length
-
-                const t: Timings = {
-                    Fajr: toHHMM(todayEntry.fajr_time),
-                    Sunrise: toHHMM(todayEntry.sunrise_time),
-                    Dhuhr: toHHMM(todayEntry.zohr_time),
-                    Asr: asrTime,
-                    Sunset: toHHMM(todayEntry.sunset_time),
-                    Maghrib: toHHMM(todayEntry.sunset_time),
-                    Isha: toHHMM(todayEntry.esha_time),
-                };
-
-                // Tomorrow's Fajr for Isha deadline
-                const tomorrow = new Date(today);
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                const tmrStr = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, '0')}-${String(tomorrow.getDate()).padStart(2, '0')}`;
-                const tomorrowEntry = findEntryByDate(entries, tmrStr);
-                const nextFajr = tomorrowEntry ? toHHMM(tomorrowEntry.fajr_time) : t.Fajr;
-
-                const d: PrayerDeadlines = {
-                    Fajr: t.Sunrise,
-                    Dhuhr: t.Asr,
-                    Asr: t.Sunset,
-                    Maghrib: t.Isha,
-                    Isha: nextFajr,
-                };
-
-                applyTimings(t, d, token);
-                return;
-            }
-        }
-
-        // Muwaqqit failed — try Aladhan
-        console.warn('Muwaqqit failed, trying Aladhan fallback...');
-        await fetchFromAladhan(lat, lng, method, token);
-    };
-
-    const fetchFromAladhan = async (lat: number, lng: number, method: PrayerMethod, token: { alive: boolean }) => {
-        const today = new Date();
-        const dd = String(today.getDate()).padStart(2, '0');
-        const mm = String(today.getMonth() + 1).padStart(2, '0');
-        const yyyy = today.getFullYear();
-        const school = madhab === 'hanafi' ? 1 : 0;
-
-        const data = await fetchWithRetry(
-            `https://api.aladhan.com/v1/timings/${dd}-${mm}-${yyyy}?latitude=${lat}&longitude=${lng}&method=${method.aladhanMethod}&school=${school}`
-        );
-
-        if (data && data.code === 200) {
-            const at = data.data.timings;
-            const t: Timings = {
-                Fajr: at.Fajr, Sunrise: at.Sunrise, Dhuhr: at.Dhuhr,
-                Asr: at.Asr, Sunset: at.Sunset, Maghrib: at.Maghrib, Isha: at.Isha,
-            };
-            const d: PrayerDeadlines = {
-                Fajr: at.Sunrise, Dhuhr: at.Asr, Asr: at.Sunset,
-                Maghrib: at.Isha, Isha: at.Fajr,
-            };
-            applyTimings(t, d, token);
-        } else {
-            console.warn('All API attempts failed — using hardcoded fallback');
-            applyTimings(FALLBACK_TIMINGS, FALLBACK_DEADLINES, token);
+            computeTimes(51.5074, -0.1278, 'UK', token);
         }
     };
 

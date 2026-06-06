@@ -1,25 +1,26 @@
 import { useState, useEffect, useCallback } from 'react';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-// import Purchases, { PurchasesPackage, CustomerInfo } from 'react-native-purchases';
+import Purchases from 'react-native-purchases';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
-const PREMIUM_STORAGE_KEY = '@GrowPray:premiumStatus';
+// ↓↓ PASTE YOUR REVENUECAT PUBLIC SDK KEY HERE — iOS key starts with "appl_"
+const REVENUECAT_API_KEY_IOS = 'test_FdNcKwwHkQMOSwZDQJnFoIoHIyG';
+// Leave Android blank unless you ship on Android
+const REVENUECAT_API_KEY_ANDROID = '';
 
-// RevenueCat API keys — replace with real keys before production
-const REVENUECAT_API_KEY_IOS = 'YOUR_IOS_API_KEY';
-const REVENUECAT_API_KEY_ANDROID = 'YOUR_ANDROID_API_KEY';
+// The entitlement identifier you created in RevenueCat dashboard (must be "premium")
+const ENTITLEMENT_ID = 'premium';
 
 // Premium plan IDs (must match App Store Connect / Google Play Console)
 export const PREMIUM_PLANS = {
   monthly: {
-    id: 'jannah_premium_monthly',
+    id: 'growpray_premium_monthly',
     price: '$6.99',
     period: 'month',
     trialDays: 7,
   },
   yearly: {
-    id: 'jannah_premium_yearly',
+    id: 'growpray_premium_yearly',
     price: '$44.99',
     originalPrice: '$83.88',
     monthlyEquivalent: '$3.75',
@@ -72,112 +73,67 @@ export function usePremium(): PremiumState {
   const [expirationDate, setExpirationDate] = useState<string | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
 
-  // Load premium status from storage (acts as cache until RevenueCat is wired)
+  // Configure RevenueCat SDK and check existing entitlement on mount
   useEffect(() => {
-    (async () => {
-      try {
-        const stored = await AsyncStorage.getItem(PREMIUM_STORAGE_KEY);
-        if (stored) {
-          const data = JSON.parse(stored);
-          setIsPremium(data.isPremium || false);
-          setExpirationDate(data.expirationDate || null);
-          setPlanId(data.planId || null);
+    try {
+      Purchases.configure({ apiKey: REVENUECAT_API_KEY_IOS });
+      Purchases.getCustomerInfo().then((info) => {
+        const active = info.entitlements.active[ENTITLEMENT_ID];
+        if (active) {
+          setIsPremium(true);
+          setExpirationDate(active.expirationDate ?? null);
+          setPlanId(active.productIdentifier);
         }
+      }).catch(() => {}).finally(() => setLoading(false));
+    } catch {
+      setLoading(false);
+    }
+  }, []);
 
-        // TODO: When RevenueCat is configured, check actual subscription status:
-        // await initRevenueCat();
-        // const info = await Purchases.getCustomerInfo();
-        // const premium = info.entitlements.active['premium'] !== undefined;
-        // setIsPremium(premium);
+  // Purchase a specific package by identifier
+  const purchasePackage = useCallback(async (productId: string): Promise<boolean> => {
+    try {
+      const offerings = await Purchases.getOfferings();
+      const current = offerings.current;
+      if (!current) return false;
 
-      } catch (e) {
-        console.error('Failed to load premium status:', e);
-      } finally {
-        setLoading(false);
+      const pkg = current.availablePackages.find(
+        p => p.product.identifier === productId
+      );
+      if (!pkg) return false;
+
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      const active = customerInfo.entitlements.active[ENTITLEMENT_ID];
+      if (active) {
+        setIsPremium(true);
+        setExpirationDate(active.expirationDate ?? null);
+        setPlanId(active.productIdentifier);
+        return true;
       }
-    })();
-  }, []);
-
-  // Save premium status
-  const savePremiumStatus = useCallback(async (premium: boolean, expDate?: string, plan?: string) => {
-    try {
-      await AsyncStorage.setItem(PREMIUM_STORAGE_KEY, JSON.stringify({
-        isPremium: premium,
-        expirationDate: expDate || null,
-        planId: plan || null,
-      }));
-    } catch (e) {
-      console.error('Failed to save premium status:', e);
+      return false;
+    } catch (e: any) {
+      // User cancelled — not a real error
+      if (e?.code !== '1') console.error('Purchase failed:', e);
+      return false;
     }
   }, []);
 
-  // TODO: Initialize RevenueCat when API keys are set
-  // const initRevenueCat = async () => {
-  //   const apiKey = Platform.OS === 'ios' ? REVENUECAT_API_KEY_IOS : REVENUECAT_API_KEY_ANDROID;
-  //   await Purchases.configure({ apiKey });
-  // };
+  const purchaseMonthly = useCallback(() =>
+    purchasePackage(PREMIUM_PLANS.monthly.id), [purchasePackage]);
 
-  // Purchase monthly subscription
-  const purchaseMonthly = useCallback(async (): Promise<boolean> => {
-    try {
-      // TODO: Replace with real RevenueCat purchase flow:
-      // const offerings = await Purchases.getOfferings();
-      // const package = offerings.current?.monthly;
-      // if (!package) return false;
-      // const { customerInfo } = await Purchases.purchasePackage(package);
-      // const premium = customerInfo.entitlements.active['premium'] !== undefined;
+  const purchaseYearly = useCallback(() =>
+    purchasePackage(PREMIUM_PLANS.yearly.id), [purchasePackage]);
 
-      // For now, activate premium directly (dev/testing mode)
-      setIsPremium(true);
-      setPlanId(PREMIUM_PLANS.monthly.id);
-      const expDate = new Date();
-      expDate.setMonth(expDate.getMonth() + 1);
-      const expStr = expDate.toISOString();
-      setExpirationDate(expStr);
-      await savePremiumStatus(true, expStr, PREMIUM_PLANS.monthly.id);
-      return true;
-    } catch (e) {
-      console.error('Purchase failed:', e);
-      return false;
-    }
-  }, [savePremiumStatus]);
-
-  // Purchase yearly subscription
-  const purchaseYearly = useCallback(async (): Promise<boolean> => {
-    try {
-      // TODO: Replace with real RevenueCat purchase flow
-      setIsPremium(true);
-      setPlanId(PREMIUM_PLANS.yearly.id);
-      const expDate = new Date();
-      expDate.setFullYear(expDate.getFullYear() + 1);
-      const expStr = expDate.toISOString();
-      setExpirationDate(expStr);
-      await savePremiumStatus(true, expStr, PREMIUM_PLANS.yearly.id);
-      return true;
-    } catch (e) {
-      console.error('Purchase failed:', e);
-      return false;
-    }
-  }, [savePremiumStatus]);
-
-  // Restore purchases
+  // Restore purchases (required by Apple guidelines)
   const restorePurchases = useCallback(async (): Promise<boolean> => {
     try {
-      // TODO: Replace with real RevenueCat restore:
-      // const info = await Purchases.restorePurchases();
-      // const premium = info.entitlements.active['premium'] !== undefined;
-      // setIsPremium(premium);
-
-      // For now, check stored status
-      const stored = await AsyncStorage.getItem(PREMIUM_STORAGE_KEY);
-      if (stored) {
-        const data = JSON.parse(stored);
-        if (data.isPremium) {
-          setIsPremium(true);
-          setExpirationDate(data.expirationDate);
-          setPlanId(data.planId);
-          return true;
-        }
+      const info = await Purchases.restorePurchases();
+      const active = info.entitlements.active[ENTITLEMENT_ID];
+      if (active) {
+        setIsPremium(true);
+        setExpirationDate(active.expirationDate ?? null);
+        setPlanId(active.productIdentifier);
+        return true;
       }
       return false;
     } catch (e) {
@@ -186,23 +142,10 @@ export function usePremium(): PremiumState {
     }
   }, []);
 
-  // Debug toggle (for testing)
+  // Debug toggle — only use in dev, never call from production UI
   const togglePremiumDebug = useCallback(async () => {
-    const newStatus = !isPremium;
-    setIsPremium(newStatus);
-    if (newStatus) {
-      const expDate = new Date();
-      expDate.setMonth(expDate.getMonth() + 1);
-      const expStr = expDate.toISOString();
-      setExpirationDate(expStr);
-      setPlanId('debug');
-      await savePremiumStatus(true, expStr, 'debug');
-    } else {
-      setExpirationDate(null);
-      setPlanId(null);
-      await savePremiumStatus(false);
-    }
-  }, [isPremium, savePremiumStatus]);
+    setIsPremium(prev => !prev);
+  }, []);
 
   const limits = isPremium ? PREMIUM_LIMITS : FREE_LIMITS;
 

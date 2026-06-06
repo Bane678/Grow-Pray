@@ -13,8 +13,7 @@ import { usePremium } from './hooks/usePremium';
 import { useConsistencyMultiplier } from './hooks/useConsistencyMultiplier';
 import { useChallenges, ChallengeId } from './hooks/useChallenges';
 import { ChallengesModal } from './components/ChallengesModal';
-import { useDifficultDay } from './hooks/useDifficultDay';
-import { DifficultDayModal } from './components/DifficultDayModal';
+
 import { SettingsModal } from './components/SettingsModal';
 import { PrayerHistoryModal } from './components/PrayerHistoryModal';
 import { useBoosts, BOOST_CATALOG } from './hooks/useBoosts';
@@ -420,7 +419,7 @@ function RestPeriodModal({
   );
 }
 
-// Rest Overlay - Shows when in rest mode
+// Rest Overlay - Shows when in rest mode (non-blocking bottom banner)
 function RestOverlay({ 
   daysRemaining, 
   onEndRest 
@@ -431,67 +430,46 @@ function RestOverlay({
   return (
     <View style={{
       position: 'absolute',
-      top: 0,
+      bottom: 70,
       left: 0,
       right: 0,
-      bottom: 0,
-      backgroundColor: 'rgba(26, 26, 46, 0.75)',
-      justifyContent: 'center',
-      alignItems: 'center',
       zIndex: 50,
+      pointerEvents: 'box-none',
+      alignItems: 'center',
     }}>
-      {/* Rest indicator */}
       <View style={{
-        backgroundColor: 'rgba(15, 21, 38, 0.95)',
-        borderRadius: 24,
-        padding: 32,
+        backgroundColor: 'rgba(20, 28, 50, 0.97)',
+        borderColor: 'rgba(147, 165, 220, 0.25)',
+        borderWidth: 1,
+        marginHorizontal: 24,
+        borderRadius: 14,
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        flexDirection: 'row',
         alignItems: 'center',
-        maxWidth: 280,
+        justifyContent: 'space-between',
+        width: '85%',
       }}>
-        <Image source={ICON_MOON} style={{ width: 48, height: 48, marginBottom: 16 }} resizeMode="contain" />
-        
-        <Text style={{
-          fontSize: 22,
-          fontWeight: '700',
-          color: THEME.text,
-          marginBottom: 8,
-        }}>
-          Resting...
-        </Text>
-        
-        <Text style={{
-          fontSize: 16,
-          color: THEME.accent,
-          marginBottom: 4,
-        }}>
-          {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} remaining
-        </Text>
-        
-        <Text style={{
-          fontSize: 13,
-          color: '#9ca3af',
-          textAlign: 'center',
-          marginBottom: 24,
-        }}>
-          Your streak is frozen during this time
-        </Text>
-        
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
+          <Image source={ICON_MOON} style={{ width: 18, height: 18 }} resizeMode="contain" />
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: THEME.text, fontWeight: '700', fontSize: 14 }}>Resting</Text>
+            <Text style={{ color: 'rgba(232,224,214,0.55)', fontSize: 11, marginTop: 2 }}>
+              {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} remaining · streak frozen
+            </Text>
+          </View>
+        </View>
         <TouchableOpacity
           onPress={onEndRest}
           style={{
-            paddingHorizontal: 24,
-            paddingVertical: 12,
-            borderRadius: 20,
-            backgroundColor: 'rgba(255, 255, 255, 0.04)',
+            backgroundColor: 'rgba(255,255,255,0.07)',
+            paddingHorizontal: 12,
+            paddingVertical: 7,
+            borderRadius: 10,
+            marginLeft: 12,
           }}
         >
-          <Text style={{
-            color: '#9ca3af',
-            fontSize: 14,
-            fontWeight: '600',
-          }}>
-            End Rest Early
-          </Text>
+          <Text style={{ color: 'rgba(232,224,214,0.7)', fontSize: 13, fontWeight: '600' }}>End Early</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -697,7 +675,6 @@ function TopInfoBar({
   freezeCount,
   consistencyMultiplier,
   onMultiplierPress,
-  difficultDayActive,
   activeBoostIcon,
   activeBoostName,
   boostTimeRemaining,
@@ -712,7 +689,6 @@ function TopInfoBar({
   freezeCount: number;
   consistencyMultiplier: number;
   onMultiplierPress: () => void;
-  difficultDayActive: boolean;
   activeBoostIcon?: string;
   activeBoostName?: string;
   boostTimeRemaining?: string;
@@ -733,66 +709,65 @@ function TopInfoBar({
         paddingVertical: 6,
       }}>
         {/* Streak */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Image source={ICON_FIRE} style={{ width: 13, height: 13 }} resizeMode="contain" />
-          <Text style={{ fontSize: 13, fontWeight: '800', color: bestStreak > 0 ? THEME.warning : THEME.textSecondary }}>
-            {bestStreak}
-          </Text>
+        <View style={{ alignItems: 'center', gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Image source={ICON_FIRE} style={{ width: 13, height: 13 }} resizeMode="contain" />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: bestStreak > 0 ? THEME.warning : THEME.textSecondary }}>
+              {bestStreak}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 8, fontWeight: '500', color: 'rgba(232,224,214,0.35)', letterSpacing: 0.5, textAlign: 'center', width: '100%' }}>STREAK</Text>
         </View>
 
         {/* Coins */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Image source={ICON_COIN} style={{ width: 13, height: 13 }} resizeMode="contain" />
-          <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.coin }}>
-            {coins}
-          </Text>
+        <View style={{ alignItems: 'center', gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Image source={ICON_COIN} style={{ width: 13, height: 13 }} resizeMode="contain" />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.coin }}>
+              {coins}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 8, fontWeight: '500', color: 'rgba(232,224,214,0.35)', letterSpacing: 0.5, textAlign: 'center', width: '100%' }}>COINS</Text>
         </View>
 
         {/* XP */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Image source={ICON_XP} style={{ width: 13, height: 13 }} resizeMode="contain" />
-          <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.success }}>
-            {xp}
-          </Text>
+        <View style={{ alignItems: 'center', gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Image source={ICON_XP} style={{ width: 13, height: 13 }} resizeMode="contain" />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.success }}>
+              {xp}
+            </Text>
+          </View>
+          <Text style={{ fontSize: 8, fontWeight: '500', color: 'rgba(232,224,214,0.35)', letterSpacing: 0.5, textAlign: 'center', width: '100%' }}>XP</Text>
         </View>
 
         {/* Multiplier */}
-        <TouchableOpacity onPress={onMultiplierPress} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-          <Image source={ICON_LIGHTNING} style={{ width: 13, height: 13 }} resizeMode="contain" />
-          <Text style={{ fontSize: 13, fontWeight: '800', color: combinedMultiplier > 1 ? THEME.coin : THEME.textSecondary }}>
-            {combinedMultiplier}×
-          </Text>
+        <TouchableOpacity onPress={onMultiplierPress} activeOpacity={0.7} style={{ alignItems: 'center', gap: 2 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <Image source={ICON_LIGHTNING} style={{ width: 13, height: 13 }} resizeMode="contain" />
+            <Text style={{ fontSize: 13, fontWeight: '800', color: combinedMultiplier > 1 ? THEME.coin : THEME.textSecondary }}>
+              {combinedMultiplier}×
+            </Text>
+          </View>
+          <Text style={{ fontSize: 8, fontWeight: '500', color: 'rgba(232,224,214,0.35)', letterSpacing: 0.5, textAlign: 'center', width: '100%' }}>BONUS</Text>
         </TouchableOpacity>
 
         {/* Freeze (only if > 0) */}
         {freezeCount > 0 && (
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            <MaterialCommunityIcons name="shield-check" size={12} color={THEME.purple} />
-            <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.purple }}>
-              {freezeCount}
-            </Text>
+          <View style={{ alignItems: 'center', gap: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <Image source={SINGLE_FREEZE_ICON} style={{ width: 13, height: 13 }} resizeMode="contain" />
+              <Text style={{ fontSize: 13, fontWeight: '800', color: THEME.purple }}>
+                {freezeCount}
+              </Text>
+            </View>
+            <Text style={{ fontSize: 8, fontWeight: '500', color: 'rgba(232,224,214,0.35)', letterSpacing: 0.5, textAlign: 'center', width: '100%' }}>FREEZE</Text>
           </View>
         )}
       </View>
 
       {/* Banners */}
       <View style={{ alignItems: 'center' }}>
-        {/* Difficult Day banner */}
-        {difficultDayActive && (
-          <View style={{
-            backgroundColor: THEME.purpleMuted,
-            borderRadius: 9,
-            paddingVertical: 4,
-            paddingHorizontal: 10,
-            marginBottom: 6,
-            marginTop: 4,
-          }}>
-            <Text style={{ fontSize: 10, fontWeight: '600', color: THEME.purple }}>
-              Difficult Day Active
-            </Text>
-          </View>
-        )}
-
         {/* Active Boost banner */}
         {activeBoostName && boostTimeRemaining && (
           <View style={{
@@ -829,17 +804,7 @@ function TopInfoBar({
             </Text>
           </View>
         ) : (
-          <Text style={{
-            fontSize: 11,
-            fontWeight: '500',
-            color: 'rgba(74,222,128,0.5)',
-            letterSpacing: 1,
-            textTransform: 'uppercase',
-            marginBottom: 10,
-            marginTop: 6,
-          }}>
-            All Prayers Complete
-          </Text>
+          <View style={{ height: 10, marginBottom: 10, marginTop: 6 }} />
         )}
 
         {/* ── Moonlight glow behind timer ── */}
@@ -877,16 +842,23 @@ function TopInfoBar({
                 color: THEME.text,
                 letterSpacing: -0.5,
               }}>
-                {nextPrayer ? timeUntilNext : '✓'}
+                {nextPrayer ? timeUntilNext : ''}
               </Text>
-              <Text style={{
-                fontSize: 9,
-                fontWeight: '500',
-                color: THEME.textSecondary,
-                marginTop: 1,
-              }}>
-                {nextPrayer ? `until ${nextPrayer}` : 'All done'}
-              </Text>
+              {!nextPrayer ? (
+                <View style={{ alignItems: 'center', justifyContent: 'center', marginBottom: 28 }}>
+                  <Image source={ICON_MOON} style={{ width: 22, height: 22 }} resizeMode="contain" />
+                  <Text style={{ fontSize: 8, fontWeight: '600', color: THEME.textSecondary, marginTop: 2, letterSpacing: 0.5 }}>Resting</Text>
+                </View>
+              ) : (
+                <Text style={{
+                  fontSize: 9,
+                  fontWeight: '500',
+                  color: THEME.textSecondary,
+                  marginTop: 1,
+                }}>
+                  {`until ${nextPrayer}`}
+                </Text>
+              )}
             </View>
           </View>
         </View>
@@ -1093,7 +1065,7 @@ function BottomTabBar({
     { key: 'challenges', icon: 'trophy' as const, label: 'Challenges', badge: challengeClaimable },
     { key: 'shop', icon: 'store' as const, label: 'Shop', badge: 0 },
     { key: 'history', icon: 'calendar-month' as const, label: 'History', badge: 0 },
-    { key: 'more', icon: 'dots-horizontal' as const, label: 'More', badge: 0 },
+    { key: 'settings', icon: 'cog' as const, label: 'Settings', badge: 0 },
   ];
 
   return (
@@ -1175,87 +1147,6 @@ function BottomTabBar({
         </LinearGradient>
       </BlurView>
     </View>
-  );
-}
-
-// "More" popup menu for secondary actions
-function MoreMenu({
-  visible,
-  onClose,
-  onSettings,
-  onDifficultDay,
-  onRest,
-  onPremium,
-  onDebug,
-  difficultDayActive,
-  isPremium,
-}: {
-  visible: boolean;
-  onClose: () => void;
-  onSettings: () => void;
-  onDifficultDay: () => void;
-  onRest: () => void;
-  onPremium: () => void;
-  onDebug: () => void;
-  difficultDayActive: boolean;
-  isPremium: boolean;
-}) {
-  if (!visible) return null;
-
-  const items = [
-    ...(!isPremium ? [{ icon: 'crown' as const, label: 'Premium', color: '#fbbf24', onPress: onPremium }] : []),
-    { icon: 'cog' as const, label: 'Settings', color: '#9ca3af', onPress: onSettings },
-    { icon: 'weather-night' as const, label: difficultDayActive ? 'Difficult Day ✓' : 'Difficult Day', color: difficultDayActive ? '#a78bfa' : '#9ca3af', onPress: onDifficultDay },
-    { icon: 'moon-waning-crescent' as const, label: 'Rest Period', color: '#10b981', onPress: onRest },
-    { icon: 'bug' as const, label: 'Debug', color: '#ff6b6b', onPress: onDebug },
-  ];
-
-  return (
-    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose}>
-      <TouchableWithoutFeedback onPress={onClose}>
-        <View style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <TouchableWithoutFeedback>
-            <View style={{
-              backgroundColor: THEME.bg,
-              marginHorizontal: 16,
-              marginBottom: 100,
-              borderRadius: 16,
-              paddingVertical: 8,
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: -4 },
-              shadowOpacity: 0.4,
-              shadowRadius: 12,
-              elevation: 20,
-            }}>
-              {items.map((item, i) => (
-                <TouchableOpacity
-                  key={item.label}
-                  onPress={() => { item.onPress(); onClose(); }}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    paddingVertical: 14,
-                    paddingHorizontal: 20,
-                    borderBottomWidth: i < items.length - 1 ? 1 : 0,
-                    borderBottomColor: THEME.divider,
-                  }}
-                >
-                  <MaterialCommunityIcons name={item.icon} size={20} color={item.color} />
-                  <Text style={{ 
-                    marginLeft: 14, 
-                    fontSize: 15, 
-                    fontWeight: '500', 
-                    color: THEME.text,
-                  }}>
-                    {item.label}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </TouchableWithoutFeedback>
-        </View>
-      </TouchableWithoutFeedback>
-    </Modal>
   );
 }
 
@@ -1585,7 +1476,7 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
 }
 
 // Main Prayer State Management Hook
-function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, difficultDayActive: boolean = false, boostXpMultiplier: number = 1, boostCoinBonus: number = 0, prayerConfig?: PrayerTimesConfig) {
+function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, boostXpMultiplier: number = 1, boostCoinBonus: number = 0, prayerConfig?: PrayerTimesConfig) {
   const { timings, deadlines, nextPrayer, loading, detectedMethodKey } = usePrayerTimes(prayerConfig);
   const [completedPrayers, setCompletedPrayers] = useState<Set<string>>(new Set());
   const [streaks, setStreaks] = useState<PrayerStreaks>({ ...DEFAULT_STREAKS });
@@ -1606,6 +1497,8 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
   // Tracks the calendar-date string for which the Fajr reset has already been done.
   // Populated from AsyncStorage on load so app restarts after Fajr don't re-wipe prayers.
   const fajrResetDoneRef = useRef<string | null>(null);
+  // Tracks the last location key so we can detect city changes and clear stale prayer ticks.
+  const prevCoordKeyRef = useRef<string | null>(null);
 
   // Update current time every minute for prayer window calculations
   useEffect(() => {
@@ -1683,6 +1576,28 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     return () => clearInterval(interval);
   }, [timings, nextPrayer]);
 
+  // ── Location-change guard ─────────────────────────────────────────────────────
+  // When the user switches between cities (or clears manual override back to GPS)
+  // the displayed prayer times change timezone context.  Any prayers ticked under
+  // the old context are no longer meaningful, so we wipe today's completed set.
+  useEffect(() => {
+    if (!stateLoaded) return;
+    const key = prayerConfig?.manualCoords
+      ? `${prayerConfig.manualCoords.lat.toFixed(3)},${prayerConfig.manualCoords.lng.toFixed(3)}`
+      : 'gps';
+    if (prevCoordKeyRef.current === null) {
+      // First call after hydration — just record, don't wipe.
+      prevCoordKeyRef.current = key;
+      return;
+    }
+    if (prevCoordKeyRef.current !== key) {
+      prevCoordKeyRef.current = key;
+      const today = new Date().toDateString();
+      setCompletedPrayers(new Set());
+      AsyncStorage.setItem(COMPLETED_PRAYERS_KEY, JSON.stringify({ date: today, prayers: [] }));
+    }
+  }, [prayerConfig?.manualCoords, stateLoaded]);
+
   // ── Live Fajr reset ──────────────────────────────────────────────────────────
   // When the app is running and Fajr time arrives, clear the previous day's
   // completed prayers. Gated on stateLoaded so we don't race with loadState.
@@ -1690,12 +1605,11 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     if (!timings?.Fajr || !stateLoaded) return;
 
     const today = new Date().toDateString();
-    const now = new Date();
     const [fajrH, fajrM] = timings.Fajr.split(':').map(Number);
-    const fajrToday = new Date();
-    fajrToday.setHours(fajrH, fajrM, 0, 0);
+    const fajrMinutes = fajrH * 60 + fajrM;
+    const nowMinutes = getPrayerTzMinutes(new Date(), prayerConfig?.manualCoords?.timezone);
 
-    if (now >= fajrToday && fajrResetDoneRef.current !== today) {
+    if (nowMinutes >= fajrMinutes && fajrResetDoneRef.current !== today) {
       fajrResetDoneRef.current = today;
       setCompletedPrayers(new Set());
       AsyncStorage.setItem(COMPLETED_PRAYERS_KEY, JSON.stringify({ date: today, prayers: [] }));
@@ -1842,6 +1756,25 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     return hours * 60 + minutes;
   };
 
+  // Helper: current minutes since midnight expressed in the prayer location's timezone.
+  // For GPS mode (no stored timezone) this falls back to the device's local clock,
+  // which is correct because the device IS at the prayer location.
+  // For a manually-selected city this reads the clock in that city so comparisons
+  // against prayer times (which are also formatted in that city's timezone) are valid.
+  const getPrayerTzMinutes = (date: Date, timezone?: string): number => {
+    if (timezone) {
+      try {
+        const parts = new Intl.DateTimeFormat('en-US', {
+          hour: '2-digit', minute: '2-digit', hour12: false, timeZone: timezone,
+        }).formatToParts(date);
+        const h = parseInt(parts.find(p => p.type === 'hour')?.value ?? '0');
+        const m = parseInt(parts.find(p => p.type === 'minute')?.value ?? '0');
+        return (h === 24 ? 0 : h) * 60 + m;
+      } catch { /* fall through */ }
+    }
+    return date.getHours() * 60 + date.getMinutes();
+  };
+
   // Get the Islamic deadline for a prayer using explicit Muwaqqit-derived deadlines
   // Fajr → Sunrise, Dhuhr → Asr (Mithl al-Awwal), Asr → Sunset, Maghrib → Isha (red twilight), Isha → next Fajr
   const getPrayerEndTime = (prayer: string): number => {
@@ -1880,10 +1813,12 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
   // Uses actual Islamic deadlines: Fajr→Sunrise, Dhuhr→Asr, Asr→Maghrib, Maghrib→Isha, Isha→Fajr
   const getPrayerWindowStatus = (prayer: string): 'active' | 'missed' | 'upcoming' => {
     if (!timings) return 'upcoming';
-    
-    const now = currentTime;
-    const currentMinutes = now.getHours() * 60 + now.getMinutes();
-    
+
+    // Get "current minutes since midnight" in the same timezone as the displayed
+    // prayer times.  This prevents the device clock (UK) from being compared
+    // against prayer times formatted in a different city's timezone (e.g. New York).
+    const currentMinutes = getPrayerTzMinutes(currentTime, prayerConfig?.manualCoords?.timezone);
+
     const prayerStartMinutes = timeToMinutes(timings[prayer]);
     const prayerEndMinutes = getPrayerEndTime(prayer);
     
@@ -1934,7 +1869,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
       const isFriday = new Date().getDay() === 5;
       const baseXp = XP_ON_TIME + (isFriday ? JUMMAH_XP_BONUS : 0);
       const totalXpMultiplier = xpMultiplier * boostXpMultiplier;
-      const xpEarned = Math.round(baseXp * totalXpMultiplier * 10) / 10; // Round to 1 decimal
+      const xpEarned = Math.round(baseXp * totalXpMultiplier);
       const newXp = xp + xpEarned;
       setXp(newXp);
       
@@ -2022,7 +1957,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
       const isFridayDebug = new Date().getDay() === 5;
       const baseXp = XP_ON_TIME + (isFridayDebug ? JUMMAH_XP_BONUS : 0);
       const totalXpMultiplier = xpMultiplier * boostXpMultiplier;
-      const xpEarned = Math.round(baseXp * totalXpMultiplier * 10) / 10;
+      const xpEarned = Math.round(baseXp * totalXpMultiplier);
       const newXp = xp + xpEarned;
       setXp(newXp);
       await AsyncStorage.setItem(XP_KEY, JSON.stringify(newXp));
@@ -2087,234 +2022,21 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, di
     resolveStreakFreeze,
     prayerHistory,
     detectedMethodKey,
+    debugSimulateMissed: async (prayers: string[]) => {
+      // Clear the freeze-resolved guard so the prompt can fire again
+      await AsyncStorage.removeItem('@GrowPray:freezeResolvedDate');
+      setMissedPrayers(prayers);
+    },
   };
 }
 
-const ONBOARDING_KEY = '@JannahGarden:onboardingComplete';
-const TOOLTIP_KEY = '@JannahGarden:tooltipShown';
+const ONBOARDING_KEY = '@GrowPray:onboardingComplete';
+const TOOLTIP_KEY = '@GrowPray:tooltipShown'; // kept for AsyncStorage migration cleanup
 const MADHAB_KEY = '@GrowPray:madhab';
 const CALC_METHOD_KEY = '@GrowPray:calcMethod';
 const MANUAL_CITY_KEY = '@GrowPray:manualCity';
 const MANUAL_COORDS_KEY = '@GrowPray:manualCoords';
-
-// Freeze Prompt Modal — shown when missed prayers detected and user has freezes
-function FreezePromptModal({
-  visible,
-  missedPrayers,
-  freezeInventory,
-  streaks,
-  onUseSingleFreeze,
-  onUseAllFreeze,
-  onLetBreak,
-}: {
-  visible: boolean;
-  missedPrayers: string[];
-  freezeInventory: { single: number; all: number };
-  streaks: PrayerStreaks;
-  onUseSingleFreeze: (prayer: string) => void;
-  onUseAllFreeze: () => void;
-  onLetBreak: () => void;
-}) {
-  const [selectingPrayer, setSelectingPrayer] = useState(false);
-
-  if (!visible || missedPrayers.length === 0) return null;
-
-  const hasSingle = freezeInventory.single > 0;
-  const hasAll = freezeInventory.all > 0;
-  // Only show prayers that actually have a streak worth protecting
-  const protectablePrayers = missedPrayers.filter(p => (streaks[p] || 0) > 0);
-
-  return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="fade"
-      onRequestClose={onLetBreak}
-    >
-      <View style={{
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.75)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 24,
-      }}>
-        <View style={{
-          backgroundColor: THEME.bg,
-          borderRadius: 24,
-          padding: 28,
-          width: '100%',
-          maxWidth: 340,
-          alignItems: 'center',
-        }}>
-          {/* Header */}
-          <Image source={SINGLE_FREEZE_ICON} style={{ width: 52, height: 52, marginBottom: 8 }} resizeMode="contain" />
-          <Text style={{
-            fontSize: 20,
-            fontWeight: '800',
-            color: THEME.text,
-            marginBottom: 6,
-          }}>
-            Streak at Risk!
-          </Text>
-          
-          {/* Missed prayers list */}
-          <Text style={{
-            fontSize: 14,
-            color: '#94a3b8',
-            textAlign: 'center',
-            marginBottom: 16,
-            lineHeight: 20,
-          }}>
-            You missed {missedPrayers.length === 5 ? 'all prayers' : missedPrayers.join(', ')} yesterday
-          </Text>
-
-          {/* Streak info for missed prayers */}
-          {protectablePrayers.length > 0 && (
-            <View style={{
-              backgroundColor: 'rgba(239, 68, 68, 0.1)',
-              borderRadius: 12,
-              padding: 12,
-              width: '100%',
-              marginBottom: 16,
-            }}>
-              {protectablePrayers.map(prayer => (
-                <View key={prayer} style={{
-                  flexDirection: 'row',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  paddingVertical: 3,
-                }}>
-                  <Text style={{ fontSize: 14, color: '#fca5a5' }}>{prayer}</Text>
-                  <Text style={{ fontSize: 14, color: '#fca5a5', fontWeight: '600' }}>
-                    {streaks[prayer]} day streak
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Prayer selection mode for single freeze */}
-          {selectingPrayer ? (
-            <View style={{ width: '100%' }}>
-              <Text style={{
-                fontSize: 13,
-                color: '#94a3b8',
-                textAlign: 'center',
-                marginBottom: 10,
-              }}>
-                Select a prayer to protect:
-              </Text>
-              {protectablePrayers.map(prayer => (
-                <TouchableOpacity
-                  key={prayer}
-                  onPress={() => {
-                    setSelectingPrayer(false);
-                    onUseSingleFreeze(prayer);
-                  }}
-                  style={{
-                    backgroundColor: 'rgba(232, 168, 124, 0.15)',
-                    paddingVertical: 12,
-                    paddingHorizontal: 16,
-                    borderRadius: 12,
-                    marginBottom: 8,
-                    flexDirection: 'row',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontSize: 15, color: THEME.text, fontWeight: '600' }}>
-                    {prayer}
-                  </Text>
-                  <Text style={{ fontSize: 13, color: THEME.accent }}>
-                    {streaks[prayer]} → Protected
-                  </Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                onPress={() => setSelectingPrayer(false)}
-                style={{
-                  paddingVertical: 10,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ fontSize: 14, color: '#6b7280' }}>Back</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <View style={{ width: '100%' }}>
-              {/* Use All Prayers Freeze */}
-              {hasAll && (
-                <TouchableOpacity
-                  onPress={onUseAllFreeze}
-                  style={{
-                    backgroundColor: 'rgba(232, 168, 124, 0.2)',
-                    paddingVertical: 14,
-                    paddingHorizontal: 16,
-                    borderRadius: 14,
-                    marginBottom: 10,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: THEME.text }}>
-                    Use All Prayers Freeze
-                  </Text>
-                  <Text style={{ fontSize: 12, color: THEME.accent, marginTop: 2 }}>
-                    Protect all streaks • {freezeInventory.all} remaining
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Use Single Prayer Freeze */}
-              {hasSingle && protectablePrayers.length > 0 && (
-                <TouchableOpacity
-                  onPress={() => {
-                    if (protectablePrayers.length === 1) {
-                      // Only one prayer to protect — use directly
-                      onUseSingleFreeze(protectablePrayers[0]);
-                    } else {
-                      setSelectingPrayer(true);
-                    }
-                  }}
-                  style={{
-                    backgroundColor: 'rgba(232, 168, 124, 0.1)',
-                    paddingVertical: 14,
-                    paddingHorizontal: 16,
-                    borderRadius: 14,
-                    marginBottom: 10,
-                    alignItems: 'center',
-                  }}
-                >
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: THEME.text }}>
-                    Use Single Prayer Freeze
-                  </Text>
-                  <Text style={{ fontSize: 12, color: THEME.accent, marginTop: 2 }}>
-                    Protect one streak • {freezeInventory.single} remaining
-                  </Text>
-                </TouchableOpacity>
-              )}
-
-              {/* Let Streaks Break */}
-              <TouchableOpacity
-                onPress={onLetBreak}
-                style={{
-                  paddingVertical: 14,
-                  paddingHorizontal: 16,
-                  borderRadius: 14,
-                  alignItems: 'center',
-                  backgroundColor: 'rgba(239, 68, 68, 0.08)',
-                }}
-              >
-                <Text style={{ fontSize: 15, fontWeight: '600', color: '#f87171' }}>
-                  Let Streaks Break
-                </Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-      </View>
-    </Modal>
-  );
-}
+const PRAYER_OFFSETS_KEY = '@GrowPray:prayerOffsets'; // kept for migration only — no longer written
 
 // ─── Preparing Screen ────────────────────────────────────────────────────────────
 // Shows after onboarding while the garden renders in the background.
@@ -2703,9 +2425,8 @@ function AppInner() {
   // Garden starts invisible when coming from onboarding; fades in after PreparingScreen
   const gardenRevealAnim = useRef(new Animated.Value(1)).current;
   const cameFromOnboarding = useRef(false);
-  const [showTooltip, setShowTooltip] = useState(false);
   const [showRestModal, setShowRestModal] = useState(false);
-  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  // showSettingsModal removed — Settings is now a full tab page
   const [showExpansionModal, setShowExpansionModal] = useState(false);
   const [expansionDismissed, setExpansionDismissed] = useState(false);
   const [showShopModal, setShowShopModal] = useState(false);
@@ -2713,10 +2434,10 @@ function AppInner() {
   const [debugPrayersUnlocked, setDebugPrayersUnlocked] = useState(false);
   const [showMultiplierModal, setShowMultiplierModal] = useState(false);
   const [showChallengesModal, setShowChallengesModal] = useState(false);
-  const [showDifficultDayModal, setShowDifficultDayModal] = useState(false);
+
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
-  const [activeTab, setActiveTab] = useState<'garden' | 'shop' | 'challenges' | 'history'>('garden');
+  // showMoreMenu removed — replaced by dedicated Settings tab
+  const [activeTab, setActiveTab] = useState<'garden' | 'shop' | 'challenges' | 'history' | 'settings'>('garden');
   // Track which tabs have been opened at least once — mount lazily, keep alive after
   const visitedTabs = useRef<Set<string>>(new Set()).current;
   if (activeTab !== 'garden') visitedTabs.add(activeTab);
@@ -2725,7 +2446,7 @@ function AppInner() {
   const [madhab, setMadhab] = useState<Madhab>('standard');
   const [calcMethodKey, setCalcMethodKey] = useState<PrayerMethodKey | null>(null);
   const [manualCity, setManualCity] = useState('');
-  const [manualCoords, setManualCoords] = useState<{ lat: number; lng: number; countryCode?: string } | undefined>(undefined);
+  const [manualCoords, setManualCoords] = useState<{ lat: number; lng: number; countryCode?: string; timezone?: string } | undefined>(undefined);
 
   // Load prayer settings from AsyncStorage
   useEffect(() => {
@@ -2743,27 +2464,75 @@ function AppInner() {
     })();
   }, []);
 
-  const handleManualCitySearch = useCallback(async (city: string): Promise<{ lat: number; lng: number; countryCode?: string; displayName: string } | null> => {
+  const handleManualCitySearch = useCallback(async (city: string): Promise<{ lat: number; lng: number; countryCode?: string; displayName: string }[]> => {
     try {
-      const results = await Location.geocodeAsync(city);
-      if (!results || results.length === 0) return null;
-      const { latitude, longitude } = results[0];
-      let countryCode: string | undefined;
-      try {
-        const rev = await Location.reverseGeocodeAsync({ latitude, longitude });
-        countryCode = rev[0]?.isoCountryCode ?? undefined;
-      } catch {}
-      const coords = { lat: latitude, lng: longitude, countryCode: countryCode || undefined };
-      setManualCoords(coords);
-      setManualCity(city);
-      await Promise.all([
-        AsyncStorage.setItem(MANUAL_CITY_KEY, city),
-        AsyncStorage.setItem(MANUAL_COORDS_KEY, JSON.stringify(coords)),
-      ]);
-      return { ...coords, displayName: city };
+      const query = encodeURIComponent(city.trim());
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${query}&format=jsonv2&limit=8&addressdetails=1&dedupe=1`,
+        { headers: { 'User-Agent': 'GrowPray/1.0 (com.antigravity.growpray)', 'Accept-Language': 'en' } }
+      );
+      if (!response.ok) return [];
+      const data = await response.json();
+      if (!Array.isArray(data) || data.length === 0) return [];
+
+      // Prefer city/town/village results over administrative boundaries
+      const SETTLEMENT_TYPES = new Set(['city', 'town', 'village', 'suburb', 'municipality', 'borough', 'hamlet']);
+      const sorted = [...data].sort((a: any, b: any) =>
+        (SETTLEMENT_TYPES.has(a.type) ? 0 : 1) - (SETTLEMENT_TYPES.has(b.type) ? 0 : 1)
+      );
+
+      // Deduplicate: drop results within ~11km of an already-seen result
+      const seenCoords = new Set<string>();
+      return sorted
+        .map((item: any) => ({
+          lat: parseFloat(item.lat),
+          lng: parseFloat(item.lon),
+          countryCode: item.address?.country_code?.toUpperCase() ?? undefined,
+          displayName: item.display_name as string,
+        }))
+        .filter((item) => {
+          const key = `${Math.round(item.lat * 10)}:${Math.round(item.lng * 10)}`;
+          if (seenCoords.has(key)) return false;
+          seenCoords.add(key);
+          return true;
+        })
+        .slice(0, 5);
     } catch {
-      return null;
+      return [];
     }
+  }, []);
+
+  const handleManualCitySelect = useCallback(async (result: { lat: number; lng: number; countryCode?: string; displayName: string }) => {
+    // Fetch the IANA timezone for the selected coordinates so prayer times
+    // are displayed in the city's local time, not the device's timezone.
+    let timezone: string | undefined;
+    try {
+      const tzResp = await fetch(
+        `https://timeapi.io/api/TimeZone/coordinate?latitude=${result.lat}&longitude=${result.lng}`,
+        { headers: { 'Accept': 'application/json' } }
+      );
+      if (tzResp.ok) {
+        const tzData = await tzResp.json();
+        timezone = typeof tzData.timeZone === 'string' ? tzData.timeZone : undefined;
+      }
+    } catch { /* ignore — falls back to device timezone */ }
+
+    const coords = { lat: result.lat, lng: result.lng, countryCode: result.countryCode, timezone };
+    setManualCoords(coords);
+    setManualCity(result.displayName);
+    await Promise.all([
+      AsyncStorage.setItem(MANUAL_CITY_KEY, result.displayName),
+      AsyncStorage.setItem(MANUAL_COORDS_KEY, JSON.stringify(coords)),
+    ]);
+  }, []);
+
+  const handleClearManualCity = useCallback(async () => {
+    setManualCity('');
+    setManualCoords(undefined);
+    await Promise.all([
+      AsyncStorage.removeItem(MANUAL_CITY_KEY),
+      AsyncStorage.removeItem(MANUAL_COORDS_KEY),
+    ]);
   }, []);
 
   const prayerConfig = useMemo<PrayerTimesConfig>(() => ({
@@ -2788,13 +2557,12 @@ function AppInner() {
   }, []);
 
   // Streak freeze inventory
-  const [freezeInventory, setFreezeInventory] = useState<{ single: number; all: number }>({ single: 0, all: 0 });
+  const [freezeCount, setFreezeCount] = useState(0);
   // Tile interaction modals
   const [skipTileTarget, setSkipTileTarget] = useState<{ row: number; col: number } | null>(null);
   const [plantTarget, setPlantTarget] = useState<{ row: number; col: number } | null>(null);
   const [choppingTrees, setChoppingTrees] = useState<Set<string>>(new Set());
   const [removeTreeTarget, setRemoveTreeTarget] = useState<{ row: number; col: number } | null>(null);
-  const tooltipFade = useRef(new Animated.Value(0)).current;
   
   // Modal animations
   const plantModalScale = useRef(new Animated.Value(0.85)).current;
@@ -2804,7 +2572,8 @@ function AppInner() {
   
   const premium = usePremium();
   const consistency = useConsistencyMultiplier();
-  const difficultDay = useDifficultDay(premium.isPremium);
+  // Set to true when auto-consume fires so the consistency useEffect skips the reset
+  const allFreezeUsedTodayRef = useRef(false);
   // XP multiplier from consistency
   const combinedXpMultiplier = consistency.multiplier;
 
@@ -2817,7 +2586,6 @@ function AppInner() {
   const prayerState = usePrayerState(
     premium.limits.coinMultiplier,
     combinedXpMultiplier,
-    difficultDay.isActive,
     boosts.xpMultiplier,
     boosts.coinBonus,
     prayerConfig,
@@ -2899,13 +2667,14 @@ function AppInner() {
     }
   }, [gardenState.pendingTransitions]);
 
-  // Show paywall when garden hits free user's grid limit
+  // Show paywall when garden hits free user's grid limit — wait for loading screen to finish
   useEffect(() => {
+    if (!appFullyReady) return;
     if (gardenState.gridLimitReached && !premium.isPremium) {
       setPaywallReason('garden_limit');
       setShowPaywall(true);
     }
-  }, [gardenState.gridLimitReached, premium.isPremium]);
+  }, [appFullyReady, gardenState.gridLimitReached, premium.isPremium]);
 
   // Consistency multiplier: record perfect day when all 5 prayers are completed
   useEffect(() => {
@@ -2917,13 +2686,13 @@ function AppInner() {
   // Consistency multiplier: reset when prayers are missed (after freeze resolution)
   useEffect(() => {
     if (!prayerState.stateLoaded) return;
-    // If there are missed prayers that weren't frozen, reset the streak
-    // This runs after freeze resolution (missedPrayers cleared = some broke)
-    if (prayerState.missedPrayers.length > 0) {
-      // Don't reset yet — wait until freeze resolution
+    if (prayerState.missedPrayers.length > 0) return; // wait until freeze resolution
+    // All-prayer freeze protects the consistency multiplier — skip reset for this render
+    if (allFreezeUsedTodayRef.current) {
+      allFreezeUsedTodayRef.current = false;
+      consistency.preservePerfectDays();
       return;
     }
-    // Check if any streak is 0 and state is loaded (meaning it was just reset)
     const anyBroken = Object.values(prayerState.streaks).some(s => s === 0);
     if (anyBroken && consistency.perfectDays > 0) {
       consistency.resetPerfectDays();
@@ -3050,7 +2819,7 @@ function AppInner() {
   // Handle opening shop from plant modal
   const handleOpenShopFromPlant = useCallback(() => {
     setPlantTarget(null);
-    setShowShopModal(true);
+    setActiveTab('shop');
   }, []);
 
   // Handle shop tree purchase
@@ -3060,22 +2829,23 @@ function AppInner() {
     return gardenState.purchaseTree(treeId, item.price);
   }, [gardenState]);
 
+  const [showFreezeProtectedBanner, setShowFreezeProtectedBanner] = useState<string | null>(null);
+  const bannerAnim = useRef(new Animated.Value(0)).current;
+  const [freezeAutoResolved, setFreezeAutoResolved] = useState(false);
+
   // Handle streak freeze purchase
-  const handlePurchaseFreeze = useCallback(async (type: 'single' | 'all', cost: number): Promise<boolean> => {
+  const handlePurchaseFreeze = useCallback(async (cost: number): Promise<boolean> => {
     if (prayerState.coins < cost) return false;
     prayerState.spendCoins(cost);
-    const updated = {
-      ...freezeInventory,
-      [type]: freezeInventory[type] + 1,
-    };
-    setFreezeInventory(updated);
+    const updated = freezeCount + 1;
+    setFreezeCount(updated);
     try {
       await AsyncStorage.setItem('@GrowPray:freezeInventory', JSON.stringify(updated));
     } catch (e) {
       console.error('Failed to save freeze inventory:', e);
     }
     return true;
-  }, [prayerState, freezeInventory]);
+  }, [prayerState, freezeCount]);
 
   // Handle IAP coin purchase (stub — replace with real RevenueCat/IAP flow before production)
   const handlePurchaseCoins = useCallback(async (packageId: string, coinAmount: number): Promise<boolean> => {
@@ -3120,7 +2890,7 @@ function AppInner() {
   }, [challengesHook, prayerState]);
 
   // Stable callbacks for modals (prevents re-renders via React.memo)
-  const closeSettingsModal = useCallback(() => setShowSettingsModal(false), []);
+  // closeSettingsModal removed
   const closeChallengesModal = useCallback(() => setShowChallengesModal(false), []);
   const openPaywallFromSettings = useCallback(() => {
     setPaywallReason('general');
@@ -3129,14 +2899,20 @@ function AppInner() {
   const noopResetProgress = useCallback(() => {}, []);
 
   // When any fullscreen modal is open, freeze the garden to free the JS thread
-  const isAnyModalOpen = showSettingsModal || showChallengesModal || showShopModal || showPaywall || showRestModal || showDifficultDayModal || showHistoryModal || activeTab !== 'garden';
+  const isAnyModalOpen = showChallengesModal || showShopModal || showPaywall || showRestModal || showHistoryModal || activeTab !== 'garden';
 
-  // Load freeze inventory from storage
+  // Load freeze inventory from storage (migrates old { single, all } format to a single count)
   useEffect(() => {
     AsyncStorage.getItem('@GrowPray:freezeInventory').then((val) => {
       if (val) {
         try {
-          setFreezeInventory(JSON.parse(val));
+          const parsed = JSON.parse(val);
+          if (typeof parsed === 'number') {
+            setFreezeCount(parsed);
+          } else if (typeof parsed === 'object' && parsed !== null) {
+            // Migrate old { single, all } format
+            setFreezeCount((parsed.single || 0) + (parsed.all || 0));
+          }
         } catch (e) {
           console.error('Failed to load freeze inventory:', e);
         }
@@ -3144,75 +2920,47 @@ function AppInner() {
     });
   }, []);
 
-  // Freeze prompt state
-  const [showFreezePrompt, setShowFreezePrompt] = useState(false);
-  const [freezePromptResolved, setFreezePromptResolved] = useState(false);
-  const [showFreezeProtectedBanner, setShowFreezeProtectedBanner] = useState<string | null>(null);
-
-  // Show freeze prompt when missed prayers detected and app is fully visible
+  // Auto-consume freeze when missed prayers detected — fires after loading screen is gone
   useEffect(() => {
-    if (!appFullyReady || !prayerState.stateLoaded || freezePromptResolved) return;
+    if (!appFullyReady || !prayerState.stateLoaded || freezeAutoResolved) return;
     if (prayerState.missedPrayers.length === 0) return;
 
-    const hasFreezes = freezeInventory.single > 0 || freezeInventory.all > 0;
-    if (hasFreezes) {
-      // Show prompt modal
-      setShowFreezePrompt(true);
-    } else {
-      // No freezes — auto-resolve (let all streaks break)
+    const protectable = prayerState.missedPrayers.filter(p => (prayerState.streaks[p] || 0) > 0);
+
+    if (protectable.length === 0) {
+      // Nothing worth protecting — resolve immediately with no freeze
       prayerState.resolveStreakFreeze([]);
-      setFreezePromptResolved(true);
+      setFreezeAutoResolved(true);
+      return;
     }
-  }, [prayerState.stateLoaded, prayerState.missedPrayers, freezeInventory, freezePromptResolved]);
 
-  // Handle using a single prayer freeze
-  const handleUseSingleFreeze = useCallback(async (prayer: string) => {
-    // Deduct from inventory
-    const updated = { ...freezeInventory, single: freezeInventory.single - 1 };
-    setFreezeInventory(updated);
-    await AsyncStorage.setItem('@GrowPray:freezeInventory', JSON.stringify(updated));
+    if (freezeCount > 0) {
+      // Consume one freeze and protect all missed prayers silently
+      allFreezeUsedTodayRef.current = true;
+      const updated = freezeCount - 1;
+      setFreezeCount(updated);
+      AsyncStorage.setItem('@GrowPray:freezeInventory', JSON.stringify(updated));
+      prayerState.resolveStreakFreeze([...prayerState.missedPrayers]);
+      setFreezeAutoResolved(true);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      setShowFreezeProtectedBanner('Your Streak Freeze protected your streaks.');
+      bannerAnim.setValue(0);
+      Animated.sequence([
+        Animated.timing(bannerAnim, { toValue: 1, duration: 380, useNativeDriver: true }),
+        Animated.delay(2800),
+        Animated.timing(bannerAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
+      ]).start(() => setShowFreezeProtectedBanner(null));
+    } else {
+      // No freezes — let streaks break silently
+      prayerState.resolveStreakFreeze([]);
+      setFreezeAutoResolved(true);
+    }
+  }, [appFullyReady, prayerState.stateLoaded, prayerState.missedPrayers, freezeCount, freezeAutoResolved]);
 
-    // Resolve — protect only this prayer
-    await prayerState.resolveStreakFreeze([prayer]);
-    setShowFreezePrompt(false);
-    setFreezePromptResolved(true);
-
-    // Show success banner
-    setShowFreezeProtectedBanner(`${prayer} streak protected!`);
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setTimeout(() => setShowFreezeProtectedBanner(null), 3000);
-  }, [freezeInventory, prayerState]);
-
-  // Handle using all-prayers freeze
-  const handleUseAllFreeze = useCallback(async () => {
-    // Deduct from inventory
-    const updated = { ...freezeInventory, all: freezeInventory.all - 1 };
-    setFreezeInventory(updated);
-    await AsyncStorage.setItem('@GrowPray:freezeInventory', JSON.stringify(updated));
-
-    // Resolve — protect all missed prayers
-    await prayerState.resolveStreakFreeze([...prayerState.missedPrayers]);
-    setShowFreezePrompt(false);
-    setFreezePromptResolved(true);
-
-    // Show success banner
-    setShowFreezeProtectedBanner('All streaks protected!');
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    setTimeout(() => setShowFreezeProtectedBanner(null), 3000);
-  }, [freezeInventory, prayerState]);
-
-  // Handle letting streaks break
-  const handleLetStreaksBreak = useCallback(async () => {
-    await prayerState.resolveStreakFreeze([]);
-    setShowFreezePrompt(false);
-    setFreezePromptResolved(true);
-  }, [prayerState]);
-
-  // Check if onboarding is needed
   useEffect(() => {
-    AsyncStorage.getItem('@JannahGarden:onboardingComplete').then(val => {
+    AsyncStorage.getItem('@GrowPray:onboardingComplete').then((val) => {
       setShowOnboarding(val !== 'true');
-    }).catch(() => setShowOnboarding(false));
+    }).catch(() => setShowOnboarding(true));
   }, []);
 
   const handleOnboardingComplete = useCallback(() => {
@@ -3236,26 +2984,6 @@ function AppInner() {
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-    // Show tooltip after preparing screen fades
-    AsyncStorage.getItem(TOOLTIP_KEY).then((val) => {
-      if (val !== 'true') {
-        setShowTooltip(true);
-        Animated.timing(tooltipFade, {
-          toValue: 1,
-          duration: 400,
-          useNativeDriver: true,
-        }).start();
-        // Auto-dismiss after 5 seconds
-        setTimeout(() => {
-          Animated.timing(tooltipFade, {
-            toValue: 0,
-            duration: 300,
-            useNativeDriver: true,
-          }).start(() => setShowTooltip(false));
-          AsyncStorage.setItem(TOOLTIP_KEY, 'true');
-        }, 5000);
-      }
-    });
   }, []);
   
   // Rest period management
@@ -3405,7 +3133,12 @@ function AppInner() {
   if (showOnboarding) {
     return (
       <>
-        <OnboardingScreen onComplete={handleOnboardingComplete} onMadhabChange={setMadhab} />
+        <OnboardingScreen
+            onComplete={handleOnboardingComplete}
+            onMadhabChange={setMadhab}
+            onPurchaseMonthly={premium.purchaseMonthly}
+            onPurchaseYearly={premium.purchaseYearly}
+          />
         <PrayerIconsPrerender />
         <LoadingOverlay
           ready={isReady}
@@ -3516,25 +3249,7 @@ function AppInner() {
         currentStreak={Math.max(...Object.values(prayerState.streaks))}
       />
       
-      {/* Settings Modal */}
-      <SettingsModal
-        visible={showSettingsModal}
-        onClose={closeSettingsModal}
-        streaks={prayerState.streaks}
-        madhab={madhab}
-        onChangeMadhab={handleSetMadhab}
-        calcMethodKey={calcMethodKey}
-        detectedMethodKey={prayerState.detectedMethodKey}
-        onChangeCalcMethod={handleSetCalcMethod}
-        manualCity={manualCity}
-        onManualCitySearch={handleManualCitySearch}
-        notificationsEnabled={notificationsEnabled}
-        onToggleNotifications={toggleNotifications}
-        isPremium={premium.isPremium}
-        onOpenPaywall={openPaywallFromSettings}
-        onRestorePurchases={premium.restorePurchases}
-        onResetProgress={noopResetProgress}
-      />
+      {/* Settings Modal removed — rendered as a full tab below */}
 
       {/* Prayer History Modal */}
       <PrayerHistoryModal
@@ -3733,6 +3448,37 @@ function AppInner() {
             maxWidth: 300,
           }}>
             <Image source={AXE_ICON} style={{ width: 64, height: 64, marginBottom: 8 }} resizeMode="contain" />
+            {/* Growth progress — shown when tree is not yet flourishing */}
+            {(() => {
+              const planted = removeTreeTarget ? gardenState.getPlantedTree(removeTreeTarget.row, removeTreeTarget.col) : null;
+              if (!planted) return null;
+              const treeXP = prayerState.xp - planted.plantedAtXP;
+              const STAGES = [
+                { label: 'Sapling', min: 0, next: 15 },
+                { label: 'Growing', min: 15, next: 75 },
+                { label: 'Grown', min: 75, next: 175 },
+                { label: 'Flourishing', min: 175, next: null },
+              ];
+              const stageIdx = [...STAGES].reverse().findIndex(s => treeXP >= s.min);
+              const current = STAGES[STAGES.length - 1 - stageIdx];
+              const progress = current.next ? Math.min((treeXP - current.min) / (current.next - current.min), 1) : 1;
+              const xpLeft = current.next ? current.next - treeXP : 0;
+              return (
+                <View style={{ width: '100%', marginBottom: 12 }}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
+                    <Text style={{ fontSize: 11, color: THEME.textSecondary, fontWeight: '600' }}>{current.label}</Text>
+                    {current.next ? (
+                      <Text style={{ fontSize: 11, color: 'rgba(232,224,214,0.4)' }}>{xpLeft} XP to {STAGES[STAGES.length - 1 - stageIdx + 1]?.label}</Text>
+                    ) : (
+                      <Text style={{ fontSize: 11, color: THEME.success }}>Fully grown</Text>
+                    )}
+                  </View>
+                  <View style={{ height: 4, backgroundColor: 'rgba(255,255,255,0.08)', borderRadius: 2 }}>
+                    <View style={{ height: 4, width: `${progress * 100}%`, backgroundColor: current.next ? THEME.accent : THEME.success, borderRadius: 2 }} />
+                  </View>
+                </View>
+              );
+            })()}
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#f87171', marginBottom: 8 }}>
               Remove Tree?
             </Text>
@@ -3953,7 +3699,7 @@ function AppInner() {
           setPaywallReason('premium_tree');
           setShowPaywall(true);
         }}
-        freezeInventory={freezeInventory}
+        freezeCount={freezeCount}
         onPurchaseFreeze={handlePurchaseFreeze}
         onPurchaseCoins={handlePurchaseCoins}
         boostInventory={boosts.inventory}
@@ -3971,59 +3717,42 @@ function AppInner() {
         onClaimReward={handleClaimChallengeReward}
       />
 
-      {/* Difficult Day Modal */}
-      <DifficultDayModal
-        visible={showDifficultDayModal}
-        onClose={() => setShowDifficultDayModal(false)}
-        onActivate={async () => {
-          const success = await difficultDay.activate();
-          if (success) {
-            setShowDifficultDayModal(false);
-          }
-        }}
-        usesRemaining={difficultDay.usesRemaining}
-        maxUses={difficultDay.maxUses}
-        isPremium={premium.isPremium}
-      />
-
-      {/* Freeze Prompt Modal */}
-      <FreezePromptModal
-        visible={showFreezePrompt}
-        missedPrayers={prayerState.missedPrayers}
-        freezeInventory={freezeInventory}
-        streaks={prayerState.streaks}
-        onUseSingleFreeze={handleUseSingleFreeze}
-        onUseAllFreeze={handleUseAllFreeze}
-        onLetBreak={handleLetStreaksBreak}
-      />
-
       {/* Streak Protected Banner */}
-      {showFreezeProtectedBanner && (
-        <View style={{
+      <Animated.View
+        pointerEvents="none"
+        style={{
           position: 'absolute',
           top: 100,
           left: 24,
           right: 24,
           zIndex: 1000,
           alignItems: 'center',
+          opacity: bannerAnim,
+          transform: [{ translateY: bannerAnim.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) }],
+        }}
+      >
+        <View style={{
+          backgroundColor: 'rgba(6, 24, 44, 0.97)',
+          borderWidth: 1,
+          borderColor: 'rgba(120, 210, 240, 0.45)',
+          paddingHorizontal: 18,
+          paddingVertical: 11,
+          borderRadius: 14,
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 10,
         }}>
-          <View style={{
-            backgroundColor: 'rgba(232, 168, 124, 0.9)',
-            paddingHorizontal: 24,
-            paddingVertical: 14,
-            borderRadius: 16,
+          <Image source={SINGLE_FREEZE_ICON} style={{ width: 18, height: 18 }} resizeMode="contain" />
+          <Text style={{
+            color: '#b8e0f5',
+            fontSize: 14,
+            fontWeight: '600',
+            letterSpacing: 0.1,
           }}>
-            <Text style={{
-              color: '#fff',
-              fontSize: 16,
-              fontWeight: '700',
-              textAlign: 'center',
-            }}>
-              {showFreezeProtectedBanner}
-            </Text>
-          </View>
+            {showFreezeProtectedBanner}
+          </Text>
         </View>
-      )}
+      </Animated.View>
 
       {/* Paywall Modal */}
       <PaywallModal
@@ -4180,6 +3909,59 @@ function AppInner() {
                 </Text>
               </TouchableOpacity>
 
+              {/* ── Freeze testing ───────────────────────────── */}
+              <TouchableOpacity
+                onPress={async () => {
+                  // Grant 3 freezes to test inventory display and auto-consume
+                  const updated = freezeCount + 3;
+                  setFreezeCount(updated);
+                  await AsyncStorage.setItem('@GrowPray:freezeInventory', JSON.stringify(updated));
+                }}
+                style={{
+                  backgroundColor: '#1a3a4a',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#4fd1c5',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: '#4fd1c5', fontSize: 14, fontWeight: '600' }}>🧊 +3 Streak Freezes</Text>
+                <Text style={{ color: '#81e6d9', fontSize: 11, marginTop: 4 }}>
+                  Current: {freezeCount} freeze{freezeCount !== 1 ? 's' : ''}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={async () => {
+                  // Simulate missed prayers + reset auto-resolve gate so the
+                  // auto-consume effect fires again on next render cycle
+                  const simMissed = ['Fajr', 'Dhuhr'];
+                  const updatedStreaks = { ...prayerState.streaks };
+                  simMissed.forEach(p => { if ((updatedStreaks[p] || 0) === 0) updatedStreaks[p] = 5; });
+                  await AsyncStorage.setItem('@GrowPray:streaks', JSON.stringify({ counts: updatedStreaks, lastDate: new Date().toDateString() }));
+                  await AsyncStorage.removeItem('@GrowPray:freezeResolvedDate');
+                  await prayerState.debugSimulateMissed(simMissed);
+                  setFreezeAutoResolved(false); // re-arms the auto-consume effect
+                  setShowDebugModal(false);
+                }}
+                style={{
+                  backgroundColor: '#1a3a4a',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#4fd1c5',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: '#4fd1c5', fontSize: 14, fontWeight: '600' }}>🧊 Test Auto-Consume</Text>
+                <Text style={{ color: '#81e6d9', fontSize: 11, marginTop: 4 }}>
+                  Fajr + Dhuhr missed — freeze consumes automatically
+                </Text>
+              </TouchableOpacity>
+
               <TouchableOpacity
                 onPress={() => setShowDebugModal(false)}
                 style={{
@@ -4225,7 +4007,7 @@ function AppInner() {
               onPurchaseTree={handlePurchaseTree}
               isPremium={premium.isPremium}
               onPremiumTap={() => { setActiveTab('garden'); setPaywallReason('premium_tree'); setShowPaywall(true); }}
-              freezeInventory={freezeInventory}
+              freezeCount={freezeCount}
               onPurchaseFreeze={handlePurchaseFreeze}
               onPurchaseCoins={handlePurchaseCoins}
               boostInventory={boosts.inventory}
@@ -4264,6 +4046,37 @@ function AppInner() {
               streaks={prayerState.streaks}
               prayerHistory={prayerState.prayerHistory}
               completedToday={prayerState.completedPrayers}
+            />
+          </SafeAreaView>
+        </FreezeWhenHidden>
+        </View>
+      )}
+      {visitedTabs.has('settings') && (
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'settings' ? 1 : 0 }} pointerEvents={activeTab === 'settings' ? 'auto' : 'none'}>
+        <FreezeWhenHidden visible={activeTab === 'settings'}>
+          <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: 'rgba(10,14,28,0.95)' }}>
+            <SettingsModal
+              asPage
+              visible={activeTab === 'settings'}
+              onClose={() => setActiveTab('garden')}
+              streaks={prayerState.streaks}
+              madhab={madhab}
+              onChangeMadhab={handleSetMadhab}
+              calcMethodKey={calcMethodKey}
+              detectedMethodKey={prayerState.detectedMethodKey}
+              onChangeCalcMethod={handleSetCalcMethod}
+              manualCity={manualCity}
+              onManualCitySearch={handleManualCitySearch}
+              onManualCitySelect={handleManualCitySelect}
+              onClearManualCity={handleClearManualCity}
+              notificationsEnabled={notificationsEnabled}
+              onToggleNotifications={toggleNotifications}
+              isPremium={premium.isPremium}
+              onOpenPaywall={openPaywallFromSettings}
+              onRestorePurchases={premium.restorePurchases}
+              onResetProgress={noopResetProgress}
+              onRest={() => setShowRestModal(true)}
+              onDebug={() => setShowDebugModal(true)}
             />
           </SafeAreaView>
         </FreezeWhenHidden>
@@ -4322,10 +4135,9 @@ function AppInner() {
             nextPrayerTime={(!isResting && prayerState.nextPrayer && prayerState.timings) ? prayerState.timings[prayerState.nextPrayer] : null}
             timeUntilNext={isResting ? 'Resting' : prayerState.timeUntilNext}
             ringProgress={isResting ? 0 : prayerState.ringProgress}
-            freezeCount={freezeInventory.single + freezeInventory.all}
-            consistencyMultiplier={consistency.multiplier}
+            freezeCount={freezeCount}
+            consistencyMultiplier={consistency.multiplier * boosts.xpMultiplier}
             onMultiplierPress={() => setShowMultiplierModal(true)}
-            difficultDayActive={difficultDay.isActive}
             activeBoostIcon={boosts.activeBoost ? BOOST_CATALOG.find(b => b.id === boosts.activeBoost!.boostId)?.icon : undefined}
             activeBoostName={boosts.activeBoost ? BOOST_CATALOG.find(b => b.id === boosts.activeBoost!.boostId)?.name : undefined}
             boostTimeRemaining={boosts.activeBoost ? (() => { const ms = boosts.timeRemainingMs; const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return h > 0 ? `${h}h ${m}m left` : `${m}m left`; })() : undefined}
@@ -4364,68 +4176,16 @@ function AppInner() {
           <BottomTabBar
             activeTab={activeTab}
             onTabChange={(tab) => {
-              if (tab === 'more') { setShowMoreMenu(true); return; }
-              setActiveTab(tab as 'garden' | 'shop' | 'challenges' | 'history');
+              setActiveTab(tab as 'garden' | 'shop' | 'challenges' | 'history' | 'settings');
             }}
             challengeClaimable={challengesHook.totalClaimable}
           />
         )}
       </SafeAreaView>
 
-      {/* More Menu popup */}
-      <MoreMenu
-        visible={showMoreMenu}
-        onClose={() => setShowMoreMenu(false)}
-        onSettings={() => setShowSettingsModal(true)}
-        onDifficultDay={() => setShowDifficultDayModal(true)}
-        onRest={() => setShowRestModal(true)}
-        onPremium={() => { setPaywallReason('settings'); setShowPaywall(true); }}
-        onDebug={() => setShowDebugModal(true)}
-        difficultDayActive={difficultDay.isActive}
-        isPremium={premium.isPremium}
-      />
 
-      {/* First-time tooltip */}
-      {showTooltip && (
-        <Animated.View
-          style={{
-            position: 'absolute',
-            bottom: 200,
-            left: 24,
-            right: 24,
-            opacity: tooltipFade,
-            alignItems: 'center',
-            zIndex: 200,
-          }}
-        >
-          <View
-            style={{
-              backgroundColor: 'rgba(16, 185, 129, 0.95)',
-              paddingHorizontal: 20,
-              paddingVertical: 14,
-              borderRadius: 14,
-            }}
-          >
-            <Text style={{ color: '#fff', fontSize: 14, fontWeight: '600', textAlign: 'center' }}>
-              👇 Tap a prayer icon when you complete it
-            </Text>
-          </View>
-          {/* Arrow pointing down */}
-          <View
-            style={{
-              width: 0,
-              height: 0,
-              borderLeftWidth: 10,
-              borderRightWidth: 10,
-              borderTopWidth: 10,
-              borderLeftColor: 'transparent',
-              borderRightColor: 'transparent',
-              borderTopColor: 'rgba(16, 185, 129, 0.95)',
-              marginTop: -1,
-            }}
-          />
-        </Animated.View>
-      )}
+
+
     </ImageBackground>
       {/* Preparing overlay — hides the garden while it loads after onboarding */}
       {showPreparing && (

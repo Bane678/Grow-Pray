@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Asset } from 'expo-asset';
 
 import { type PrayerDeadlines } from './usePrayerTimes';
 
@@ -29,6 +30,27 @@ type PrayerTimings = {
 
 const PRAYER_ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
 
+// Local prayer icon assets — used as notification image attachments on iOS
+const PRAYER_ICON_MODULES: Record<string, number> = {
+  Fajr:    require('../assets/Garden Assets/Icons/Fajr.png'),
+  Dhuhr:   require('../assets/Garden Assets/Icons/Dhuhr.png'),
+  Asr:     require('../assets/Garden Assets/Icons/Asr.png'),
+  Maghrib: require('../assets/Garden Assets/Icons/Maghrib.png'),
+  Isha:    require('../assets/Garden Assets/Icons/Isha.png'),
+};
+
+async function getPrayerIconUri(prayer: string): Promise<string | null> {
+  try {
+    const mod = PRAYER_ICON_MODULES[prayer];
+    if (mod == null) return null;
+    const asset = Asset.fromModule(mod);
+    await asset.downloadAsync();
+    return asset.localUri ?? null;
+  } catch {
+    return null;
+  }
+}
+
 // Warning before prayer deadline ends (minutes)
 const DEADLINE_WARNING_MINUTES = 10;
 
@@ -39,24 +61,24 @@ const DECAY_CRITICAL_ID = 'garden-decay-critical';
 // Prayer-specific messages
 const PRAYER_MESSAGES: Record<string, { title: string; body: string }> = {
   Fajr: {
-    title: 'Fajr has begun',
-    body: 'Rise and shine! Time for your morning prayer.',
+    title: 'Time for Fajr',
+    body: 'The early morning is a blessed time. Rise and pray.',
   },
   Dhuhr: {
-    title: 'Dhuhr has begun',
-    body: 'Time for your midday prayer.',
+    title: 'Time for Dhuhr',
+    body: 'Step away for a moment and return to what matters most.',
   },
   Asr: {
-    title: 'Asr has begun',
-    body: 'Take a break for your afternoon prayer.',
+    title: 'Time for Asr',
+    body: 'The Prophet ﷺ warned us not to neglect this prayer. Answer the call.',
   },
   Maghrib: {
-    title: 'Maghrib has begun',
-    body: 'The sun has set. Time for Maghrib prayer.',
+    title: 'Time for Maghrib',
+    body: 'The day draws to a close. Hasten to your prayer.',
   },
   Isha: {
-    title: 'Isha has begun',
-    body: 'Time for your night prayer.',
+    title: 'Time for Isha',
+    body: 'As night settles, close your day with dhikr and prayer.',
   },
 };
 
@@ -250,11 +272,6 @@ export function useNotifications(
 
       for (let i = 0; i < PRAYER_ORDER.length; i++) {
         const prayer = PRAYER_ORDER[i];
-        
-        // Skip if prayer is already completed
-        if (completed.has(prayer)) {
-          continue;
-        }
 
         const timeStr = timings[prayer];
         if (!timeStr) continue;
@@ -262,18 +279,41 @@ export function useNotifications(
         const [hours, minutes] = timeStr.split(':').map(Number);
         const prayerStartMinutes = hours * 60 + minutes;
 
+        // Schedule prayer start notification as a DAILY repeating trigger so it
+        // fires every day at this time — even if the user doesn't open the app.
+        // Fixed identifier per prayer lets us cancel & replace when timings shift.
+        const message = PRAYER_MESSAGES[prayer];
+        const iconUri = Platform.OS === 'ios' ? await getPrayerIconUri(prayer) : null;
+        await Notifications.scheduleNotificationAsync({
+          identifier: `prayer-start-${prayer}`,
+          content: {
+            title: message.title,
+            body: message.body,
+            data: { prayer, type: 'start' },
+            sound: 'default',
+            ...(iconUri && { attachments: [{ identifier: prayer, url: iconUri, type: null }] }),
+            ...(Platform.OS === 'android' && { channelId: 'prayer-reminders' }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+            hour: hours,
+            minute: minutes,
+            repeats: true,
+          },
+        });
+
+        console.log(`Scheduled daily start notification for ${prayer} at ${timeStr}`);
+
         // Use explicit deadlines if available, otherwise derive
         let prayerEndMinutes: number;
         if (dl && dl[prayer as keyof PrayerDeadlines]) {
           const dlStr = dl[prayer as keyof PrayerDeadlines];
           const [dlH, dlM] = dlStr.split(':').map(Number);
           prayerEndMinutes = dlH * 60 + dlM;
-          // Isha deadline (next Fajr) crosses midnight
           if (prayer === 'Isha' && prayerEndMinutes < prayerStartMinutes) {
             prayerEndMinutes += 24 * 60;
           }
         } else {
-          // Fallback: derive from timings
           if (prayer === 'Fajr') {
             const sunriseStr = timings['Sunrise'];
             if (sunriseStr) {
@@ -302,46 +342,22 @@ export function useNotifications(
           }
         }
 
-        // Warning time is 10 minutes before deadline
+        // Deadline warning — today only (time-sensitive, not repeating)
         const warningMinutes = prayerEndMinutes - DEADLINE_WARNING_MINUTES;
-
-        // Schedule prayer start notification (if prayer time hasn't passed)
-        if (prayerStartMinutes > currentMinutes) {
-          const triggerDate = new Date();
-          triggerDate.setHours(hours, minutes, 0, 0);
-
-          const message = PRAYER_MESSAGES[prayer];
-          
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: message.title,
-              body: message.body,
-              data: { prayer, type: 'start' },
-              sound: 'default',
-            },
-            trigger: {
-              type: Notifications.SchedulableTriggerInputTypes.DATE,
-              date: triggerDate,
-            },
-          });
-
-          console.log(`Scheduled start notification for ${prayer} at ${timeStr}`);
-        }
-
-        // Schedule deadline warning notification (10 min before deadline)
         if (warningMinutes > currentMinutes && warningMinutes < 24 * 60) {
           const warningHours = Math.floor(warningMinutes / 60);
           const warningMins = warningMinutes % 60;
-          
           const warningDate = new Date();
           warningDate.setHours(warningHours, warningMins, 0, 0);
 
           await Notifications.scheduleNotificationAsync({
+            identifier: `prayer-deadline-${prayer}`,
             content: {
               title: `${DEADLINE_WARNING_MINUTES} min left for ${prayer}`,
-              body: `Don't break your streak - complete ${prayer} now!`,
+              body: `Don't break your streak — complete ${prayer} now!`,
               data: { prayer, type: 'deadline-warning' },
               sound: 'default',
+              ...(Platform.OS === 'android' && { channelId: 'prayer-reminders' }),
             },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.DATE,
@@ -371,7 +387,7 @@ export function useNotifications(
       await Notifications.cancelAllScheduledNotificationsAsync();
     } else if (timings) {
       // Re-schedule when enabled
-      await schedulePrayerNotifications(timings, completedPrayers);
+      await schedulePrayerNotifications(timings, completedPrayers, deadlines);
     }
   };
 

@@ -1,12 +1,14 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
   Modal,
   TouchableOpacity,
+  TouchableHighlight,
   ScrollView,
   Image,
   StyleSheet,
+  Animated,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -14,7 +16,6 @@ import { BOOST_CATALOG, BoostDefinition, ActiveBoost } from '../hooks/useBoosts'
 
 // ─── Freeze icons ─────────────────────────────────────────────────────────────
 const SINGLE_FREEZE_ICON = require('../assets/Garden Assets/Icons/Streak_Freeze.png');
-const ALL_FREEZE_ICON = require('../assets/Garden Assets/Icons/5_Streak_Freeze.png');
 
 // ─── Custom pixel-art icons ───────────────────────────────────────────────────
 const ICON_COIN = require('../assets/Garden Assets/Icons/Icon_Coin.png');
@@ -267,7 +268,7 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
   },
   {
     id: 'Cedar',
-    name: 'Cedar of Jannah',
+    name: 'Ancient Cedar',
     price: 500,
     rarity: 'premium',
     tint: '#1B4332',
@@ -319,7 +320,7 @@ export const COIN_PACKAGES: CoinPackage[] = [
     name: 'Handful',
     coins: 500,
     price: '$0.99',
-    productId: 'jannah_coins_500',
+    productId: 'growpray_coins_500',
     icon: ICON_HANDFUL,
   },
   {
@@ -327,7 +328,7 @@ export const COIN_PACKAGES: CoinPackage[] = [
     name: 'Pouch',
     coins: 1500,
     price: '$2.99',
-    productId: 'jannah_coins_1500',
+    productId: 'growpray_coins_1500',
     icon: ICON_POUCH,
     bonusPercent: 1,
   },
@@ -336,7 +337,7 @@ export const COIN_PACKAGES: CoinPackage[] = [
     name: 'Chest',
     coins: 5000,
     price: '$7.99',
-    productId: 'jannah_coins_5000',
+    productId: 'growpray_coins_5000',
     icon: ICON_CHEST,
     bonusPercent: 26,
   },
@@ -345,7 +346,7 @@ export const COIN_PACKAGES: CoinPackage[] = [
     name: 'Treasury',
     coins: 12000,
     price: '$14.99',
-    productId: 'jannah_coins_12000',
+    productId: 'growpray_coins_12000',
     icon: ICON_TREASURY,
     bestValue: true,
     bonusPercent: 61,
@@ -354,7 +355,7 @@ export const COIN_PACKAGES: CoinPackage[] = [
 
 // ─── Types ──────────────────────────────────────────────────────────────────────
 
-type ShopTab = 'trees' | 'freezes' | 'coins' | 'boosts';
+type ShopTab = 'trees' | 'coins' | 'perks';
 
 interface ShopModalProps {
   visible: boolean;
@@ -365,8 +366,8 @@ interface ShopModalProps {
   isPremium?: boolean;
   onPremiumTap?: () => void;
   // Streak freezes
-  freezeInventory: { single: number; all: number };
-  onPurchaseFreeze: (type: 'single' | 'all', cost: number) => Promise<boolean>;
+  freezeCount: number;
+  onPurchaseFreeze: (cost: number) => Promise<boolean>;
   // Coin purchases (IAP)
   onPurchaseCoins?: (packageId: string, coins: number) => Promise<boolean>;
   // Boosts
@@ -410,7 +411,7 @@ export function ShopModal({
   onPurchaseTree,
   isPremium = false,
   onPremiumTap,
-  freezeInventory,
+  freezeCount,
   onPurchaseFreeze,
   onPurchaseCoins,
   boostInventory = {},
@@ -422,7 +423,7 @@ export function ShopModal({
 }: ShopModalProps) {
   const [activeTab, setActiveTab] = useState<ShopTab>('trees');
   const [purchasing, setPurchasing] = useState<string | null>(null);
-  const [purchasingFreeze, setPurchasingFreeze] = useState<'single' | 'all' | null>(null);
+  const [purchasingFreeze, setPurchasingFreeze] = useState(false);
   const [purchasingCoinPkg, setPurchasingCoinPkg] = useState<string | null>(null);
   const [coinPurchaseSuccess, setCoinPurchaseSuccess] = useState<string | null>(null);
 
@@ -456,23 +457,22 @@ export function ShopModal({
     setPurchasingCoinPkg(null);
   }, [purchasingCoinPkg, onPurchaseCoins]);
 
-  const handlePurchaseFreeze = useCallback(async (type: 'single' | 'all', cost: number) => {
+  const handlePurchaseFreeze = useCallback(async (cost: number) => {
     if (purchasingFreeze) return;
     if (coins < cost) return;
 
-    setPurchasingFreeze(type);
+    setPurchasingFreeze(true);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const success = await onPurchaseFreeze(type, cost);
+    const success = await onPurchaseFreeze(cost);
     if (success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
-    setPurchasingFreeze(null);
+    setPurchasingFreeze(false);
   }, [purchasingFreeze, coins, onPurchaseFreeze]);
 
   const [purchasingBoost, setPurchasingBoost] = useState<string | null>(null);
   const [activatingBoost, setActivatingBoost] = useState<string | null>(null);
-  const [expandedBoost, setExpandedBoost] = useState<string | null>(null);
 
   const handlePurchaseBoost = useCallback(async (boost: BoostDefinition) => {
     if (purchasingBoost || !onPurchaseBoost) return;
@@ -576,14 +576,14 @@ export function ShopModal({
               <Text style={{ color: '#fbbf24', fontSize: 11, fontWeight: '600' }}>👑 Premium</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity
+            <TouchableHighlight
               onPress={() => handlePurchase(item)}
               disabled={!canAfford || purchasing === item.id}
+              underlayColor={canAfford ? '#1aaa4e' : '#2d3748'}
+              activeOpacity={1}
               style={[
                 styles.buyButton,
-                canAfford
-                  ? { backgroundColor: '#22c55e' }
-                  : { backgroundColor: '#374151' },
+                canAfford ? { backgroundColor: '#22c55e' } : { backgroundColor: '#374151' },
                 purchasing === item.id && { opacity: 0.45 },
               ]}
             >
@@ -593,7 +593,7 @@ export function ShopModal({
                   {purchasing === item.id ? '...' : `${item.price}`}
                 </Text>
               </View>
-            </TouchableOpacity>
+            </TouchableHighlight>
           )}
         </View>
       </View>
@@ -625,13 +625,12 @@ export function ShopModal({
 
           {/* Tabs */}
           <View style={styles.tabRow}>
-            {(['trees', 'freezes', 'coins', 'boosts'] as ShopTab[]).map((tab) => {
+            {(['trees', 'coins', 'perks'] as ShopTab[]).map((tab) => {
               const isActive = activeTab === tab;
               const labels: Record<ShopTab, string> = {
                 trees: '🌳 Trees',
-                freezes: 'Freezes',
                 coins: 'Coins',
-                boosts: '⚡ Boosts',
+                perks: '⚡ Power-ups',
               };
               return (
                 <TouchableOpacity
@@ -639,12 +638,7 @@ export function ShopModal({
                   onPress={() => setActiveTab(tab)}
                   style={[styles.tab, isActive && styles.activeTab]}
                 >
-                  {tab === 'freezes' ? (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-                      <Image source={SINGLE_FREEZE_ICON} style={{ width: 14, height: 14 }} resizeMode="contain" />
-                      <Text style={[styles.tabText, isActive && styles.activeTabText]}>Freezes</Text>
-                    </View>
-                  ) : tab === 'coins' ? (
+                  {tab === 'coins' ? (
                     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
                       <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
                       <Text style={[styles.tabText, isActive && styles.activeTabText]}>Coins</Text>
@@ -679,99 +673,6 @@ export function ShopModal({
               </ScrollView>
             </View>
 
-            {/* Freezes */}
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'freezes' ? 1 : 0 }} pointerEvents={activeTab === 'freezes' ? 'box-none' : 'none'}>
-              <ScrollView style={[styles.scrollArea, { flex: 1 }]} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
-                {/* Single Prayer Freeze */}
-                <View style={[styles.freezeCard, { borderColor: 'rgba(74, 222, 128, 0.3)' }]}>
-                  <View style={styles.freezeIconContainer}>
-                    <Image source={SINGLE_FREEZE_ICON} style={{ width: 40, height: 40 }} resizeMode="contain" />
-                  </View>
-                  <View style={styles.freezeInfo}>
-                    <Text style={styles.freezeName}>Single Prayer Freeze</Text>
-                    <Text style={styles.freezeDesc}>Protect one prayer's streak when you miss it. Use when prompted after missing a prayer.</Text>
-                    {freezeInventory.single > 0 && (
-                      <Text style={styles.ownedText}>Owned: {freezeInventory.single}</Text>
-                    )}
-                  </View>
-                  <View style={styles.priceSection}>
-                    <TouchableOpacity
-                      onPress={() => handlePurchaseFreeze('single', 50)}
-                      disabled={coins < 50 || purchasingFreeze === 'single'}
-                      style={[
-                        styles.buyButton,
-                        coins >= 50
-                          ? { backgroundColor: '#22c55e' }
-                          : { backgroundColor: '#374151' },
-                      ]}
-                    >
-                      <Text style={{
-                        color: coins >= 50 ? '#fff' : '#6b7280',
-                        fontSize: 12,
-                        fontWeight: '700',
-                      }}>
-                        {purchasingFreeze === 'single' ? '...' : (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                            <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
-                            <Text style={{ color: coins >= 50 ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>50</Text>
-                          </View>
-                        )}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* All Prayers Freeze */}
-                <View style={[styles.freezeCard, { borderColor: 'rgba(168, 85, 247, 0.3)', marginTop: 12 }]}>
-                  <View style={styles.freezeIconContainer}>
-                    <Image source={ALL_FREEZE_ICON} style={{ width: 40, height: 40 }} resizeMode="contain" />
-                  </View>
-                  <View style={styles.freezeInfo}>
-                    <Text style={styles.freezeName}>All Prayers Freeze</Text>
-                    <Text style={styles.freezeDesc}>Protect all 5 prayer streaks for one day. Also keeps your perfect day streak alive! Perfect for travel or busy days.</Text>
-                    {freezeInventory.all > 0 && (
-                      <Text style={styles.ownedText}>Owned: {freezeInventory.all}</Text>
-                    )}
-                  </View>
-                  <View style={styles.priceSection}>
-                    <TouchableOpacity
-                      onPress={() => handlePurchaseFreeze('all', 150)}
-                      disabled={coins < 150 || purchasingFreeze === 'all'}
-                      style={[
-                        styles.buyButton,
-                        coins >= 150
-                          ? { backgroundColor: '#22c55e' }
-                          : { backgroundColor: '#374151' },
-                      ]}
-                    >
-                      <Text style={{
-                        color: coins >= 150 ? '#fff' : '#6b7280',
-                        fontSize: 12,
-                        fontWeight: '700',
-                      }}>
-                        {purchasingFreeze === 'all' ? '...' : (
-                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                            <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
-                            <Text style={{ color: coins >= 150 ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>150</Text>
-                          </View>
-                        )}
-                      </Text>
-                    </TouchableOpacity>
-                  </View>
-                </View>
-
-                {/* Info section */}
-                <View style={styles.freezeInfoBox}>
-                  <Text style={styles.freezeInfoTitle}>How Streak Freezes Work</Text>
-                  <Text style={styles.freezeInfoText}>
-                    • Single freezes protect individual prayers{'\n'}
-                    • All-prayer freezes protect your entire day + consistency multiplier{'\n'}
-                    • You'll be prompted to use them when you miss prayers{'\n'}
-                    • Freezes are consumed on use
-                  </Text>
-                </View>
-              </ScrollView>
-            </View>
 
             {/* Coins */}
             <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'coins' ? 1 : 0 }} pointerEvents={activeTab === 'coins' ? 'box-none' : 'none'}>
@@ -816,9 +717,11 @@ export function ShopModal({
                         </View>
                       </View>
 
-                      <TouchableOpacity
+                      <TouchableHighlight
                         onPress={() => handlePurchaseCoinPackage(pkg)}
                         disabled={isProcessing}
+                        underlayColor='rgba(255,255,255,0.08)'
+                        activeOpacity={1}
                         style={[
                           styles.coinBuyButton,
                           justPurchased && { backgroundColor: '#22c55e' },
@@ -827,7 +730,7 @@ export function ShopModal({
                         <Text style={styles.coinBuyText}>
                           {isProcessing ? '...' : justPurchased ? '✓ Added!' : pkg.price}
                         </Text>
-                      </TouchableOpacity>
+                      </TouchableHighlight>
                     </View>
                   );
                 })}
@@ -845,8 +748,8 @@ export function ShopModal({
               </ScrollView>
             </View>
 
-            {/* Boosts */}
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'boosts' ? 1 : 0 }} pointerEvents={activeTab === 'boosts' ? 'box-none' : 'none'}>
+            {/* Perks */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'perks' ? 1 : 0 }} pointerEvents={activeTab === 'perks' ? 'box-none' : 'none'}>
               <ScrollView style={[styles.scrollArea, { flex: 1 }]} contentContainerStyle={{ paddingBottom: 16 }} showsVerticalScrollIndicator={false}>
                 {/* Active boost banner */}
                 {activeBoost && boostTimeRemainingMs > 0 && (() => {
@@ -869,6 +772,52 @@ export function ShopModal({
                   );
                 })()}
 
+                <Text style={styles.sectionTitle}>🛡️ Streak Freeze</Text>
+                <Text style={{ color: '#9ca3af', fontSize: 12, marginBottom: 10, lineHeight: 16 }}>
+                  A safety net for missed days — consumed automatically if you miss prayers.
+                </Text>
+
+                <View>
+                  <View style={[styles.freezeCard, { borderColor: 'rgba(99, 179, 237, 0.3)', overflow: 'hidden' }]}>
+                    <View style={styles.freezeIconContainer}>
+                      <Image source={SINGLE_FREEZE_ICON} style={{ width: 40, height: 40 }} resizeMode="contain" />
+                    </View>
+                    <View style={styles.freezeInfo}>
+                      <Text style={styles.freezeName}>Streak Freeze</Text>
+                      <Text style={styles.freezeDesc}>If you miss prayers, one freeze activates automatically and protects all your streaks for that day.</Text>
+                      {freezeCount > 0 && (
+                        <Text style={styles.ownedText}>Owned: {freezeCount}</Text>
+                      )}
+                    </View>
+                    <View style={styles.priceSection}>
+                      <TouchableHighlight
+                        onPress={() => handlePurchaseFreeze(100)}
+                        disabled={coins < 100 || purchasingFreeze}
+                        underlayColor={coins >= 100 ? '#1aaa4e' : '#2d3748'}
+                        activeOpacity={1}
+                        style={[
+                          styles.buyButton,
+                          coins >= 100 ? { backgroundColor: '#22c55e' } : { backgroundColor: '#374151' },
+                        ]}
+                      >
+                        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                          <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
+                          <Text style={{ color: coins >= 100 ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>
+                            {purchasingFreeze ? '...' : '100'}
+                          </Text>
+                        </View>
+                      </TouchableHighlight>
+                    </View>
+                  </View>
+                </View>
+
+                <View style={{ height: 1, backgroundColor: 'rgba(255,255,255,0.06)', marginVertical: 16 }} />
+
+                <Text style={styles.sectionTitle}>⚡ Boosts</Text>
+                <Text style={{ color: '#9ca3af', fontSize: 12, marginBottom: 10, lineHeight: 16 }}>
+                  Temporary XP & coin multipliers. Activate before prayer for maximum effect.
+                </Text>
+
                 {BOOST_CATALOG.map((boost) => {
                   const owned = boostInventory[boost.id] || 0;
                   const canAfford = coins >= boost.price;
@@ -878,7 +827,7 @@ export function ShopModal({
                   const tierBg = boost.tier === 'divine' ? 'rgba(251,191,36,0.08)' : boost.tier === 'enhanced' ? 'rgba(168,85,247,0.08)' : 'rgba(74,222,128,0.08)';
 
                   return (
-                    <TouchableOpacity key={boost.id} activeOpacity={boost.tier !== 'basic' ? 0.85 : 1} onPress={() => { if (boost.tier !== 'basic') setExpandedBoost(expandedBoost === boost.id ? null : boost.id); }} style={[styles.boostCard, { borderColor: tierColor + '30', backgroundColor: tierBg }]}>
+                    <View key={boost.id} style={[styles.boostCard, { borderColor: tierColor + '30', backgroundColor: tierBg }]}>
                       <View style={[styles.boostIconContainer, { backgroundColor: tierColor + '18' }]}>
                         <Text style={{ fontSize: 28 }}>{boost.icon}</Text>
                       </View>
@@ -889,10 +838,7 @@ export function ShopModal({
                             <Text style={{ color: tierColor, fontSize: 9, fontWeight: '700' }}>{boost.durationHours}h</Text>
                           </View>
                         </View>
-                        <Text style={styles.boostDesc} numberOfLines={boost.tier !== 'basic' && expandedBoost !== boost.id ? 2 : undefined}>{boost.description}</Text>
-                        {boost.tier !== 'basic' && expandedBoost !== boost.id && (
-                          <Text style={{ color: tierColor + 'aa', fontSize: 10, marginTop: 2 }}>tap to read more</Text>
-                        )}
+                        <Text style={styles.boostDesc}>{boost.description}</Text>
                         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                           <Text style={{ color: '#e8a87c', fontSize: 11, fontWeight: '600' }}>+{Math.round(boost.xpBonus * 100)}% XP</Text>
                           {boost.coinBonus > 0 && (
@@ -908,24 +854,24 @@ export function ShopModal({
                       </View>
                       <View style={{ alignItems: 'center', marginLeft: 8, gap: 6 }}>
                         {/* Buy button */}
-                        <TouchableOpacity
+                        <TouchableHighlight
                           onPress={() => handlePurchaseBoost(boost)}
                           disabled={!canAfford || purchasingBoost === boost.id}
+                          underlayColor={canAfford ? '#1aaa4e' : '#2d3748'}
+                          activeOpacity={1}
                           style={[
                             styles.buyButton,
                             canAfford ? { backgroundColor: '#22c55e' } : { backgroundColor: '#374151' },
                             purchasingBoost === boost.id && { opacity: 0.45 },
                           ]}
                         >
-                          {purchasingBoost === boost.id ? (
-                            <Text style={{ color: canAfford ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>...</Text>
-                          ) : (
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
-                              <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
-                              <Text style={{ color: canAfford ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>{boost.price}</Text>
-                            </View>
-                          )}
-                        </TouchableOpacity>
+                          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                            <Image source={ICON_COIN} style={{ width: 12, height: 12 }} resizeMode="contain" />
+                            <Text style={{ color: canAfford ? '#fff' : '#6b7280', fontSize: 12, fontWeight: '700' }}>
+                              {purchasingBoost === boost.id ? '...' : `${boost.price}`}
+                            </Text>
+                          </View>
+                        </TouchableHighlight>
                         {/* Activate button (if owned and no other boost active) */}
                         {owned > 0 && !isActive && (
                           <TouchableOpacity
@@ -948,21 +894,10 @@ export function ShopModal({
                           </View>
                         )}
                       </View>
-                    </TouchableOpacity>
+                    </View>
                   );
                 })}
 
-                {/* Info section */}
-                <View style={[styles.freezeInfoBox, { marginTop: 12 }]}>
-                  <Text style={styles.freezeInfoTitle}>How Boosts Work</Text>
-                  <Text style={styles.freezeInfoText}>
-                    • Buy boosts and store them for later use{'\n'}
-                    • Activate a boost to gain bonus XP and coins{'\n'}
-                    • Only one boost can be active at a time{'\n'}
-                    • Boosts stack with your consistency multiplier{'\n'}
-                    • Activate before prayer for maximum benefit
-                  </Text>
-                </View>
               </ScrollView>
             </View>
 

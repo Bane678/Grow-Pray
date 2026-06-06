@@ -1343,7 +1343,7 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
                 }} />
             </Animated.View>
 
-            {/* "+5" reward text floats up */}
+            {/* "+5 🪙" reward floats up */}
             <Animated.View style={{
                 position: 'absolute',
                 top: SCALED_DEAD_TREE_HEIGHT * 0.25,
@@ -1353,14 +1353,21 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
                 opacity: rewardOpacity,
                 transform: [{ translateY: rewardTranslateY }],
             }}>
-                <Text style={{
-                    color: '#fbbf24',
-                    fontWeight: 'bold',
-                    fontSize: 16,
-                    textShadowColor: 'rgba(0,0,0,0.7)',
-                    textShadowOffset: { width: 0, height: 1 },
-                    textShadowRadius: 3,
-                }}>+5</Text>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3 }}>
+                    <Text style={{
+                        color: '#fbbf24',
+                        fontWeight: 'bold',
+                        fontSize: 16,
+                        textShadowColor: 'rgba(0,0,0,0.7)',
+                        textShadowOffset: { width: 0, height: 1 },
+                        textShadowRadius: 3,
+                    }}>+5</Text>
+                    <Image
+                        source={require('../assets/Garden Assets/Icons/Icon_Coin.png')}
+                        style={{ width: 16, height: 16 }}
+                        resizeMode="contain"
+                    />
+                </View>
             </Animated.View>
         </>
     );
@@ -1597,24 +1604,46 @@ function IsometricGrid({
 
     // ─── Grid-level tap handler with isometric diamond hit-testing ────────────
     const handleGridTap = useCallback((x: number, y: number) => {
+        // ── Priority: dead-tree sprite bounding-box check ──────────────────────
+        // Dead trees are much taller than their tile's diamond (trunk extends well
+        // above the tile). screenToTile maps taps on the trunk to the wrong tile,
+        // causing the white flash but no removal. We check the visual sprite bounds
+        // first so ANY tap on the tree (trunk, branches, base) triggers the press.
+        for (const dt of visibleDeadTrees) {
+            const dtState = getTileState(dt.row, dt.col);
+            if (dtState !== 'recovering' && dtState !== 'recovered') continue;
+            if (choppingTrees.has(`${dt.row},${dt.col}`)) continue;
+
+            const dtLocalRow = dt.row - startRow;
+            const dtLocalCol = dt.col - startCol;
+            const [dtRRow, dtRCol] = rotateLocal(dtLocalRow, dtLocalCol, rotation, maxLocal);
+            const dtScreenX = (dtRCol - dtRRow) * STEP_X + centerOffsetX;
+            const dtScreenY = (dtRCol + dtRRow) * STEP_Y;
+            const dtPosX = dtScreenX + (SCALED_WIDTH / 2) - (SCALED_DEAD_TREE_WIDTH / 2);
+            const dtPosY = dtScreenY + (SCALED_HEIGHT / 2) - (SCALED_DEAD_TREE_HEIGHT * 0.75);
+
+            if (x >= dtPosX && x <= dtPosX + SCALED_DEAD_TREE_WIDTH &&
+                y >= dtPosY && y <= dtPosY + SCALED_DEAD_TREE_HEIGHT) {
+                if (dtState === 'recovered') showTapHighlight(dt.row, dt.col);
+                onDeadTreePress?.(dt.row, dt.col);
+                return;
+            }
+        }
+
+        // ── Normal isometric diamond hit test ───────────────────────────────────
         const hit = screenToTile(x, y, gridSize, rotation, startRow, startCol);
         if (!hit) return;
         const { row, col } = hit;
         const state = getTileState(row, col);
 
-        // Show tap highlight on recovered tiles only
         if (state === 'recovered') {
             showTapHighlight(row, col);
         }
 
-        const hasDeadTree = deadTreeSet.has(`${row},${col}`);
         const isBeingChopped = choppingTrees.has(`${row},${col}`);
-
         if (isBeingChopped) return;
 
-        if (hasDeadTree && (state === 'recovering' || state === 'recovered') && onDeadTreePress) {
-            onDeadTreePress(row, col);
-        } else if (state === 'recovering' && onTilePress) {
+        if (state === 'recovering' && onTilePress) {
             onTilePress(row, col, state);
         } else if (state === 'recovered') {
             if (row === maxCenter && col === maxCenter) return;
@@ -1628,7 +1657,8 @@ function IsometricGrid({
                 }
             }
         }
-    }, [gridSize, rotation, startRow, startCol, getTileState, deadTreeSet, choppingTrees,
+    }, [gridSize, rotation, startRow, startCol, maxLocal, centerOffsetX,
+        getTileState, visibleDeadTrees, choppingTrees,
         onDeadTreePress, onTilePress, onPlantPress, onPlantedTreePress, getPlantedTree, xp, showTapHighlight]);
 
     // TapGestureHandler state change — fires with coordinates relative to the grid container

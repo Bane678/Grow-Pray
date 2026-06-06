@@ -9,17 +9,20 @@
       "distribution": "internal",
       "ios": {
         "simulator": true
-      }
+      },
+      "channel": "development"
     },
     "development-device": {
       "developmentClient": true,
-      "distribution": "internal"
+      "distribution": "internal",
+      "channel": "development-device"
     },
     "preview": {
       "distribution": "internal",
       "ios": {
         "simulator": false
-      }
+      },
+      "channel": "preview"
     },
     "production": {
       "autoIncrement": true,
@@ -29,15 +32,16 @@
       "android": {
         "image": "latest",
         "buildType": "app-bundle"
-      }
+      },
+      "channel": "production"
     }
   },
   "submit": {
     "production": {
       "ios": {
-        "appleId": "YOUR_APPLE_ID",
-        "ascAppId": "YOUR_ASC_APP_ID",
-        "appleTeamId": "YOUR_TEAM_ID"
+        "appleId": "sayeedali224@gmail.com",
+        "ascAppId": "6762623534",
+        "appleTeamId": "NZ8X3B789X"
       },
       "android": {
         "serviceAccountKeyPath": "./google-services.json",

@@ -40,13 +40,19 @@ interface SettingsModalProps {
   detectedMethodKey: PrayerMethodKey;
   onChangeCalcMethod: (key: PrayerMethodKey | null) => void;
   manualCity: string;
-  onManualCitySearch: (city: string) => Promise<{ lat: number; lng: number; countryCode?: string; displayName: string } | null>;
+  onManualCitySearch: (city: string) => Promise<{ lat: number; lng: number; countryCode?: string; displayName: string }[]>;
+  onManualCitySelect: (result: { lat: number; lng: number; countryCode?: string; displayName: string }) => void;
+  onClearManualCity: () => void;
   notificationsEnabled: boolean;
   onToggleNotifications: (enabled: boolean) => void;
   isPremium: boolean;
   onOpenPaywall: () => void;
   onRestorePurchases: () => Promise<boolean>;
   onResetProgress: () => void;
+  // Page mode (used when rendered as a full tab instead of a modal)
+  asPage?: boolean;
+  onRest?: () => void;
+  onDebug?: () => void;
 }
 
 const ALL_STORAGE_KEYS = [
@@ -72,9 +78,9 @@ const ALL_STORAGE_KEYS = [
 ];
 
 const APP_VERSION = '1.0.0';
-const SUPPORT_EMAIL = 'support@jannahgarden.app';
-const PRIVACY_URL = 'https://jannahgarden.app/privacy';
-const TERMS_URL = 'https://jannahgarden.app/terms';
+const SUPPORT_EMAIL = 'sayeedali224@gmail.com';
+const PRIVACY_URL = 'https://bane678.github.io/grow-pray-site/privacy.html';
+const TERMS_URL = 'https://bane678.github.io/grow-pray-site/support.html';
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -89,18 +95,23 @@ export const SettingsModal = memo(function SettingsModal({
   onChangeCalcMethod,
   manualCity,
   onManualCitySearch,
+  onManualCitySelect,
+  onClearManualCity,
   notificationsEnabled,
   onToggleNotifications,
   isPremium,
   onOpenPaywall,
   onRestorePurchases,
   onResetProgress,
+  asPage,
+  onRest,
+  onDebug,
 }: SettingsModalProps) {
   const [restoringPurchases, setRestoringPurchases] = useState(false);
-  const [showAdvanced, setShowAdvanced] = useState(calcMethodKey !== null);
   const [cityInput, setCityInput] = useState(manualCity);
   const [citySearching, setCitySearching] = useState(false);
   const [cityStatus, setCityStatus] = useState<'idle' | 'found' | 'notfound'>('idle');
+  const [cityResults, setCityResults] = useState<{ lat: number; lng: number; countryCode?: string; displayName: string }[]>([]);
 
   const handleRestorePurchases = useCallback(async () => {
     setRestoringPurchases(true);
@@ -152,20 +163,276 @@ export const SettingsModal = memo(function SettingsModal({
     if (!trimmed) return;
     setCitySearching(true);
     setCityStatus('idle');
-    const result = await onManualCitySearch(trimmed);
+    setCityResults([]);
+    const results = await onManualCitySearch(trimmed);
     setCitySearching(false);
-    setCityStatus(result ? 'found' : 'notfound');
+    if (results.length > 0) {
+      setCityResults(results);
+      setCityStatus('found');
+    } else {
+      setCityStatus('notfound');
+    }
   }, [cityInput, onManualCitySearch]);
+
+  const handleCitySelect = useCallback((result: { lat: number; lng: number; countryCode?: string; displayName: string }) => {
+    Haptics.selectionAsync();
+    onManualCitySelect(result);
+    setCityInput(result.displayName);
+    setCityResults([]);
+    setCityStatus('idle');
+  }, [onManualCitySelect]);
 
   const handleOpenLink = useCallback((url: string) => {
     Linking.openURL(url);
   }, []);
 
+  const innerContent = (
+    <ScrollView
+      style={s.scroll}
+      contentContainerStyle={s.scrollInner}
+      showsVerticalScrollIndicator={false}
+      bounces
+    >
+      {asPage && <Text style={s.pageTitle}>Settings</Text>}
+
+      {/* ── PREMIUM BANNER ────────────────────────────────── */}
+      {isPremium ? (
+        <View style={s.premiumActiveBannerRow}>
+          <MaterialCommunityIcons name="check-decagram" size={20} color="#fbbf24" />
+          <View style={{ marginLeft: 10, flex: 1 }}>
+            <Text style={s.premiumActiveTxt}>Premium Active</Text>
+            <Text style={s.rowHint}>All features unlocked</Text>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={s.premiumBannerBtn}
+          onPress={() => {
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+            if (asPage) onClose();
+            setTimeout(onOpenPaywall, asPage ? 300 : 0);
+          }}
+          activeOpacity={0.85}
+        >
+          <View style={{ flex: 1 }}>
+            <Text style={s.premiumBannerTitle}>👑 Unlock Premium</Text>
+            <Text style={s.premiumBannerSub}>Exclusive trees · remove limits</Text>
+          </View>
+          <View style={s.premiumBannerPill}>
+            <Text style={s.premiumBannerPillText}>$6.99/mo</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+
+      {/* ── PRAYER TIMES ──────────────────────────────────── */}
+      <SectionLabel label="PRAYER TIMES" />
+      <Text style={s.sectionIntro}>
+        Prayer times are calculated automatically using the correct method for your region. Just let us know where you are.
+      </Text>
+
+      <View style={s.groupCard}>
+        {/* Location — always visible */}
+        <View style={s.calcDescRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <MaterialCommunityIcons
+              name={manualCity.length > 0 ? 'map-marker' : 'crosshairs-gps'}
+              size={16}
+              color={manualCity.length > 0 ? ACCENT : '#4ade80'}
+              style={{ marginRight: 6 }}
+            />
+            <Text style={s.calcDescTitle}>Your Location</Text>
+            {manualCity.length === 0 && (
+              <View style={[s.recommendedBadge, { backgroundColor: 'rgba(74,222,128,0.1)', borderColor: 'rgba(74,222,128,0.25)' }]}>
+                <Text style={[s.recommendedBadgeText, { color: '#4ade80' }]}>GPS</Text>
+              </View>
+            )}
+          </View>
+          <Text style={[s.calcDescBody, { marginBottom: 12 }]}>
+            {manualCity.length > 0
+              ? `Using ${manualCity} for prayer times. Search below to change city, or switch back to GPS.`
+              : "Using your device's GPS. If GPS isn't available, or you'd prefer not to share it, search for your city below."}
+          </Text>
+
+          {/* City search input */}
+          <View style={s.cityInputRow}>
+            <TextInput
+              value={cityInput}
+              onChangeText={(t) => { setCityInput(t); setCityStatus('idle'); }}
+              placeholder="Search city e.g. Karachi, Cairo, London"
+              placeholderTextColor="#4b5563"
+              returnKeyType="search"
+              onSubmitEditing={handleCitySearch}
+              style={[s.cityInput, cityStatus === 'found' && s.cityInputFound, cityStatus === 'notfound' && s.cityInputError]}
+            />
+            <TouchableOpacity
+              onPress={handleCitySearch}
+              disabled={citySearching || cityInput.trim().length === 0}
+              style={[s.citySetBtn, cityInput.trim().length === 0 && { opacity: 0.4 }]}
+            >
+              {citySearching
+                ? <ActivityIndicator size="small" color="#0f1526" />
+                : <MaterialCommunityIcons name="magnify" size={18} color="#0f1526" />}
+            </TouchableOpacity>
+          </View>
+
+          {cityStatus === 'notfound' && (
+            <Text style={s.cityError}>City not found. Try a nearby major city.</Text>
+          )}
+          {cityResults.length > 0 && (
+            <View style={{ marginTop: 8 }}>
+              {cityResults.map((r, i) => (
+                <TouchableOpacity
+                  key={i}
+                  onPress={() => handleCitySelect(r)}
+                  style={{ paddingVertical: 10, paddingHorizontal: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, marginBottom: 4, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)' }}
+                >
+                  <Text style={{ color: '#e5e7eb', fontSize: 13 }} numberOfLines={2}>{r.displayName}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
+
+          {/* GPS restore button — only shown when a city is manually set */}
+          {manualCity.length > 0 && (
+            <TouchableOpacity
+              onPress={() => { Haptics.selectionAsync(); setCityInput(''); setCityStatus('idle'); onClearManualCity(); }}
+              style={[s.clearLocationBtn, { marginTop: 10 }]}
+            >
+              <MaterialCommunityIcons name="crosshairs-gps" size={14} color="#4ade80" />
+              <Text style={{ color: '#4ade80', fontSize: 12, fontWeight: '600', marginLeft: 5 }}>Use GPS instead</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        <View style={s.groupDivider} />
+
+        {/* Asr calculation */}
+        <View style={s.calcDescRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
+            <MaterialCommunityIcons name="weather-sunny" size={16} color="#fbbf24" style={{ marginRight: 6 }} />
+            <Text style={s.calcDescTitle}>Asr Calculation</Text>
+          </View>
+          <Text style={[s.calcDescBody, { marginBottom: 12 }]}>
+            Two scholarly opinions on when Asr begins. Hanafi uses a slightly later time than the standard Shafi'i, Maliki and Hanbali method.
+          </Text>
+          <View style={s.segmentRow}>
+            <TouchableOpacity onPress={() => { Haptics.selectionAsync(); onChangeMadhab('standard'); }} style={[s.segmentBtn, madhab === 'standard' && s.segmentActive]}>
+              <Text style={[s.segmentText, madhab === 'standard' && s.segmentTextActive]}>Standard</Text>
+              <Text style={[s.segmentSubText, madhab === 'standard' && s.segmentSubTextActive]}>Shafi'i · Maliki · Hanbali</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { Haptics.selectionAsync(); onChangeMadhab('hanafi'); }} style={[s.segmentBtn, madhab === 'hanafi' && s.segmentActive]}>
+              <Text style={[s.segmentText, madhab === 'hanafi' && s.segmentTextActive]}>Hanafi</Text>
+              <Text style={[s.segmentSubText, madhab === 'hanafi' && s.segmentSubTextActive]}>Later Asr time</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+
+      {/* ── NOTIFICATIONS ─────────────────────────────────── */}
+      <SectionLabel label="NOTIFICATIONS" />
+      <View style={s.groupCard}>
+        <View style={s.settingsRow}>
+          <View style={[s.rowIconBg, { backgroundColor: 'rgba(168,85,247,0.1)' }]}>
+            <MaterialCommunityIcons name="bell-outline" size={18} color="#a855f7" />
+          </View>
+          <View style={s.rowBody}>
+            <Text style={s.rowLabel}>Prayer Reminders</Text>
+            <Text style={s.rowHint}>Alert when each prayer time begins</Text>
+          </View>
+          <Switch
+            value={notificationsEnabled}
+            onValueChange={(val) => { Haptics.selectionAsync(); onToggleNotifications(val); }}
+            trackColor={{ false: '#374151', true: 'rgba(168,85,247,0.5)' }}
+            thumbColor={notificationsEnabled ? '#a855f7' : '#6b7280'}
+          />
+        </View>
+      </View>
+
+      {/* ── TOOLS (page only) ─────────────────────────────── */}
+      {asPage && onRest && (
+        <>
+          <SectionLabel label="TOOLS" />
+          <View style={s.groupCard}>
+            <TouchableOpacity style={s.settingsRow} onPress={onRest} activeOpacity={0.7}>
+              <View style={[s.rowIconBg, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
+                <MaterialCommunityIcons name="moon-waning-crescent" size={18} color="#10b981" />
+              </View>
+              <View style={s.rowBody}>
+                <Text style={s.rowLabel}>Rest Period</Text>
+                <Text style={s.rowHint}>Pause garden decay temporarily</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={20} color="#374151" />
+            </TouchableOpacity>
+          </View>
+        </>
+      )}
+
+      {/* ── ACCOUNT ───────────────────────────────────────── */}
+      <SectionLabel label="ACCOUNT" />
+      <View style={s.groupCard}>
+        <TouchableOpacity style={s.settingsRow} onPress={handleRestorePurchases} disabled={restoringPurchases} activeOpacity={0.7}>
+          <View style={[s.rowIconBg, { backgroundColor: 'rgba(96,165,250,0.1)' }]}>
+            <MaterialCommunityIcons name="restore" size={18} color="#60a5fa" />
+          </View>
+          <View style={s.rowBody}>
+            <Text style={s.rowLabel}>Restore Purchases</Text>
+            <Text style={s.rowHint}>Recover a previous premium subscription</Text>
+          </View>
+          {restoringPurchases
+            ? <ActivityIndicator size="small" color="#60a5fa" />
+            : <MaterialCommunityIcons name="chevron-right" size={20} color="#374151" />}
+        </TouchableOpacity>
+      </View>
+
+      {/* ── SUPPORT ───────────────────────────────────────── */}
+      <SectionLabel label="SUPPORT" />
+      <View style={s.groupCard}>
+        <PageLinkRow icon="shield-lock-outline" label="Privacy Policy" onPress={() => handleOpenLink(PRIVACY_URL)} />
+        <View style={s.groupDivider} />
+        <PageLinkRow icon="file-document-outline" label="Terms of Service" onPress={() => handleOpenLink(TERMS_URL)} />
+        <View style={s.groupDivider} />
+        <PageLinkRow icon="email-outline" label="Contact Support" onPress={handleContact} />
+        <View style={s.groupDivider} />
+        <View style={s.settingsRow}>
+          <View style={[s.rowIconBg, { backgroundColor: 'rgba(156,163,175,0.08)' }]}>
+            <MaterialCommunityIcons name="information-outline" size={18} color="#6b7280" />
+          </View>
+          <View style={s.rowBody}>
+            <Text style={s.rowLabel}>Version</Text>
+          </View>
+          <Text style={s.versionValue}>{APP_VERSION}</Text>
+        </View>
+      </View>
+
+      {/* ── RESET ─────────────────────────────────────────── */}
+      <TouchableOpacity style={s.resetBtn} onPress={handleResetProgress} activeOpacity={0.7}>
+        <MaterialCommunityIcons name="trash-can-outline" size={16} color="#ef4444" />
+        <Text style={s.resetText}>Reset All Progress</Text>
+      </TouchableOpacity>
+
+      {/* ── DEBUG (dev only) ──────────────────────────────── */}
+      {asPage && onDebug && (
+        <TouchableOpacity
+          onPress={onDebug}
+          activeOpacity={0.7}
+          style={{ alignItems: 'center', paddingVertical: 16, marginTop: 4 }}
+        >
+          <Text style={{ color: '#374151', fontSize: 11, fontWeight: '600' }}>🐛 Developer Tools</Text>
+        </TouchableOpacity>
+      )}
+
+      <View style={{ height: 40 }} />
+    </ScrollView>
+  );
+
+  if (asPage) {
+    return <View style={{ flex: 1 }}>{innerContent}</View>;
+  }
+
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={s.overlay}>
         <View style={s.sheet}>
-          {/* Header */}
           <View style={s.header}>
             <View style={s.headerLeft}>
               <Image source={ICON_GEAR} style={s.headerIcon} resizeMode="contain" />
@@ -175,254 +442,7 @@ export const SettingsModal = memo(function SettingsModal({
               <MaterialCommunityIcons name="close" size={18} color="#9ca3af" />
             </TouchableOpacity>
           </View>
-
-          <ScrollView
-            style={s.scroll}
-            contentContainerStyle={s.scrollInner}
-            showsVerticalScrollIndicator={false}
-            bounces={true}
-          >
-            {/* ── PRAYER CALCULATION ───────────────────────────── */}
-            <SectionLabel label="Prayer Calculation" />
-
-            <View style={s.calcCard}>
-              {/* Recommended toggle header */}
-              <View style={s.calcToggleRow}>
-                <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
-                  <Text style={s.calcToggleTitle}>
-                    {showAdvanced ? 'Grow Pray Advanced' : 'Grow Pray Recommended'}
-                  </Text>
-                  {!showAdvanced && (
-                    <MaterialCommunityIcons name="check-circle" size={15} color="#10b981" style={{ marginLeft: 6 }} />
-                  )}
-                </View>
-                <Switch
-                  value={!showAdvanced}
-                  onValueChange={(val) => {
-                    Haptics.selectionAsync();
-                    setShowAdvanced(!val);
-                    if (val) onChangeCalcMethod(null);
-                  }}
-                  trackColor={{ false: 'rgba(232,168,124,0.35)', true: 'rgba(16,185,129,0.5)' }}
-                  thumbColor={!showAdvanced ? '#10b981' : '#e8a87c'}
-                />
-              </View>
-              <Text style={s.calcToggleDesc}>
-                {!showAdvanced
-                  ? 'Automatically uses the best calculation method for your region'
-                  : 'Choose a prayer calculation method manually'}
-              </Text>
-
-              <View style={s.calcDivider} />
-
-              {!showAdvanced ? (
-                /* Recommended on: show active method highlighted card */
-                <View style={s.activeMethodCard}>
-                  <View style={{ flex: 1 }}>
-                    <View style={s.autoBadge}>
-                      <Text style={s.autoBadgeText}>Auto-selected</Text>
-                    </View>
-                    <Text style={s.activeMethodName}>
-                      {PRAYER_METHODS[detectedMethodKey]?.name}
-                    </Text>
-                    <Text style={s.activeMethodAngles}>
-                      Fajr {Math.abs(PRAYER_METHODS[detectedMethodKey]?.fajrAngle)}° · Isha {Math.abs(PRAYER_METHODS[detectedMethodKey]?.ishaAngle)}°
-                    </Text>
-                  </View>
-                  <MaterialCommunityIcons name="check-circle" size={26} color="#10b981" />
-                </View>
-              ) : (
-                /* Advanced: full method list */
-                <View style={s.methodList}>
-                  {METHOD_KEYS.map((key) => (
-                    <TouchableOpacity
-                      key={key}
-                      onPress={() => { Haptics.selectionAsync(); onChangeCalcMethod(key); }}
-                      style={[s.methodItem, calcMethodKey === key && s.methodItemSelected]}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[s.methodName, calcMethodKey === key && s.methodNameSelected]}>
-                          {PRAYER_METHODS[key].name}
-                        </Text>
-                        <Text style={s.methodAngles}>
-                          Fajr {Math.abs(PRAYER_METHODS[key].fajrAngle)}° · Isha {Math.abs(PRAYER_METHODS[key].ishaAngle)}°
-                        </Text>
-                      </View>
-                      {calcMethodKey === key && <MaterialCommunityIcons name="check-circle" size={18} color={ACCENT} />}
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </View>
-
-            {/* ── ASR CALCULATION ──────────────────────────────── */}
-            <SectionLabel label="Asr Calculation" />
-            <View style={s.card}>
-              <Text style={s.sectionDesc}>
-                Determines when Asr prayer begins. Hanafi uses a later time than the standard Shafi'i/Maliki/Hanbali method.
-              </Text>
-              <View style={s.segmentRow}>
-                <TouchableOpacity
-                  onPress={() => { Haptics.selectionAsync(); onChangeMadhab('standard'); }}
-                  style={[s.segmentBtn, madhab === 'standard' && s.segmentActive]}
-                >
-                  <Text style={[s.segmentText, madhab === 'standard' && s.segmentTextActive]}>Standard</Text>
-                  <Text style={[s.segmentSubText, madhab === 'standard' && s.segmentSubTextActive]}>Shafi'i · Maliki · Hanbali</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  onPress={() => { Haptics.selectionAsync(); onChangeMadhab('hanafi'); }}
-                  style={[s.segmentBtn, madhab === 'hanafi' && s.segmentActive]}
-                >
-                  <Text style={[s.segmentText, madhab === 'hanafi' && s.segmentTextActive]}>Hanafi</Text>
-                  <Text style={[s.segmentSubText, madhab === 'hanafi' && s.segmentSubTextActive]}>Later Asr time</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* ── LOCATION ──────────────────────────────────────── */}
-            <SectionLabel label="Location" />
-
-            {/* Current location display */}
-            <View style={s.card}>
-              <View style={s.cardRow}>
-                <View style={s.cardRowLeft}>
-                  <MaterialCommunityIcons name="map-marker" size={20} color={ACCENT} />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.cardRowLabel}>Current Location</Text>
-                    <Text style={s.cardRowHint} numberOfLines={1}>
-                      {cityStatus === 'found'
-                        ? cityInput.trim()
-                        : manualCity.length > 0
-                        ? manualCity
-                        : 'Using GPS'}
-                    </Text>
-                  </View>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={18} color="#374151" />
-              </View>
-            </View>
-
-            {/* Manual city override */}
-            <View style={[s.card, { marginTop: 8 }]}>
-              <View style={s.cardRow}>
-                <View style={s.cardRowLeft}>
-                  <MaterialCommunityIcons name="crosshairs-gps" size={20} color="#9ca3af" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.cardRowLabel}>Set City Manually</Text>
-                    <Text style={s.cardRowHint}>Use when GPS access is unavailable</Text>
-                  </View>
-                </View>
-              </View>
-              <View style={s.cityInputRow}>
-                <TextInput
-                  value={cityInput}
-                  onChangeText={(t) => { setCityInput(t); setCityStatus('idle'); }}
-                  placeholder="e.g. Karachi, Cairo, New York"
-                  placeholderTextColor="#4b5563"
-                  returnKeyType="search"
-                  onSubmitEditing={handleCitySearch}
-                  style={[
-                    s.cityInput,
-                    cityStatus === 'found' && s.cityInputFound,
-                    cityStatus === 'notfound' && s.cityInputError,
-                  ]}
-                />
-                <TouchableOpacity
-                  onPress={handleCitySearch}
-                  disabled={citySearching || cityInput.trim().length === 0}
-                  style={[s.citySetBtn, cityInput.trim().length === 0 && { opacity: 0.4 }]}
-                >
-                  {citySearching
-                    ? <ActivityIndicator size="small" color="#0f1526" />
-                    : <MaterialCommunityIcons name="magnify" size={18} color="#0f1526" />}
-                </TouchableOpacity>
-              </View>
-              {cityStatus === 'found' && <Text style={s.citySuccess}>✓ Location set — prayer times updated</Text>}
-              {cityStatus === 'notfound' && <Text style={s.cityError}>City not found. Try a nearby major city.</Text>}
-            </View>
-
-            {/* ── NOTIFICATIONS ───────────────────────────────── */}
-            <SectionLabel label="Notifications" />
-            <View style={s.card}>
-              <View style={s.switchRow}>
-                <View style={s.cardRowLeft}>
-                  <MaterialCommunityIcons name="bell-outline" size={20} color="#9ca3af" />
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.cardRowLabel}>Prayer Reminders</Text>
-                    <Text style={s.cardRowHint}>Alert when each prayer time begins</Text>
-                  </View>
-                </View>
-                <Switch
-                  value={notificationsEnabled}
-                  onValueChange={(val) => { Haptics.selectionAsync(); onToggleNotifications(val); }}
-                  trackColor={{ false: '#374151', true: 'rgba(16, 185, 129, 0.5)' }}
-                  thumbColor={notificationsEnabled ? '#10b981' : '#6b7280'}
-                />
-              </View>
-            </View>
-
-            {/* ── PREMIUM ────────────────────────────────────── */}
-            <SectionLabel label="Premium" />
-            {isPremium ? (
-              <View style={s.premiumCard}>
-                <MaterialCommunityIcons name="check-decagram" size={22} color="#fbbf24" />
-                <View style={{ marginLeft: 12, flex: 1 }}>
-                  <Text style={s.premiumActiveTitle}>Premium Active</Text>
-                  <Text style={s.cardRowHint}>All features unlocked</Text>
-                </View>
-              </View>
-            ) : (
-              <TouchableOpacity
-                style={s.goPremiumBtn}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-                  onClose();
-                  setTimeout(onOpenPaywall, 300);
-                }}
-                activeOpacity={0.7}
-              >
-                <MaterialCommunityIcons name="crown" size={18} color="#000" />
-                <Text style={s.goPremiumText}>Go Premium — $6.99/month</Text>
-              </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={s.restoreBtn}
-              onPress={handleRestorePurchases}
-              disabled={restoringPurchases}
-              activeOpacity={0.7}
-            >
-              <Text style={[s.restoreText, restoringPurchases && { opacity: 0.5 }]}>
-                {restoringPurchases ? 'Restoring...' : 'Restore Purchases'}
-              </Text>
-            </TouchableOpacity>
-
-            {/* ── SUPPORT & INFO ──────────────────────────────── */}
-            <SectionLabel label="Support" />
-            <View style={s.card}>
-              <LinkRow icon="shield-lock-outline" label="Privacy Policy" onPress={() => handleOpenLink(PRIVACY_URL)} />
-              <View style={s.cardDivider} />
-              <LinkRow icon="file-document-outline" label="Terms of Service" onPress={() => handleOpenLink(TERMS_URL)} />
-              <View style={s.cardDivider} />
-              <LinkRow icon="email-outline" label="Contact Support" onPress={handleContact} />
-              <View style={s.cardDivider} />
-              <View style={s.versionRow}>
-                <Text style={s.versionLabel}>Version</Text>
-                <Text style={s.versionValue}>{APP_VERSION}</Text>
-              </View>
-            </View>
-
-            {/* ── RESET ──────────────────────────────────────── */}
-            <TouchableOpacity
-              style={s.resetBtn}
-              onPress={handleResetProgress}
-              activeOpacity={0.7}
-            >
-              <MaterialCommunityIcons name="trash-can-outline" size={16} color="#ef4444" />
-              <Text style={s.resetText}>Reset All Progress</Text>
-            </TouchableOpacity>
-
-            <View style={{ height: 30 }} />
-          </ScrollView>
+          {innerContent}
         </View>
       </View>
     </Modal>
@@ -449,6 +469,28 @@ const LinkRow = memo(function LinkRow({
       <MaterialCommunityIcons name={icon as any} size={18} color="#6b7280" />
       <Text style={s.linkRowText}>{label}</Text>
       <MaterialCommunityIcons name="chevron-right" size={16} color="#374151" />
+    </TouchableOpacity>
+  );
+});
+
+const PageLinkRow = memo(function PageLinkRow({
+  icon,
+  label,
+  onPress,
+}: {
+  icon: string;
+  label: string;
+  onPress: () => void;
+}) {
+  return (
+    <TouchableOpacity style={s.settingsRow} onPress={onPress} activeOpacity={0.7}>
+      <View style={[s.rowIconBg, { backgroundColor: 'rgba(156,163,175,0.08)' }]}>
+        <MaterialCommunityIcons name={icon as any} size={18} color="#6b7280" />
+      </View>
+      <View style={s.rowBody}>
+        <Text style={s.rowLabel}>{label}</Text>
+      </View>
+      <MaterialCommunityIcons name="chevron-right" size={20} color="#374151" />
     </TouchableOpacity>
   );
 });
@@ -507,12 +549,14 @@ const s = StyleSheet.create({
 
   // Section label
   sectionLabel: {
-    color: '#9ca3af',
-    fontSize: 13,
-    fontWeight: '600',
+    color: '#6b7280',
+    fontSize: 11,
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    letterSpacing: 0.8,
     marginTop: 22,
     marginBottom: 8,
-    marginLeft: 2,
+    marginLeft: 20,
   },
   sectionDesc: {
     color: '#6b7280',
@@ -801,5 +845,176 @@ const s = StyleSheet.create({
     color: '#ef4444',
     fontSize: 13,
     fontWeight: '600',
+  },
+
+  // ── Page-mode styles ───────────────────────────────────────────────────────
+  sectionIntro: {
+    color: '#9ca3af',
+    fontSize: 13,
+    lineHeight: 19,
+    marginHorizontal: 20,
+    marginTop: -4,
+    marginBottom: 12,
+  },
+  calcDescRow: {
+    paddingHorizontal: 14,
+    paddingTop: 14,
+    paddingBottom: 14,
+  },
+  calcDescTitle: {
+    color: '#e5e7eb',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  calcDescBody: {
+    color: '#6b7280',
+    fontSize: 13,
+    lineHeight: 19,
+  },
+  recommendedBadge: {
+    marginLeft: 8,
+    backgroundColor: 'rgba(16,185,129,0.12)',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderWidth: 1,
+    borderColor: 'rgba(16,185,129,0.25)',
+  },
+  recommendedBadgeText: {
+    color: '#10b981',
+    fontSize: 10,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
+  pageTitle: {
+    fontSize: 30,
+    fontWeight: '800',
+    color: '#f3f4f6',
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 20,
+    letterSpacing: -0.5,
+  },
+  groupCard: {
+    marginHorizontal: 16,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    overflow: 'hidden',
+  },
+  groupDivider: {
+    height: 1,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    marginHorizontal: 14,
+  },
+  settingsRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    gap: 12,
+    minHeight: 56,
+  },
+  rowIconBg: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  rowBody: {
+    flex: 1,
+    gap: 2,
+  },
+  rowLabel: {
+    color: '#e5e7eb',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  rowHint: {
+    color: '#6b7280',
+    fontSize: 12,
+    fontWeight: '400',
+  },
+  rowExpanded: {
+    paddingHorizontal: 14,
+    paddingBottom: 14,
+    paddingTop: 2,
+  },
+  clearLocationBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(239,68,68,0.08)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(239,68,68,0.2)',
+  },
+  premiumBannerBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 20,
+    backgroundColor: 'rgba(251,191,36,0.1)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.25)',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+  },
+  premiumBannerTitle: {
+    color: '#fbbf24',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  premiumBannerSub: {
+    color: 'rgba(251,191,36,0.6)',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  premiumBannerPill: {
+    backgroundColor: '#fbbf24',
+    borderRadius: 10,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+  },
+  premiumBannerPillText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  premiumActiveBannerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 16,
+    marginBottom: 20,
+    backgroundColor: 'rgba(251,191,36,0.07)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(251,191,36,0.18)',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+  },
+  premiumActiveTxt: {
+    color: '#fbbf24',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  activePill: {
+    backgroundColor: 'rgba(167,139,250,0.18)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(167,139,250,0.35)',
+  },
+  activePillText: {
+    color: '#a78bfa',
+    fontSize: 12,
+    fontWeight: '700',
   },
 });

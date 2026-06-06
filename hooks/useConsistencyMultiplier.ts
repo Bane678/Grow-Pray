@@ -56,6 +56,8 @@ export interface ConsistencyMultiplierResult {
   recordPerfectDay: () => Promise<void>;
   /** Call when a prayer is missed (resets streak) */
   resetPerfectDays: () => Promise<void>;
+  /** Call when an all-prayer freeze is used — keeps the streak date alive without incrementing count */
+  preservePerfectDays: () => Promise<void>;
   /** Debug: set perfect days to any value */
   debugSetPerfectDays: (days: number) => Promise<void>;
 }
@@ -122,6 +124,12 @@ export function useConsistencyMultiplier(): ConsistencyMultiplierResult {
   const multiplier = getMultiplierForDays(perfectDays);
   const nextTier = getNextTier(perfectDays);
 
+  const preservePerfectDays = useCallback(async () => {
+    // Update the last-perfect date to today so the consecutive-day streak stays alive,
+    // but don't increment the count — the freeze protects the streak, not earns a perfect day.
+    await AsyncStorage.setItem(LAST_PERFECT_DATE_KEY, new Date().toDateString());
+  }, []);
+
   return {
     perfectDays,
     multiplier,
@@ -129,6 +137,7 @@ export function useConsistencyMultiplier(): ConsistencyMultiplierResult {
     loaded,
     recordPerfectDay,
     resetPerfectDays,
+    preservePerfectDays,
     debugSetPerfectDays,
   };
 }

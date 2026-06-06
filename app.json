@@ -42,6 +42,13 @@
         "RECEIVE_BOOT_COMPLETED",
         "VIBRATE",
         "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION",
+        "POST_NOTIFICATIONS",
+        "RECEIVE_BOOT_COMPLETED",
+        "VIBRATE",
+        "android.permission.ACCESS_COARSE_LOCATION",
         "android.permission.ACCESS_FINE_LOCATION"
       ]
     },
@@ -68,6 +75,12 @@
       "eas": {
         "projectId": "b4abc15f-4bf1-4add-979f-122f1c51bcb7"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/b4abc15f-4bf1-4add-979f-122f1c51bcb7"
     }
   }
 }

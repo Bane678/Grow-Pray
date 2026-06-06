@@ -1,9 +1,9 @@
-# Jannah Garden — App Store Metadata
+# Grow Pray — App Store Metadata
 
 ## App Store Connect Info
 
 ### App Name
-**Jannah Garden - Prayer Tracker**
+**Grow Pray - Daily Prayer Tracker**
 
 ### Subtitle (30 chars max)
 **Grow a garden through prayer**
@@ -31,7 +31,7 @@ Build a beautiful garden by praying on time. Track all 5 daily prayers, grow rar
 
 **Full Description:**
 ```
-Jannah Garden turns your daily prayers into a living, growing garden. Every salah you complete on time plants and grows a tree in your personal garden — miss one, and it withers.
+Grow Pray turns your daily prayers into a living, growing garden. Every salah you complete on time plants and grows a tree in your personal garden — miss one, and it withers.
 
 🌿 PRAYER TRACKING MADE BEAUTIFUL
 • Track all 5 daily prayers (Fajr, Dhuhr, Asr, Maghrib, Isha)
@@ -73,7 +73,7 @@ Jannah Garden turns your daily prayers into a living, growing garden. Every sala
 
 Built with love for the Muslim community. No ads. Your data stays on your device.
 
-Start growing your Jannah Garden today. 🌿
+Start growing your garden today. 🌿
 ```
 
 ---
@@ -85,7 +85,7 @@ Start growing your Jannah Garden today. 🌿
 
 **What's New (Release Notes):**
 ```
-Welcome to Jannah Garden! 🌿
+Welcome to Grow Pray! 🌿
 
 Your first release includes:
 • Track all 5 daily prayers with accurate times
@@ -136,21 +136,21 @@ JazakAllahu Khairan for downloading. May your garden flourish! 🤲
 ## App Store Connect — Subscription Configuration
 
 ### Monthly Plan
-- **Reference Name:** Jannah Garden Premium Monthly
-- **Product ID:** com.antigravity.jannahgarden.premium.monthly
+- **Reference Name:** Grow Pray Premium Monthly
+- **Product ID:** `growpray_premium_monthly`
 - **Price:** $6.99/month
 - **Free Trial:** 7 days
 - **Description:** Unlimited garden, 2× coins, premium trees, priority support
 
 ### Yearly Plan
-- **Reference Name:** Jannah Garden Premium Yearly
-- **Product ID:** com.antigravity.jannahgarden.premium.yearly
+- **Reference Name:** Grow Pray Premium Yearly
+- **Product ID:** `growpray_premium_yearly`
 - **Price:** $44.99/year ($3.75/month — 46% savings)
 - **Free Trial:** 7 days
 - **Description:** All premium features at 46% savings. Best value!
 
 ### Subscription Group
-- **Name:** Jannah Garden Premium
+- **Name:** Grow Pray Premium
 - **Localization:** English (US)
 
 ---
@@ -159,10 +159,10 @@ JazakAllahu Khairan for downloading. May your garden flourish! 🤲
 
 | Reference Name | Product ID | Price | Coins |
 |---|---|---|---|
-| Handful of Coins | com.antigravity.jannahgarden.coins.100 | $0.99 | 100 |
-| Pouch of Coins | com.antigravity.jannahgarden.coins.500 | $3.99 | 500 |
-| Chest of Coins | com.antigravity.jannahgarden.coins.1200 | $7.99 | 1,200 |
-| Treasury | com.antigravity.jannahgarden.coins.3000 | $14.99 | 3,000 |
+| Handful of Coins | `growpray_coins_500` | $0.99 | 500 |
+| Pouch of Coins | `growpray_coins_1500` | $2.99 | 1,500 |
+| Chest of Coins | `growpray_coins_5000` | $7.99 | 5,000 |
+| Treasury | `growpray_coins_12000` | $14.99 | 12,000 |
 
 ---
 
@@ -180,7 +180,7 @@ To test:
 
 Subscription: The app offers a premium subscription ($6.99/month or $44.99/year)
 with a 7-day free trial. Premium unlocks unlimited garden size, 2× coins,
-and exclusive tree varieties.
+and exclusive tree varieties (Golden Tree and Ancient Cedar).
 
 No login required. All data is stored locally on device.
 ```
@@ -188,10 +188,10 @@ No login required. All data is stored locally on device.
 ---
 
 ## Privacy Policy URL
-`https://antigravity.studio/jannah-garden/privacy`
+`https://antigravity.studio/grow-pray/privacy`
 
 ## Support URL
-`https://antigravity.studio/jannah-garden/support`
+`https://antigravity.studio/grow-pray/support`
 
 ## Marketing URL (optional)
-`https://antigravity.studio/jannah-garden`
+`https://antigravity.studio/grow-pray`
