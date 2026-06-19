@@ -2847,21 +2847,20 @@ function AppInner() {
     return true;
   }, [prayerState, freezeCount]);
 
-  // Handle IAP coin purchase (stub — replace with real RevenueCat/IAP flow before production)
-  const handlePurchaseCoins = useCallback(async (packageId: string, coinAmount: number): Promise<boolean> => {
-    // TODO: Replace this stub with real IAP purchase flow via RevenueCat:
-    //   const product = await Purchases.getProducts([packageId]);
-    //   const { customerInfo } = await Purchases.purchaseProduct(packageId);
-    //   if (customerInfo) { ... credit coins ... }
-    // For now, simulate successful purchase and credit coins immediately
+  // Handle IAP coin purchase — routes through RevenueCat / App Store.
+  // `productId` is the App Store product identifier (e.g. growpray_coins_500);
+  // `coinAmount` is the trusted amount from COIN_PACKAGES to credit on success.
+  const handlePurchaseCoins = useCallback(async (productId: string, coinAmount: number): Promise<boolean> => {
     try {
-      await prayerState.earnCoins(coinAmount, `iap_${packageId}`);
+      const purchased = await premium.purchaseCoins(productId);
+      if (!purchased) return false; // cancelled or failed — credit nothing
+      await prayerState.earnCoins(coinAmount, `iap_${productId}`);
       return true;
     } catch (e) {
       console.error('Failed to process coin purchase:', e);
       return false;
     }
-  }, [prayerState]);
+  }, [premium, prayerState]);
 
   // ─── Challenges wrappers ──────────────────────────────────────────────────
   // Wrap prayer toggle to also track challenge progress
@@ -3764,7 +3763,8 @@ function AppInner() {
         triggerReason={paywallReason}
       />
 
-      {/* Debug Modal - Decay Testing */}
+      {/* Debug Modal - Decay Testing (dev only — never shipped in production) */}
+      {__DEV__ && (
       <Modal
         visible={showDebugModal}
         transparent
@@ -3992,6 +3992,7 @@ function AppInner() {
           </View>
         </View>
       </Modal>
+      )}
 
       {/* Tab page views — lazy mount on first visit, then keep alive + frozen when hidden */}
       {visitedTabs.has('shop') && (

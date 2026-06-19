@@ -426,6 +426,7 @@ export function ShopModal({
   const [purchasingFreeze, setPurchasingFreeze] = useState(false);
   const [purchasingCoinPkg, setPurchasingCoinPkg] = useState<string | null>(null);
   const [coinPurchaseSuccess, setCoinPurchaseSuccess] = useState<string | null>(null);
+  const [coinPurchaseError, setCoinPurchaseError] = useState<string | null>(null);
 
   const handlePurchase = useCallback(async (item: TreeCatalogItem) => {
     if (purchasing) return;
@@ -446,13 +447,20 @@ export function ShopModal({
     if (purchasingCoinPkg || !onPurchaseCoins) return;
 
     setPurchasingCoinPkg(pkg.id);
+    setCoinPurchaseError(null);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
 
-    const success = await onPurchaseCoins(pkg.id, pkg.coins);
+    // Pass the App Store product identifier so the IAP layer can resolve the product.
+    const success = await onPurchaseCoins(pkg.productId, pkg.coins);
     if (success) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       setCoinPurchaseSuccess(pkg.id);
       setTimeout(() => setCoinPurchaseSuccess(null), 2000);
+    } else {
+      // Covers a cancelled purchase, the App Store being unreachable, or the
+      // product not yet available (e.g. before the Paid Apps Agreement is active).
+      setCoinPurchaseError("Purchase couldn't be completed. Please try again later.");
+      setTimeout(() => setCoinPurchaseError(null), 4000);
     }
     setPurchasingCoinPkg(null);
   }, [purchasingCoinPkg, onPurchaseCoins]);
@@ -681,6 +689,26 @@ export function ShopModal({
                 <Text style={{ color: '#9ca3af', fontSize: 12, marginBottom: 12, lineHeight: 16 }}>
                   Use coins to buy trees, streak freezes, and more.
                 </Text>
+
+                {coinPurchaseError && (
+                  <View style={{
+                    backgroundColor: 'rgba(239, 68, 68, 0.12)',
+                    borderColor: 'rgba(239, 68, 68, 0.3)',
+                    borderWidth: 1,
+                    borderRadius: 10,
+                    paddingVertical: 10,
+                    paddingHorizontal: 12,
+                    marginBottom: 12,
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}>
+                    <MaterialCommunityIcons name="alert-circle-outline" size={16} color="#f87171" />
+                    <Text style={{ color: '#f87171', fontSize: 12, flex: 1, lineHeight: 16 }}>
+                      {coinPurchaseError}
+                    </Text>
+                  </View>
+                )}
 
                 {COIN_PACKAGES.map((pkg) => {
                   const isProcessing = purchasingCoinPkg === pkg.id;

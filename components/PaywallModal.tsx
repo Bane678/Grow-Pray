@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   Dimensions,
+  Linking,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -15,6 +16,12 @@ import { PREMIUM_PLANS, FREE_LIMITS, PREMIUM_LIMITS } from '../hooks/usePremium'
 const ICON_SPARKLE = require('../assets/Garden Assets/Icons/Icon_Sparkle.png');
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Apple requires auto-renewing subscriptions to surface functional links to the
+// Terms of Use (EULA) and Privacy Policy on the paywall (Guideline 3.1.2).
+const PRIVACY_POLICY_URL = 'https://bane678.github.io/Grow-Pray/privacy-policy.html';
+// Apple's standard EULA — used unless you host your own Terms of Use page.
+const TERMS_OF_USE_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
 interface PaywallModalProps {
   visible: boolean;
@@ -487,6 +494,27 @@ export function PaywallModal({
         }}>
           Payment charged to App Store. Auto-renews unless cancelled 24h before period ends. Manage in App Store settings.
         </Text>
+
+        {/* Required legal links — Terms of Use & Privacy Policy */}
+        <View style={{
+          flexDirection: 'row',
+          justifyContent: 'center',
+          alignItems: 'center',
+          marginTop: 8,
+          gap: 6,
+        }}>
+          <TouchableOpacity onPress={() => Linking.openURL(TERMS_OF_USE_URL)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={{ fontSize: 10, color: '#6b7280', textDecorationLine: 'underline' }}>
+              Terms of Use
+            </Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 10, color: '#4b5563' }}>·</Text>
+          <TouchableOpacity onPress={() => Linking.openURL(PRIVACY_POLICY_URL)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={{ fontSize: 10, color: '#6b7280', textDecorationLine: 'underline' }}>
+              Privacy Policy
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
       )}
     </Modal>

@@ -410,8 +410,8 @@ export const SettingsModal = memo(function SettingsModal({
         <Text style={s.resetText}>Reset All Progress</Text>
       </TouchableOpacity>
 
-      {/* ── DEBUG (dev only) ──────────────────────────────── */}
-      {asPage && onDebug && (
+      {/* ── DEBUG (dev only — never shipped in production builds) ── */}
+      {__DEV__ && asPage && onDebug && (
         <TouchableOpacity
           onPress={onDebug}
           activeOpacity={0.7}

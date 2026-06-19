@@ -4,7 +4,7 @@ import Purchases from 'react-native-purchases';
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
 // ↓↓ PASTE YOUR REVENUECAT PUBLIC SDK KEY HERE — iOS key starts with "appl_"
-const REVENUECAT_API_KEY_IOS = 'test_FdNcKwwHkQMOSwZDQJnFoIoHIyG';
+const REVENUECAT_API_KEY_IOS = 'appl_VaGTERmLPtteHHWvmcvjUpXEfqo';
 // Leave Android blank unless you ship on Android
 const REVENUECAT_API_KEY_ANDROID = '';
 
@@ -60,6 +60,7 @@ export interface PremiumState {
   // Actions
   purchaseMonthly: () => Promise<boolean>;
   purchaseYearly: () => Promise<boolean>;
+  purchaseCoins: (productId: string) => Promise<boolean>;
   restorePurchases: () => Promise<boolean>;
   // For development/testing
   togglePremiumDebug: () => Promise<void>;
@@ -124,6 +125,41 @@ export function usePremium(): PremiumState {
   const purchaseYearly = useCallback(() =>
     purchasePackage(PREMIUM_PLANS.yearly.id), [purchasePackage]);
 
+  // Purchase a consumable coin pack by its App Store product ID.
+  // Consumables don't grant an entitlement — we resolve `true` on a completed
+  // (non-cancelled) transaction and the caller credits the coins.
+  const purchaseCoins = useCallback(async (productId: string): Promise<boolean> => {
+    try {
+      // Prefer the product attached to the current offering (already fetched &
+      // cached by RevenueCat); fall back to a direct product lookup.
+      let storeProduct: any = null;
+      try {
+        const offerings = await Purchases.getOfferings();
+        const pkgs = offerings.current?.availablePackages ?? [];
+        const match = pkgs.find(p => p.product.identifier === productId);
+        if (match) storeProduct = match.product;
+      } catch { /* fall through to direct lookup */ }
+
+      if (!storeProduct) {
+        // Coin packs are consumables — must request the NON_SUBSCRIPTION category,
+        // otherwise getProducts (which defaults to SUBSCRIPTION) returns nothing.
+        const products = await Purchases.getProducts(
+          [productId],
+          Purchases.PRODUCT_CATEGORY.NON_SUBSCRIPTION,
+        );
+        if (!products || products.length === 0) return false;
+        storeProduct = products[0];
+      }
+
+      await Purchases.purchaseStoreProduct(storeProduct);
+      return true;
+    } catch (e: any) {
+      // User cancelled is not a real error
+      if (!e?.userCancelled) console.error('Coin purchase failed:', e);
+      return false;
+    }
+  }, []);
+
   // Restore purchases (required by Apple guidelines)
   const restorePurchases = useCallback(async (): Promise<boolean> => {
     try {
@@ -157,6 +193,7 @@ export function usePremium(): PremiumState {
     limits,
     purchaseMonthly,
     purchaseYearly,
+    purchaseCoins,
     restorePurchases,
     togglePremiumDebug,
   };

@@ -188,10 +188,10 @@ No login required. All data is stored locally on device.
 ---
 
 ## Privacy Policy URL
-`https://antigravity.studio/grow-pray/privacy`
+`https://bane678.github.io/Grow-Pray/privacy-policy.html`
 
 ## Support URL
-`https://antigravity.studio/grow-pray/support`
+`https://bane678.github.io/Grow-Pray/support.html`
 
 ## Marketing URL (optional)
-`https://antigravity.studio/grow-pray`
+`https://bane678.github.io/Grow-Pray`

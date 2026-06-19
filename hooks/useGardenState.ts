@@ -313,6 +313,17 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
   // Initial 5 recovered tiles (cross) based on MAX_GRID_SIZE coordinate space
   const initialRecoveredSet = useMemo(() => getInitialRecoveredTiles(MAX_GRID_SIZE), []);
 
+  // ─── Save ───────────────────────────────────────────────────────────────────
+  // Declared before any effect that references it to avoid a temporal-dead-zone
+  // error (effects below capture `saveGarden` in their dependency arrays).
+  const saveGarden = useCallback(async (data: GardenData) => {
+    try {
+      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+      console.error('Failed to save garden state:', e);
+    }
+  }, []);
+
   // ─── Decay tracking: auto-update timestamp when XP increases ──────────────
   const prevXPRef = useRef(xp);
   useEffect(() => {
@@ -366,13 +377,7 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
   }, []);
 
   // ─── Save ───────────────────────────────────────────────────────────────────
-  const saveGarden = useCallback(async (data: GardenData) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
-    } catch (e) {
-      console.error('Failed to save garden state:', e);
-    }
-  }, []);
+  // (saveGarden defined earlier, above the decay effect that depends on it)
 
   // ─── Grid size (clamped to effective max) ───────────────────────────────────
   // If the user's saved grid exceeds their cap (e.g. free cap lowered from 11→7),

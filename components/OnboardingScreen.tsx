@@ -732,8 +732,8 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       );
     }
 
-    if (currentStep.kind === 'transition' || currentStep.kind === 'final') {
-      const copy = currentStep.kind === 'transition' ? currentStep.subtitle : currentStep.body;
+    if (currentStep.kind === 'transition') {
+      const copy = currentStep.subtitle;
       return (
         <View style={styles.pillarCard}>
           <View style={styles.pillarHero}>
