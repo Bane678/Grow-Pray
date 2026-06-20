@@ -13,6 +13,9 @@ import {
 } from 'react-native';
 import * as Haptics from 'expo-haptics';
 import { Challenge, ChallengeId, getTimeUntilReset, getTimeUntilMidnight } from '../hooks/useChallenges';
+import { FONTS } from '../theme/typography';
+
+const ICON_COIN = require('../assets/Garden Assets/Icons/Icon_Coin.png');
 
 // Challenge IDs that use a pixel-art image instead of an emoji
 const CHALLENGE_IMAGE_ICONS: Partial<Record<string, ReturnType<typeof require>>> = {
@@ -234,7 +237,8 @@ function ChallengeCard({ challenge, onClaim }: { challenge: Challenge; onClaim: 
           </View>
         </View>
         <View style={[styles.rewardBadge, isComplete && !isClaimed && styles.rewardBadgeGlow]}>
-          <Text style={styles.rewardText}>{challenge.reward} coins</Text>
+          <Image source={ICON_COIN} style={styles.rewardCoinIcon} resizeMode="contain" />
+          <Text style={styles.rewardText}>{challenge.reward}</Text>
         </View>
       </View>
 
@@ -258,7 +262,9 @@ function ChallengeCard({ challenge, onClaim }: { challenge: Challenge; onClaim: 
           }}
           activeOpacity={0.7}
         >
-          <Text style={styles.claimBtnText}>Claim  •  +{challenge.reward} coins</Text>
+          <Text style={styles.claimBtnText}>Claim</Text>
+          <Image source={ICON_COIN} style={styles.claimCoinIcon} resizeMode="contain" />
+          <Text style={styles.claimBtnText}>{challenge.reward}</Text>
         </TouchableOpacity>
       )}
 
@@ -298,6 +304,7 @@ const styles = StyleSheet.create({
     color: '#e8e0d6',
     fontSize: 22,
     fontWeight: '800',
+    fontFamily: FONTS.display,
   },
   subtitle: {
     color: '#6b7280',
@@ -451,6 +458,9 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   rewardBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     backgroundColor: 'rgba(251,191,36,0.10)',
     borderRadius: 10,
     paddingHorizontal: 10,
@@ -463,6 +473,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(251,191,36,0.18)',
     borderColor: 'rgba(251,191,36,0.30)',
   },
+  rewardCoinIcon: { width: 13, height: 13 },
   rewardText: {
     color: '#fbbf24',
     fontSize: 13,
@@ -492,13 +503,17 @@ const styles = StyleSheet.create({
   },
   claimBtn: {
     marginTop: 12,
+    flexDirection: 'row',
     backgroundColor: '#e8a87c',
     borderRadius: 12,
     paddingVertical: 11,
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 5,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.10)',
   },
+  claimCoinIcon: { width: 15, height: 15 },
   claimBtnText: {
     color: '#0f1526',
     fontSize: 14,

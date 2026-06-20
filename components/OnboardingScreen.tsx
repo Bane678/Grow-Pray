@@ -7,6 +7,7 @@ import {
   KeyboardAvoidingView,
   Linking,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -19,9 +20,13 @@ import { StatusBar } from 'expo-status-bar';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Location from 'expo-location';
 import * as Notifications from 'expo-notifications';
+import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { PREMIUM_PLANS } from '../hooks/usePremium';
+import { FONTS } from '../theme/typography';
+import { GardenGrowthPreview } from './GardenGrowthPreview';
+import { SignaturePad } from './SignaturePad';
 
 const APP_LOGO = require('../assets/Garden Assets/Icons/App_Logo.png');
 const ICON_HANDS = require('../assets/Garden Assets/Icons/Icon_Hands.png');
@@ -35,6 +40,10 @@ const ICON_SPARKLE = require('../assets/Garden Assets/Icons/Icon_Sparkle.png');
 const GOLDEN_TREE = require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Grown.png');
 const CEDAR_TREE  = require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Grown.png');
 const STARRY_NIGHT = require('../assets/Garden Assets/Icons/Starry_Night_Sky.png');
+// New onboarding hero images
+const OB_WELCOME  = require('../assets/Garden Assets/Icons/Onboarding_Welcome.png');
+const OB_AYAH     = require('../assets/Garden Assets/Icons/Onboarding_Ayah.png');
+const OB_REFRAME  = require('../assets/Garden Assets/Icons/Onboarding_Refreame.png'); // note typo in filename
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -79,7 +88,20 @@ type Step =
   | { kind: 'locationPermission' }
   | { kind: 'notificationPermission' }
   | { kind: 'paywall' }
-  | { kind: 'freeWarning' };
+  | { kind: 'freeWarning' }
+  // ── New card kinds ──────────────────────────────────────────────────────────
+  /** Full-bleed background image with a centred quote/ayah overlay */
+  | { kind: 'ayah'; quote: string; source: string; cta: string; image: any }
+  /** Animated garden growth preview pillar */
+  | { kind: 'growthPillar'; title: string; body: string; cta: string }
+  /** Empathy select — like singleSelect but with a soft reframe response built in */
+  | { kind: 'empathySelect'; key: string; title: string; subtitle: string; cta: string; options: SelectOption[] }
+  /** Personalised plan summary — derives copy from earlier answers */
+  | { kind: 'summary'; cta: string }
+  /** Aspirational premium showcase shown right before the pledge + paywall */
+  | { kind: 'premiumIntro' }
+  /** Signed pledge / niyyah contract */
+  | { kind: 'pledge' };
 
 type InsightCard = {
   title: string;
@@ -98,124 +120,145 @@ const FACTOR_TO_PILLAR_INDEX: Record<string, number> = {
 };
 
 const STEPS: Step[] = [
-  { kind: 'welcome', title: 'Salaam', body: 'Every prayer you keep grows your garden. Every one you miss, it shows. A peaceful, honest companion for your daily worship.', cta: 'Bismillah', image: HERO_GARDEN },
+  // 0 — Welcome
+  { kind: 'welcome', title: 'Salaam', body: 'Every prayer you keep grows your garden. Every one you miss, it shows. A peaceful, honest companion for your daily worship.', cta: 'Bismillah', image: OB_WELCOME },
+
+  // 1 — Ayah (Qur'an 29:45)
   {
-    kind: 'multiSelect',
-    key: FACTORS_KEY,
-    title: 'What matters most to you in a prayer app?',
-    subtitle: 'Choose all that matter. We will tune your setup accordingly.',
-    cta: 'Next',
-    options: [
-      { value: 'accuracy', label: 'Accurate local prayer times', icon: 'target' },
-      { value: 'privacy', label: 'Strong privacy', icon: 'shield-check-outline' },
-      { value: 'no_ads', label: 'No ads or distractions', icon: 'eye-off-outline' },
-      { value: 'tracking', label: 'Progress and streak tracking', icon: 'sprout-outline' },
-      { value: 'challenges', label: 'Challenges and rewards', icon: 'trophy-outline' },
-    ],
+    kind: 'ayah',
+    quote: 'Indeed, prayer prohibits immorality and wrongdoing.',
+    source: 'Qur\'an 29:45',
+    cta: 'Continue',
+    image: OB_AYAH,
   },
-  { kind: 'pillar', title: 'Private by default', body: 'Your prayer data stays on your device. No accounts, no selling, no sharing.', cta: 'Next', icon: 'shield-check-outline', highlights: ['On-device only', 'No account required', 'Zero data sharing'] },
-  { kind: 'pillar', title: 'Built for focus', body: 'No ads, no social feeds, no noise. Just a calm space to show up for your prayers.', cta: 'Next', icon: 'eye-off-outline', highlights: ['Ad-free experience', 'Distraction-free design', 'Clean & minimal UI'] },
-  { kind: 'pillar', title: 'Prayer times that stay accurate', body: 'Location-aware and madhab-sensitive calculations so your salah timing is always dependable.', cta: 'Next', icon: 'bullseye-arrow', highlights: ['GPS or manual city', 'Madhab-aware Asr times', 'Auto-updated daily'] },
-  { kind: 'pillar', title: 'A garden that grows with your salah', body: 'Every prayer you keep strengthens your garden. Miss days and it starts to show.', cta: 'Next', imagePreview: HERO_DAWN, highlights: ['Visual prayer momentum', 'Grows with consistency', 'Reflects missed days'] },
-  { kind: 'pillar', title: 'Built-in challenges and rewards', body: 'Daily and weekly challenges keep motivation alive, especially when the routine gets hard.', cta: 'Next', icon: 'trophy-outline', highlights: ['Daily missions', 'Streak rewards', 'Coin system'] },
-  { kind: 'support', title: 'Liking Grow Pray so far?', body: 'A quick rating helps more Muslims find the app.', cta: 'Leave a review' },
-  { kind: 'transition', title: "Let's personalise your journey.", subtitle: 'A few quick questions, then we set up your prayer engine.', cta: 'Continue', icon: 'tune-variant' },
-  { kind: 'nameInput', title: 'What should we call you?', body: 'We use your name in a few places to make the experience feel personal.', cta: 'Next', placeholder: 'Enter your name' },
+
+  // 2 — Relationship with salah (empathetic select)
   {
-    kind: 'singleSelect',
-    key: AGE_KEY,
-    title: 'What is your age group?',
-    subtitle: 'Used only for onboarding personalisation.',
-    cta: 'Next',
-    options: [
-      { value: '10_15', label: '10-15', icon: 'account-group-outline' },
-      { value: '16_20', label: '16-20', icon: 'account-group-outline' },
-      { value: '21_25', label: '21-25', icon: 'account-group-outline' },
-      { value: '26_30', label: '26-30', icon: 'account-group-outline' },
-      { value: '31_45', label: '31-45', icon: 'account-group-outline' },
-      { value: '46_plus', label: '46+', icon: 'account-group-outline' },
-    ],
-  },
-  {
-    kind: 'singleSelect',
+    kind: 'empathySelect',
     key: ROUTINE_KEY,
-    title: 'How is your current prayer routine?',
+    title: 'How is your relationship with salah right now?',
     subtitle: "Be honest. We're here to support, not judge.",
     cta: 'Next',
     options: [
-      { value: 'on_time', label: 'I pray 5x on time', icon: 'check-circle-outline' },
+      { value: 'on_time',           label: 'I pray all 5 on time',           icon: 'check-circle-outline' },
       { value: 'daily_not_on_time', label: 'I pray daily, not always on time', icon: 'clock-alert-outline' },
-      { value: 'most_days', label: 'I pray most days', icon: 'calendar-check-outline' },
-      { value: 'occasionally', label: 'I pray occasionally', icon: 'calendar-blank-outline' },
-      { value: 'starting', label: "I'm trying to start", icon: 'seed-outline' },
+      { value: 'most_days',         label: 'Most days, but I miss some',      icon: 'calendar-check-outline' },
+      { value: 'occasionally',      label: 'Occasionally, trying to improve', icon: 'calendar-blank-outline' },
+      { value: 'starting',          label: "I want to start or restart",       icon: 'seed-outline' },
     ],
   },
+
+  // 3 — Hardest prayer (single select)
   {
     kind: 'singleSelect',
-    key: MOTIVATION_KEY,
-    title: 'What motivates you most right now?',
-    subtitle: 'Choose the intention you want your journey to center around.',
+    key: '@GrowPray:hardestPrayer',
+    title: 'Which prayer is hardest for you to keep?',
+    subtitle: "Everyone has one. There's no wrong answer.",
     cta: 'Next',
     options: [
-      { value: 'discipline', label: 'Build discipline', icon: 'target' },
-      { value: 'khushu', label: 'Improve focus (khushu)', icon: 'heart-outline' },
-      { value: 'fajr', label: 'Strengthen Fajr habit', icon: 'weather-sunset-up' },
-      { value: 'barakah', label: 'Increase barakah in my day', icon: 'star-four-points-outline' },
+      { value: 'Fajr',    label: 'Fajr (the early morning prayer)', icon: 'weather-sunset-up' },
+      { value: 'Dhuhr',   label: 'Dhuhr (midday)',                  icon: 'weather-sunny' },
+      { value: 'Asr',     label: 'Asr (afternoon)',                 icon: 'weather-partly-cloudy' },
+      { value: 'Maghrib', label: 'Maghrib (after sunset)',          icon: 'weather-sunset-down' },
+      { value: 'Isha',    label: 'Isha (night prayer)',             icon: 'weather-night' },
+      { value: 'all',     label: 'Honestly, all of them',          icon: 'emoticon-sad-outline' },
     ],
   },
-  {
-    kind: 'singleSelect',
-    key: GOAL_KEY,
-    title: 'What is your top goal?',
-    subtitle: 'Pick one primary goal so we can guide your first week clearly.',
-    cta: 'Next',
-    options: [
-      { value: '5_on_time', label: 'Pray all 5 on time', icon: 'clock-check-outline' },
-      { value: 'focus', label: 'Improve my focus in salah', icon: 'bullseye' },
-      { value: 'character', label: 'Improve my character', icon: 'diamond-stone' },
-      { value: 'fajr', label: 'Wake up consistently for Fajr', icon: 'weather-sunset-up' },
-      { value: 'consistency', label: 'Build a stable daily routine', icon: 'repeat' },
-    ],
-  },
+
+  // 4 — What gets in the way (multi select)
   {
     kind: 'multiSelect',
     key: BLOCKERS_KEY,
-    title: 'What usually gets in the way?',
+    title: 'What usually makes it difficult?',
     subtitle: 'Select all that apply.',
     cta: 'Next',
     options: [
-      { value: 'busy', label: 'Busy schedule', icon: 'run-fast' },
-      { value: 'distractions', label: 'Phone distractions', icon: 'cellphone' },
-      { value: 'uninspired', label: 'Low motivation', icon: 'emoticon-sad-outline' },
-      { value: 'routine', label: 'Unstructured routine', icon: 'repeat' },
-      { value: 'focus', label: 'Lack of focus', icon: 'brain' },
+      { value: 'waking_up',    label: 'Waking up for Fajr',         icon: 'alarm' },
+      { value: 'busy',         label: 'A busy schedule',             icon: 'run-fast' },
+      { value: 'forgetting',   label: 'Forgetting prayer times',     icon: 'bell-off-outline' },
+      { value: 'motivation',   label: 'Low motivation or iman',      icon: 'emoticon-sad-outline' },
+      { value: 'distractions', label: 'Phone distractions',          icon: 'cellphone' },
+      { value: 'focus',        label: 'Lack of focus in prayer',     icon: 'brain' },
     ],
   },
+
+  // 5 — How you feel after missing (emotional empathy)
   {
-    kind: 'singleSelect',
-    key: SOURCE_KEY,
-    title: 'Where did you hear about Grow Pray?',
-    subtitle: 'This helps us improve outreach and keep the app sustainable.',
+    kind: 'empathySelect',
+    key: '@GrowPray:missedFeeling',
+    title: 'How do you feel when you miss a prayer?',
+    subtitle: 'We ask so we can support you, not judge you.',
     cta: 'Next',
     options: [
-      { value: 'friends', label: 'Friends & Family', icon: 'account-multiple' },
-      { value: 'app_store', label: 'App Store', icon: 'apple' },
-      { value: 'instagram', label: 'Instagram', icon: 'instagram' },
-      { value: 'tiktok', label: 'TikTok', icon: 'music-note' },
-      { value: 'x', label: 'X', icon: 'alpha-x-circle-outline' },
-      { value: 'facebook', label: 'Facebook', icon: 'facebook' },
+      { value: 'guilty',      label: 'Guilty, I carry it',       icon: 'heart-broken' },
+      { value: 'disconnected',label: 'Disconnected from Allah',   icon: 'link-off' },
+      { value: 'restart',     label: 'Motivated to get back on track', icon: 'refresh' },
+      { value: 'numb',        label: "Numb, I've normalised it", icon: 'emoticon-neutral-outline' },
     ],
   },
+
+  // 6 — Reframe: every prayer is a fresh start
+  {
+    kind: 'reframe',
+    title: 'Every prayer is a fresh start.',
+    body: "The Prophet ﷺ said: 'The most beloved deeds to Allah are the most consistent ones, even if small.' Missing a prayer doesn't close the door. Turning back is always possible.",
+    cta: 'That gives me hope',
+  },
+
+  // 7 — Garden growth pillar
+  { kind: 'growthPillar', title: 'Your prayers build something real.', body: 'Every salah you keep grows your garden. Miss days and it begins to wither. Grow Pray makes your consistency visible.', cta: 'Let\'s grow' },
+
+  // 8 — Privacy pillar
+  { kind: 'pillar', title: 'Your spiritual life is private.', body: 'No accounts. No servers. Your prayers, streaks, and garden never leave your device.', cta: 'Next', icon: 'shield-check-outline', highlights: ['On-device only', 'No login required', 'Zero data sharing'] },
+
+  // 9 — Name input
+  { kind: 'nameInput', title: 'What should we call you?', body: 'We use your name in a few places to make the experience feel personal.', cta: 'Next', placeholder: 'Enter your name' },
+
+  // 10 — Goal (single select)
+  {
+    kind: 'singleSelect',
+    key: GOAL_KEY,
+    title: 'What is your intention for the next 30 days?',
+    subtitle: 'Set one clear goal to anchor your journey.',
+    cta: 'Next',
+    options: [
+      { value: '5_on_time',   label: 'Pray all 5 on time',           icon: 'clock-check-outline' },
+      { value: 'fajr',        label: 'Consistently wake for Fajr',   icon: 'weather-sunset-up' },
+      { value: 'consistency', label: 'Build a stable daily routine', icon: 'repeat' },
+      { value: 'focus',       label: 'Improve my focus in salah',    icon: 'bullseye' },
+      { value: 'character',   label: 'Become a better Muslim overall', icon: 'diamond-stone' },
+    ],
+  },
+
+  // 11 — Personalised summary (pulls from answers)
+  { kind: 'summary', cta: 'Let\'s set up your prayer times' },
+
+  // 12 — Madhab
   { kind: 'madhab' },
+
+  // 13 — Location
   { kind: 'locationPermission' },
+
+  // 14 — Notifications
   { kind: 'notificationPermission' },
+
+  // 15 — Pledge (signed niyyah) — the sincere commitment comes first, with no
+  //       premium messaging beforehand.
+  { kind: 'pledge' },
+
+  // 16 — Premium showcase — desire-building immediately after the pledge
+  { kind: 'premiumIntro' },
+
+  // 17 — Paywall
   { kind: 'paywall' },
+
+  // 18 — Free warning fallback
   { kind: 'freeWarning' },
 ];
 const TOTAL_STEPS = STEPS.length;
-// Step indices that always produce an insight card (ROUTINE=11, MOTIVATION=12, BLOCKERS=14)
-const INSIGHT_STEP_INDICES = [11, 12, 14];
-const TRUE_TOTAL = STEPS.length + INSIGHT_STEP_INDICES.length; // 24 (21 steps + 3 insights)
+// Empathy select steps that produce an insight card (indices 2 and 5)
+const INSIGHT_STEP_INDICES = [2, 5];
+const TRUE_TOTAL = STEPS.length + INSIGHT_STEP_INDICES.length; // 20 steps + 2 insights = 20
 
 // Common profanity/slur blocklist — word-boundary matched, case-insensitive.
 // This is a client-side first pass; not exhaustive but catches obvious cases.
@@ -247,6 +290,78 @@ function containsProfanity(text: string): boolean {
   });
 }
 
+// ── Hold-to-confirm button ─────────────────────────────────────────────────────
+// Press and hold for ~1.1s to confirm — an intentional, deliberate gesture that
+// suits "locking in" a sincere pledge (inspired by similar habit apps).
+function HoldToConfirmButton({ disabled, onConfirm, label }: {
+  disabled: boolean;
+  onConfirm: () => void;
+  label: string;
+}) {
+  const HOLD_MS = 1100;
+  const fill = useRef(new Animated.Value(0)).current;
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const anim = useRef<Animated.CompositeAnimation | null>(null);
+
+  const start = () => {
+    if (disabled) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    anim.current = Animated.timing(fill, { toValue: 1, duration: HOLD_MS, useNativeDriver: false });
+    anim.current.start();
+    timer.current = setTimeout(() => {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      onConfirm();
+    }, HOLD_MS);
+  };
+
+  const cancel = () => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    anim.current?.stop();
+    Animated.timing(fill, { toValue: 0, duration: 220, useNativeDriver: false }).start();
+  };
+
+  return (
+    <Pressable onPressIn={start} onPressOut={cancel} disabled={disabled}>
+      <View style={[holdStyles.btn, disabled && holdStyles.btnDisabled]}>
+        <Animated.View
+          style={[
+            holdStyles.fill,
+            { width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
+          ]}
+        />
+        <Text style={holdStyles.label}>{label}</Text>
+      </View>
+    </Pressable>
+  );
+}
+
+const holdStyles = StyleSheet.create({
+  btn: {
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: 'rgba(217,167,95,0.18)',
+    borderWidth: 1,
+    borderColor: 'rgba(217,167,95,0.5)',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  btnDisabled: { opacity: 0.4 },
+  fill: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    backgroundColor: '#d9a75f',
+  },
+  label: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '800',
+  },
+});
+
+
 export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly, onPurchaseYearly }: OnboardingScreenProps) {
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
@@ -261,6 +376,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [purchasing, setPurchasing] = useState(false);
   const [dynamicSteps, setDynamicSteps] = useState<Step[]>(() => [...STEPS]);
+  const [pledgeSigned, setPledgeSigned] = useState(false);
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
@@ -345,92 +461,84 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
   };
 
   const buildInsightForStep = (targetStep: Step): InsightCard | null => {
-    if (targetStep.kind === 'singleSelect' && targetStep.key === ROUTINE_KEY) {
+    // ── Routine / relationship with salah ─────────────────────────────────────
+    if ((targetStep.kind === 'singleSelect' || targetStep.kind === 'empathySelect') && targetStep.key === ROUTINE_KEY) {
       const selected = singleSelections[ROUTINE_KEY];
       if (selected === 'on_time') {
         return {
-          title: 'We will help you protect your momentum',
+          title: 'We will help you protect that momentum',
           body: 'Grow Pray highlights streaks, history, and challenge wins so your consistency stays visible every day.',
           icon: 'fire',
-          bullets: ['Per-prayer streak tracking', 'Prayer history review', 'Daily and weekly challenge rewards'],
+          bullets: ['Per-prayer streak tracking', 'Prayer history calendar', 'Daily and weekly challenge rewards'],
         };
       }
       if (selected === 'daily_not_on_time') {
         return {
           title: 'Timing is where we can help most',
-          body: 'We use prayer-time reminders plus your next-prayer context to help you pray earlier, more often.',
+          body: 'Prayer-time reminders and your next-salah countdown help you pray earlier, more often.',
           icon: 'clock-check-outline',
-          bullets: ['Local timing updates', 'Gentle notification nudges', 'Progress-based accountability'],
+          bullets: ['Accurate local prayer times', 'Deadline warnings before each window closes', 'Gentle countdown on the home screen'],
+        };
+      }
+      if (selected === 'most_days') {
+        return {
+          title: 'Consistency is closer than it feels',
+          body: 'Your garden makes every single prayer visible. The days you show up feel meaningful, and the gaps are honest.',
+          icon: 'calendar-check-outline',
+          bullets: ['Each prayer plants progress', 'Missed days show where to recover', 'Streak freezes for life\'s harder days'],
         };
       }
       return {
-        title: 'Start small, then grow consistently',
+        title: 'Start small, then grow',
         body: 'Your garden gives visible progress from each prayer, so motivation comes from momentum instead of pressure.',
         icon: 'sprout-outline',
         bullets: ['Each prayer grows your garden', 'Missed prayers show where to recover', 'Challenges keep your week on track'],
       };
     }
 
-    if (targetStep.kind === 'singleSelect' && targetStep.key === MOTIVATION_KEY) {
-      const selected = singleSelections[MOTIVATION_KEY];
-      const byMotivation: Record<string, InsightCard> = {
-        discipline: {
-          title: 'Discipline becomes easier with structure',
-          body: 'We reinforce habits through routines: reminders, streaks, and challenge cycles.',
-          icon: 'repeat',
-          bullets: ['Consistent reminders', 'Streak retention loop', 'Structured daily goals'],
-        },
-        khushu: {
-          title: 'We help reduce distraction around salah',
-          body: 'A clean, ad-free experience with focused prayer context helps bring attention back to worship.',
+    // ── How you feel when you miss ────────────────────────────────────────────
+    if ((targetStep.kind === 'singleSelect' || targetStep.kind === 'empathySelect') && targetStep.key === '@GrowPray:missedFeeling') {
+      const selected = singleSelections['@GrowPray:missedFeeling'];
+      const responses: Record<string, InsightCard> = {
+        guilty: {
+          title: 'Guilt can be a sign of iman',
+          body: 'Feeling the weight of a missed prayer shows you care. Grow Pray helps you channel that into action rather than shame.',
           icon: 'heart-outline',
-          bullets: ['No ad clutter', 'Clear prayer context', 'Calm visual pacing'],
+          bullets: ['No punitive language, just encouragement', 'Difficult Day mode for hard seasons', 'Streak freeze for life\'s obstacles'],
         },
-        fajr: {
-          title: 'Fajr habit is built through consistency',
-          body: 'We support Fajr consistency through timing reminders and visible momentum in your garden.',
-          icon: 'weather-sunset-up',
-          bullets: ['Reliable local Fajr times', 'Reminder prompts', 'Streak continuity'],
+        disconnected: {
+          title: 'Prayer is the connection',
+          body: 'The garden is a reminder that each salah is a thread back to Allah. Every new prayer re-weaves it.',
+          icon: 'link-variant',
+          bullets: ['Visual link between prayer and growth', 'Daily reminders to return', 'Each prayer counts, even one'],
         },
-        barakah: {
-          title: 'Small consistent acts create barakah',
-          body: 'Grow Pray helps you stay steady with daily worship so your progress compounds over time.',
-          icon: 'star-four-points-outline',
-          bullets: ['Daily prayer rhythm', 'Rewarding consistency', 'Weekly reflection via history'],
+        restart: {
+          title: 'That drive is your greatest asset',
+          body: 'Grow Pray is built for people who want to restart. Streak freezes, rest periods, and weekly challenges all support recovery.',
+          icon: 'refresh',
+          bullets: ['Streak freezes protect your progress', 'Rest period mode for tough times', 'No permanent penalty for missing'],
+        },
+        numb: {
+          title: 'Small steps restore feeling',
+          body: 'Sometimes the goal isn\'t khushu. It\'s just showing up. Your garden grows from presence, not perfection.',
+          icon: 'sprout-outline',
+          bullets: ['Progress from any prayer completed', 'Challenges rebuild routine gently', 'History shows how far you\'ve come'],
         },
       };
-      return selected ? byMotivation[selected] : null;
-    }
-
-    if (targetStep.kind === 'multiSelect' && targetStep.key === BLOCKERS_KEY) {
-      const picks = multiSelections[BLOCKERS_KEY] ?? [];
-      if (picks.length === 0) return null;
-      const blockerMap: Record<string, { bullet: string; icon: IconName }> = {
-        busy: { bullet: 'Prayer-time reminders help you catch salah despite a full day.', icon: 'run-fast' },
-        distractions: { bullet: 'Focused, ad-free design removes extra noise and friction.', icon: 'cellphone' },
-        uninspired: { bullet: 'Garden growth + challenge rewards gives consistent motivation.', icon: 'sprout-outline' },
-        routine: { bullet: 'Streak tracking and daily goals rebuild structure week by week.', icon: 'repeat' },
-        focus: { bullet: 'Simple guided flow reduces overwhelm and keeps priority clear.', icon: 'brain' },
-      };
-      const top = blockerMap[picks[0]];
-      return {
-        title: 'Here is how Grow Pray addresses your blockers',
-        body: 'Based on your answers, we will tailor your first week around these support systems.',
-        icon: top?.icon ?? 'shield-check-outline',
-        bullets: picks.map((p) => blockerMap[p]?.bullet).filter(Boolean) as string[],
-      };
+      return selected ? (responses[selected] ?? null) : null;
     }
 
     return null;
   };
 
   const canContinue = useMemo(() => {
-    if (currentStep.kind === 'singleSelect') return !!singleSelections[currentStep.key];
+    if (currentStep.kind === 'singleSelect' || currentStep.kind === 'empathySelect') return !!singleSelections[currentStep.key];
     if (currentStep.kind === 'multiSelect') return (multiSelections[currentStep.key] ?? []).length > 0;
     if (currentStep.kind === 'nameInput') return name.trim().length > 0 && !containsProfanity(name);
     if (currentStep.kind === 'madhab') return selectedMadhab !== null;
+    if (currentStep.kind === 'pledge') return pledgeSigned;
     return true;
-  }, [currentStep, multiSelections, name, selectedMadhab, singleSelections]);
+  }, [currentStep, multiSelections, name, selectedMadhab, singleSelections, pledgeSigned]);
 
   const finishOnboarding = async () => {
     await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
@@ -520,25 +628,6 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       return;
     }
 
-    // When leaving the factors step, reorder pillar cards to match the user's selection order
-    if (currentStep.kind === 'multiSelect' && currentStep.key === FACTORS_KEY) {
-      const selectedValues = multiSelections[FACTORS_KEY] ?? [];
-      // Reorder all 5 selectable pillars (indices 2-6) based on selection order
-      const reorderablePillarIndices = [2, 3, 4, 5, 6];
-      const selectedPillarIndices = selectedValues
-        .map(v => FACTOR_TO_PILLAR_INDEX[v])
-        .filter((i): i is number => i !== undefined);
-      const unselectedPillarIndices = reorderablePillarIndices.filter(i => !selectedPillarIndices.includes(i));
-      const reorderedPillarIndices = [...selectedPillarIndices, ...unselectedPillarIndices];
-      setDynamicSteps(prev => {
-        const newSteps = [...prev];
-        reorderedPillarIndices.forEach((srcIdx, i) => {
-          newSteps[2 + i] = STEPS[srcIdx];
-        });
-        return newSteps;
-      });
-    }
-
     animateToStep(step + 1);
   };
 
@@ -572,8 +661,9 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     goNext();
   };
 
-  const renderSelectCard = (kind: 'singleSelect' | 'multiSelect') => {
+  const renderSelectCard = (kind: 'singleSelect' | 'multiSelect' | 'empathySelect') => {
     if (currentStep.kind !== kind) return null;
+    const isSingle = kind === 'singleSelect' || kind === 'empathySelect';
     const singleValue = singleSelections[currentStep.key];
     const multiValue = multiSelections[currentStep.key] ?? [];
     return (
@@ -582,13 +672,13 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
         <Text style={styles.body}>{currentStep.subtitle}</Text>
         <View style={styles.optionList}>
           {currentStep.options.map((option) => {
-            const selected = kind === 'singleSelect' ? singleValue === option.value : multiValue.includes(option.value);
+            const selected = isSingle ? singleValue === option.value : multiValue.includes(option.value);
             return (
               <TouchableOpacity
                 key={option.value}
                 style={[styles.optionRow, selected && styles.optionRowSelected]}
                 onPress={() =>
-                  kind === 'singleSelect'
+                  isSingle
                     ? saveSingle(currentStep.key, option.value)
                     : toggleMulti(currentStep.key, option.value)
                 }
@@ -918,19 +1008,18 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
 
           <View style={styles.paywallPanel}>
             {/* Title */}
-            <Text style={styles.paywallTitle}>Grow without limits</Text>
+            <Text style={styles.paywallTitle}>Honour your intention</Text>
             <Text style={styles.paywallSubtitle}>
-              Unlock your garden's full potential
+              You've made your pledge. Give it the best chance to flourish.
             </Text>
 
             {/* Benefits — pill-style with glow */}
             <View style={styles.benefitsGrid}>
               {[
                 { icon: 'grid' as const, text: 'Unlimited garden' },
-                { icon: 'circle-multiple' as const, text: '2× coins & XP' },
+                { icon: 'circle-multiple' as const, text: '2x coins and XP' },
                 { icon: 'tree' as const, text: 'Premium trees' },
                 { icon: 'shield-check' as const, text: 'Free streak freezes' },
-                { icon: 'weather-partly-cloudy' as const, text: 'Extra difficult days' },
                 { icon: 'star-four-points' as const, text: 'Exclusive rewards' },
               ].map((b, i) => (
                 <View key={i} style={styles.benefitPill}>
@@ -995,6 +1084,9 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             </TouchableOpacity>
             <Text style={styles.trialNote}>
               7 days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · Cancel anytime
+            </Text>
+            <Text style={styles.trustNote}>
+              No ads, ever · Private by design · Cancel in two taps
             </Text>
 
             {/* Subtle skip */}
@@ -1083,6 +1175,188 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <TouchableOpacity onPress={finishOnboarding} style={styles.freeLink}>
             <Text style={styles.freeLinkText}>No thanks, continue for free</Text>
           </TouchableOpacity>
+        </View>
+      );
+    }
+
+    // ── Ayah card ─────────────────────────────────────────────────────────────
+    if (currentStep.kind === 'ayah') {
+      return (
+        <View style={styles.ayahWrap}>
+          <Image source={currentStep.image} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+          <LinearGradient
+            colors={['rgba(8,17,28,0.25)', 'rgba(8,17,28,0.65)', 'rgba(8,17,28,0.97)']}
+            style={StyleSheet.absoluteFillObject}
+          />
+          <View style={styles.ayahContent}>
+            <Text style={styles.ayahQuote}>❝{currentStep.quote}❞</Text>
+            <Text style={styles.ayahSource}>{currentStep.source}</Text>
+            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    // ── Empathy select ────────────────────────────────────────────────────────
+    if (currentStep.kind === 'empathySelect') {
+      return renderSelectCard('empathySelect');
+    }
+
+    // ── Garden growth pillar ──────────────────────────────────────────────────
+    if (currentStep.kind === 'growthPillar') {
+      return (
+        <View style={styles.pillarCard}>
+          <View style={styles.pillarHero}>
+            <View style={styles.pillarGlow} />
+            <GardenGrowthPreview size={200} />
+          </View>
+          <View style={styles.pillarContent}>
+            <Text style={styles.pillarTitle}>{currentStep.title}</Text>
+            <Text style={styles.pillarBody}>{currentStep.body}</Text>
+            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    // ── Summary card ──────────────────────────────────────────────────────────
+    if (currentStep.kind === 'summary') {
+      const routine = singleSelections[ROUTINE_KEY];
+      const goal = singleSelections[GOAL_KEY];
+      const hardest = singleSelections['@GrowPray:hardestPrayer'];
+      const blockers = multiSelections[BLOCKERS_KEY] ?? [];
+      const routineLabel: Record<string, string> = {
+        on_time: 'already pray consistently',
+        daily_not_on_time: 'pray daily but want better timing',
+        most_days: 'pray most days',
+        occasionally: 'pray occasionally and want more',
+        starting: 'are starting fresh',
+      };
+      const goalLabel: Record<string, string> = {
+        '5_on_time': 'pray all 5 on time', fajr: 'build a strong Fajr habit',
+        consistency: 'build a stable daily routine', focus: 'improve focus in salah',
+        character: 'become a better Muslim',
+      };
+      const features: string[] = [];
+      if (hardest === 'Fajr' || blockers.includes('waking_up')) features.push('Fajr reminders');
+      if (blockers.includes('forgetting')) features.push('Prayer-time notifications');
+      if (blockers.includes('motivation')) features.push('Garden growth + challenge rewards');
+      if (blockers.includes('distractions') || blockers.includes('focus')) features.push('Clean, distraction-free design');
+      if (blockers.includes('busy')) features.push('Deadline warnings before each prayer window closes');
+      if (features.length === 0) features.push('Prayer-time reminders', 'Streak tracking', 'Weekly challenges');
+      return (
+        <View style={styles.pillarCard}>
+          <View style={styles.pillarHero}>
+            <View style={styles.pillarGlow} />
+            <MaterialCommunityIcons name="map-marker-path" size={60} color="#d9a75f" />
+          </View>
+          <View style={styles.pillarContent}>
+            <Text style={styles.pillarTitle}>Your personalised path</Text>
+            <Text style={styles.pillarBody}>
+              {`You ${routineLabel[routine ?? 'starting'] ?? 'are on a journey'} and want to ${goalLabel[goal ?? 'consistency'] ?? 'build better habits'}. Here is what Grow Pray will focus on for you:`}
+            </Text>
+            <View style={styles.pillarHighlights}>
+              {features.slice(0, 4).map((f) => (
+                <View key={f} style={styles.pillarChip}>
+                  <MaterialCommunityIcons name="check" size={13} color="#d9a75f" />
+                  <Text style={styles.pillarChipText}>{f}</Text>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
+    }
+
+    // ── Premium showcase ──────────────────────────────────────────────────────
+    if (currentStep.kind === 'premiumIntro') {
+      const goal = singleSelections[GOAL_KEY];
+      const goalLine: Record<string, string> = {
+        '5_on_time': 'praying all five on time',
+        fajr: 'never missing Fajr again',
+        consistency: 'a routine that finally sticks',
+        focus: 'deeper focus in every salah',
+        character: 'becoming the Muslim you want to be',
+      };
+      return (
+        <>
+          <View style={styles.paywallHero}>
+            <Image source={STARRY_NIGHT} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+            <Image source={GOLDEN_TREE} style={styles.paywallHeroTreeLeft} resizeMode="contain" />
+            <Image source={CEDAR_TREE} style={styles.paywallHeroTreeRight} resizeMode="contain" />
+            <LinearGradient
+              colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0.6)', 'rgba(9,14,22,0.98)']}
+              style={StyleSheet.absoluteFillObject}
+            />
+            <View style={styles.paywallHeroBadge}>
+              <Image source={ICON_SPARKLE} style={{ width: 14, height: 14 }} resizeMode="contain" />
+              <Text style={styles.paywallHeroBadgeText}>PREMIUM</Text>
+            </View>
+          </View>
+          <View style={styles.pillarContent}>
+            <Text style={styles.pillarTitle}>Give your journey its best chance</Text>
+            <Text style={styles.pillarBody}>
+              {`You're working toward ${goalLine[goal ?? 'consistency'] ?? 'consistency'}. Premium removes every limit and grows your garden twice as fast — so your effort goes further.`}
+            </Text>
+            <View style={styles.pillarHighlights}>
+              {[
+                'Unlimited garden, grow without a ceiling',
+                'Exclusive Golden Tree and Ancient Cedar of Jannah',
+                '2x coins and XP, progress twice as fast',
+                'Free streak freezes every month',
+              ].map((h) => (
+                <View key={h} style={styles.pillarChip}>
+                  <MaterialCommunityIcons name="check" size={13} color="#d9a75f" />
+                  <Text style={styles.pillarChipText}>{h}</Text>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        </>
+      );
+    }
+
+    // ── Pledge / niyyah card ──────────────────────────────────────────────────
+    if (currentStep.kind === 'pledge') {
+      const displayName = name.trim() || 'I';
+      return (
+        <View style={styles.pledgeWrap}>
+          {/* Hadith Qudsi */}
+          <Text style={styles.pledgeHadithLabel}>Allah ﷻ says:</Text>
+          <Text style={styles.pledgeHadith}>
+            "I am as My servant thinks of Me, and I am with him when he <Text style={styles.pledgeAccent}>remembers Me</Text>."
+          </Text>
+          <Text style={styles.pledgeSource}>Sahih al-Bukhari 7405</Text>
+
+          {/* Personal promise */}
+          <Text style={styles.pledgePromise}>
+            I, <Text style={styles.pledgeAccent}>{displayName}</Text>, intend to try my best to draw closer to <Text style={styles.pledgeAccent}>Allah</Text> and care for my prayers.
+          </Text>
+          <Text style={styles.pledgePromiseSub}>
+            May <Text style={styles.pledgeAccent}>Allah</Text> guide me, and all of us, on this journey.
+          </Text>
+
+          {/* Signature */}
+          <View style={styles.pledgeSignWrap}>
+            <SignaturePad height={150} onSignedChange={(s) => setPledgeSigned(s)} />
+          </View>
+
+          {/* Hold to confirm */}
+          <HoldToConfirmButton
+            disabled={!pledgeSigned}
+            onConfirm={goNext}
+            label={pledgeSigned ? 'Hold to seal your intention' : 'Sign above first'}
+          />
         </View>
       );
     }
@@ -1228,7 +1502,7 @@ const styles = StyleSheet.create({
   },
   logoImage: { width: 24, height: 24, borderRadius: 6 },
   logoText: { color: '#f5ebd8', fontSize: 14, fontWeight: '800' },
-  title: { color: '#ffffff', fontSize: 34, lineHeight: 40, fontWeight: '800', marginBottom: 12 },
+  title: { color: '#ffffff', fontSize: 34, lineHeight: 40, fontWeight: '800', marginBottom: 12, fontFamily: FONTS.display },
   body: { color: 'rgba(247,241,232,0.74)', fontSize: 16, lineHeight: 24, marginBottom: 18 },
   optionList: { gap: 10, marginBottom: 20 },
   optionRow: {
@@ -1331,6 +1605,7 @@ const styles = StyleSheet.create({
     lineHeight: 32,
     fontWeight: '800',
     marginBottom: 10,
+    fontFamily: FONTS.display,
   },
   pillarBody: {
     color: 'rgba(247,241,232,0.72)',
@@ -1377,7 +1652,7 @@ const styles = StyleSheet.create({
     letterSpacing: 1.1,
     marginBottom: 12,
   },
-  quoteText: { textAlign: 'center', color: '#ffffff', fontSize: 33, lineHeight: 40, fontWeight: '800', marginBottom: 18 },
+  quoteText: { textAlign: 'center', color: '#ffffff', fontSize: 33, lineHeight: 40, fontWeight: '800', marginBottom: 18, fontFamily: FONTS.display },
   notifyDemo: { gap: 10, marginBottom: 16 },
   notifyLabel: {
     color: '#d9a75f',
@@ -1488,6 +1763,7 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     textAlign: 'center' as const,
     marginBottom: 4,
+    fontFamily: FONTS.display,
   },
   paywallSubtitle: {
     color: 'rgba(247,241,232,0.55)',
@@ -1654,6 +1930,7 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: '800',
     marginBottom: 4,
+    fontFamily: FONTS.display,
   },
   freeWarningSubtitle: {
     color: 'rgba(247,241,232,0.50)',
@@ -1738,4 +2015,91 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: '700',
   },
+
+  // ── New card styles ─────────────────────────────────────────────────────────
+
+  // Ayah card
+  ayahWrap: {
+    minHeight: SCREEN_HEIGHT * 0.72,
+    borderRadius: 24,
+    overflow: 'hidden',
+    justifyContent: 'flex-end',
+  },
+  ayahContent: {
+    paddingHorizontal: 24,
+    paddingBottom: 28,
+    paddingTop: 80,
+    alignItems: 'center',
+  },
+  ayahQuote: {
+    color: '#f5ebd8',
+    fontSize: 22,
+    lineHeight: 32,
+    textAlign: 'center',
+    fontFamily: FONTS.display,
+    marginBottom: 12,
+    letterSpacing: 0.3,
+  },
+  ayahSource: {
+    color: 'rgba(247,241,232,0.55)',
+    fontSize: 13,
+    textAlign: 'center',
+    fontFamily: FONTS.displayMedium,
+    marginBottom: 28,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+
+  // Pledge card
+  pledgeWrap: {
+    paddingTop: 8,
+    paddingBottom: 8,
+  },
+  pledgeHadithLabel: {
+    color: '#7fb0e8',
+    fontSize: 16,
+    fontWeight: '800',
+    fontFamily: FONTS.display,
+    marginBottom: 10,
+  },
+  pledgeHadith: {
+    color: '#ffffff',
+    fontSize: 24,
+    lineHeight: 32,
+    fontWeight: '800',
+    fontFamily: FONTS.display,
+    marginBottom: 6,
+  },
+  pledgeAccent: {
+    color: '#e8a87c',
+  },
+  pledgeSource: {
+    color: 'rgba(247,241,232,0.45)',
+    fontSize: 12,
+    marginBottom: 24,
+  },
+  pledgePromise: {
+    color: 'rgba(247,241,232,0.92)',
+    fontSize: 17,
+    lineHeight: 26,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  pledgePromiseSub: {
+    color: 'rgba(247,241,232,0.92)',
+    fontSize: 17,
+    lineHeight: 26,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+  pledgeSignWrap: {
+    marginBottom: 22,
+  },
+  trustNote: {
+    color: 'rgba(247,241,232,0.40)',
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 6,
+  },
 });
+

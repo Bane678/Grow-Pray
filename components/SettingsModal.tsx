@@ -19,6 +19,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRAYER_METHODS, type PrayerMethodKey, type Madhab } from '../hooks/usePrayerTimes';
+import { FONTS } from '../theme/typography';
 
 const ICON_GEAR = require('../assets/Garden Assets/Icons/Icon_Gear.png');
 
@@ -79,8 +80,8 @@ const ALL_STORAGE_KEYS = [
 
 const APP_VERSION = '1.0.0';
 const SUPPORT_EMAIL = 'sayeedali224@gmail.com';
-const PRIVACY_URL = 'https://bane678.github.io/grow-pray-site/privacy.html';
-const TERMS_URL = 'https://bane678.github.io/grow-pray-site/support.html';
+const PRIVACY_URL = 'https://bane678.github.io/Grow-Pray/privacy-policy.html';
+const TERMS_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
 // ─── Component ─────────────────────────────────────────────────────────────────
 
@@ -533,6 +534,7 @@ const s = StyleSheet.create({
     color: '#f3f4f6',
     fontSize: 20,
     fontWeight: '700',
+    fontFamily: FONTS.display,
   },
   closeBtn: {
     width: 30,
@@ -894,6 +896,7 @@ const s = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: 20,
     letterSpacing: -0.5,
+    fontFamily: FONTS.display,
   },
   groupCard: {
     marginHorizontal: 16,

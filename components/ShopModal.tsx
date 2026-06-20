@@ -13,6 +13,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { BOOST_CATALOG, BoostDefinition, ActiveBoost } from '../hooks/useBoosts';
+import { FONTS } from '../theme/typography';
 
 // ─── Freeze icons ─────────────────────────────────────────────────────────────
 const SINGLE_FREEZE_ICON = require('../assets/Garden Assets/Icons/Streak_Freeze.png');
@@ -982,6 +983,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '700',
     color: '#e8e0d6',
+    fontFamily: FONTS.display,
   },
   coinBadge: {
     backgroundColor: 'rgba(251, 191, 36, 0.1)',

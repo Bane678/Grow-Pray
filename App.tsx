@@ -19,6 +19,8 @@ import { PrayerHistoryModal } from './components/PrayerHistoryModal';
 import { useBoosts, BOOST_CATALOG } from './hooks/useBoosts';
 
 import { Asset } from 'expo-asset';
+import { useFonts, Fraunces_400Regular, Fraunces_500Medium, Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
+import { FONTS } from './theme/typography';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Location from 'expo-location';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
@@ -310,6 +312,7 @@ function RestPeriodModal({
             color: THEME.text,
             textAlign: 'center',
             marginBottom: 8,
+            fontFamily: FONTS.display,
           }}>
             Set Rest Period
           </Text>
@@ -841,6 +844,7 @@ function TopInfoBar({
                 fontWeight: '800',
                 color: THEME.text,
                 letterSpacing: -0.5,
+                fontFamily: FONTS.display,
               }}>
                 {nextPrayer ? timeUntilNext : ''}
               </Text>
@@ -2409,12 +2413,21 @@ function FreezeWhenHidden({ visible, children }: { visible: boolean; children: R
 }
 
 function AppInner() {
+  // Load the Fraunces display font used for headings across the app.
+  // Fonts load at runtime; we fold readiness into the existing startup gate
+  // so headings never flash in the system font before swapping.
+  const [fontsLoaded] = useFonts({
+    Fraunces_400Regular,
+    Fraunces_500Medium,
+    Fraunces_600SemiBold,
+  });
+
   const [assetsProgress, setAssetsProgress] = useState({
     groundTiles: false,
     trees: false,
     uiAssets: false,
   });
-  const isReady = assetsProgress.groundTiles && assetsProgress.trees && assetsProgress.uiAssets;
+  const isReady = fontsLoaded && assetsProgress.groundTiles && assetsProgress.trees && assetsProgress.uiAssets;
   // Tracks when the loading overlay has fully faded out — gates auto-showing prompts
   const [appFullyReady, setAppFullyReady] = useState(false);
 
@@ -2964,6 +2977,10 @@ function AppInner() {
 
   const handleOnboardingComplete = useCallback(() => {
     cameFromOnboarding.current = true;
+    // Persist completion against the key App.tsx reads on launch, so onboarding
+    // doesn't re-appear on every cold start. (OnboardingScreen writes a legacy
+    // key under a different namespace; this is the authoritative one.)
+    AsyncStorage.setItem('@GrowPray:onboardingComplete', 'true').catch(() => {});
     // Hide the garden before it first renders — revealed after PreparingScreen
     gardenRevealAnim.setValue(0);
     setShowOnboarding(false);
@@ -3886,6 +3903,33 @@ function AppInner() {
                 </Text>
                 <Text style={{ color: '#90cdf4', fontSize: 11, marginTop: 4 }}>
                   Perfect days: {consistency.perfectDays} → Tap to cycle
+                </Text>
+              </TouchableOpacity>
+
+              {/* ── Replay onboarding (dev only) ──────────────── */}
+              <TouchableOpacity
+                onPress={async () => {
+                  await AsyncStorage.multiRemove([
+                    '@GrowPray:onboardingComplete',
+                    '@JannahGarden:onboardingComplete',
+                    '@JannahGarden:userName',
+                  ]);
+                  setShowDebugModal(false);
+                  setShowOnboarding(true);
+                }}
+                style={{
+                  backgroundColor: '#3b2f1a',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: '#fbbf24', fontSize: 14, fontWeight: '600' }}>
+                  🌱 Replay Onboarding
+                </Text>
+                <Text style={{ color: 'rgba(251,191,36,0.6)', fontSize: 11, marginTop: 4 }}>
+                  Resets the intro flow so you can view it again
                 </Text>
               </TouchableOpacity>
 

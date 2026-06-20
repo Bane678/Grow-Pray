@@ -56,7 +56,8 @@
           "icon": "./assets/Garden Assets/Icons/App_Logo.png",
           "color": "#0f1526"
         }
-      ]
+      ],
+      "expo-font"
     ],
     "extra": {
       "eas": {

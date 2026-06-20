@@ -12,6 +12,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { PREMIUM_PLANS, FREE_LIMITS, PREMIUM_LIMITS } from '../hooks/usePremium';
+import { FONTS } from '../theme/typography';
 
 const ICON_SPARKLE = require('../assets/Garden Assets/Icons/Icon_Sparkle.png');
 
@@ -186,7 +187,7 @@ export function PaywallModal({
             maxWidth: 340,
           }}>
             <Image source={ICON_SPARKLE} style={{ width: 60, height: 60, marginBottom: 16 }} resizeMode="contain" />
-            <Text style={{ fontSize: 24, fontWeight: '800', color: '#e8a87c', marginBottom: 8, textAlign: 'center', width: '100%' }}>
+            <Text style={{ fontSize: 24, fontWeight: '800', color: '#e8a87c', marginBottom: 8, textAlign: 'center', width: '100%', fontFamily: FONTS.display }}>
               Welcome to Premium!
             </Text>
             <Text style={{ fontSize: 15, color: '#e8e0d6', textAlign: 'center', lineHeight: 22 }}>
@@ -223,6 +224,7 @@ export function PaywallModal({
             fontWeight: '800',
             color: '#fbbf24',
             textAlign: 'center',
+            fontFamily: FONTS.display,
           }}>
             {message.title}
           </Text>

@@ -11,6 +11,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
+import { FONTS } from '../theme/typography';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -445,6 +446,7 @@ const styles = StyleSheet.create({
     fontSize: 22,
     fontWeight: '800',
     color: '#e8e0d6',
+    fontFamily: FONTS.display,
   },
   closeBtn: {
     padding: 4,
@@ -491,6 +493,7 @@ const styles = StyleSheet.create({
   streakCount: {
     fontSize: 20,
     fontWeight: '800',
+    fontFamily: FONTS.display,
   },
   streakUnit: {
     fontSize: 9,
@@ -531,6 +534,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: '800',
     color: '#e8a87c',
+    fontFamily: FONTS.display,
   },
   statLabel: {
     fontSize: 11,
@@ -593,6 +597,7 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '700',
     color: '#e8e0d6',
+    fontFamily: FONTS.display,
   },
   dowRow: {
     flexDirection: 'row',
@@ -669,6 +674,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#e8e0d6',
     marginBottom: 2,
+    fontFamily: FONTS.display,
   },
   detailBadge: {
     alignSelf: 'center',

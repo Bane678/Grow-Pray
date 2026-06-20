@@ -2233,7 +2233,6 @@ export const GardenScene = React.memo(function GardenScene({
                 minPointers={1}
                 maxPointers={2}
                 avgTouches
-                enabled={!frozen}
             >
                 <Animated.View style={styles.canvasContainer}>
                     <PinchGestureHandler
@@ -2241,12 +2240,11 @@ export const GardenScene = React.memo(function GardenScene({
                         simultaneousHandlers={[panRef]}
                         onGestureEvent={onPinchGestureEvent}
                         onHandlerStateChange={onPinchStateChange}
-                        enabled={!frozen}
                     >
                         <Animated.View style={styles.canvasContainer}>
                             <Animated.View style={[styles.scaleWrapper, { transform: [{ translateX: panX }, { translateY: panY }, { scale: displayScale }] }]}>
                                 {/* gardenOpacity is an Animated.Value — changes via native driver, no React re-render */}
-                                <Animated.View style={{ opacity: gardenOpacity }} pointerEvents={frozen ? 'none' : 'box-none'}>
+                                <Animated.View style={{ opacity: gardenOpacity }} pointerEvents="box-none">
                                 <MemoIsometricGrid
                                     xp={xp}
                                     gridSize={gridSize}
