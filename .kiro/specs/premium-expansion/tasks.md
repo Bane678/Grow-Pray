@@ -10,37 +10,37 @@ verification.
 ## Tasks
 
 ### Phase 1 — Navigation reorg (Settings → gear, add Dhikr slot)
-- [ ] 1.1 Add `'dhikr'` to the `activeTab` union and lazy `visitedTabs` handling in `App.tsx`. (Req 3)
-- [ ] 1.2 In `BottomTabBar`, replace the `settings` entry with a `dhikr` entry (icon + "Dhikr"); keep order Garden · Challenges · Shop · History · Dhikr; preserve badge logic. (Req 3.1, 3.5)
-- [ ] 1.3 Add a gear icon button to the garden `TopInfoBar` → `setActiveTab('settings')`. (Req 3.2, 3.3)
-- [ ] 1.4 Verify Settings still renders as a page, `onClose → garden` works, and `__DEV__` developer tools remain reachable. (Req 3.3, 3.4)
+- [x] 1.1 Add `'dhikr'` to the `activeTab` union and lazy `visitedTabs` handling in `App.tsx`. (Req 3)
+- [x] 1.2 In `BottomTabBar`, replace the `settings` entry with a `dhikr` entry (icon + "Dhikr"); keep order Garden · Challenges · Shop · History · Dhikr; preserve badge logic. (Req 3.1, 3.5)
+- [x] 1.3 Add a gear icon button to the garden `TopInfoBar` → `setActiveTab('settings')`. (Req 3.2, 3.3)
+- [x] 1.4 Verify Settings still renders as a page, `onClose → garden` works, and `__DEV__` developer tools remain reachable. (Req 3.3, 3.4)
 
 ### Phase 2 — Premium plumbing
-- [ ] 2.1 Extend `PaywallModal` `triggerReason` with `'insights'` and `'dhikr_library'` and add copy to `TRIGGER_MESSAGES`. (Req 4.2)
+- [x] 2.1 Extend `PaywallModal` `triggerReason` with `'insights'` and `'dhikr_library'` and add copy to `TRIGGER_MESSAGES`. (Req 4.2)
 
 ### Phase 3 — Advanced Insights (History tab)
-- [ ] 3.1 Create `hooks/usePrayerInsights.ts`: perPrayerRate, most/least consistent, completionTrend, perfectDays, totalPrayers — pure, memoized over `prayerHistory` + `streaks`. (Req 1.4, 1.5)
-- [ ] 3.2 Create `components/InsightsView.tsx`: per-prayer bars (PRAYER_COLORS), trend line (`react-native-svg`), most/least + perfect-day cards, year overview; existing card + Fraunces styles. (Req 1.4, 1.7)
-- [ ] 3.3 Add `isPremium` + `onOpenPaywall` props to `PrayerHistoryModal`; pass them from `App.tsx`. (Req 1.3, 4.1)
-- [ ] 3.4 Add the `Calendar | Insights` segmented control to `PrayerHistoryModal` (default Calendar; Calendar unchanged). (Req 1.1, 1.2)
-- [ ] 3.5 Wire Insights: premium → charts; non-premium → `BlurView` preview + "Unlock with Premium" → `onOpenPaywall('insights')`. (Req 1.3, 1.4)
-- [ ] 3.6 Add forward on-time logging to `@GrowPray:prayerTimingLog` on prayer completion (from `getPrayerWindowStatus`); do not alter `prayerHistory`. (Req 1.6)
+- [x] 3.1 Create `hooks/usePrayerInsights.ts`: perPrayerRate, most/least consistent, completionTrend, perfectDays, totalPrayers — pure, memoized over `prayerHistory` + `streaks`. (Req 1.4, 1.5)
+- [x] 3.2 Create `components/InsightsView.tsx`: per-prayer bars (PRAYER_COLORS), trend line (`react-native-svg`), most/least + perfect-day cards, year overview; existing card + Fraunces styles. (Req 1.4, 1.7)
+- [x] 3.3 Add `isPremium` + `onOpenPaywall` props to `PrayerHistoryModal`; pass them from `App.tsx`. (Req 1.3, 4.1)
+- [x] 3.4 Add the `Calendar | Insights` segmented control to `PrayerHistoryModal` (default Calendar; Calendar unchanged). (Req 1.1, 1.2)
+- [x] 3.5 Wire Insights: premium → charts; non-premium → `BlurView` preview + "Unlock with Premium" → `onOpenPaywall('insights')`. (Req 1.3, 1.4)
+- [x] 3.6 Add forward on-time logging to `@GrowPray:prayerTimingLog` on prayer completion (from `getPrayerWindowStatus`); do not alter `prayerHistory`. (Req 1.6)
 
 ### Phase 4 — Dhikr & Dua hub + Tasbih
-- [ ] 4.1 Create `data/adhkar.ts` with typed presets + adhkar; After-Salah + tasbih presets `premium:false`, other categories `premium:true`; mark Arabic/translations with VERIFY comments. (Req 2.4, 2.5, 2.7)
-- [ ] 4.2 Create `hooks/useDhikr.ts`: count/target/preset state, increment/reset, persistence (`@GrowPray:tasbih`); optional premium dhikr streak (`@GrowPray:dhikrStreak`). (Req 2.3)
-- [ ] 4.3 Create `components/DhikrScreen.tsx` (asPage + FreezeWhenHidden, dark glass): Tasbih section (tap counter, preset chips, haptics, completion signal) + Duas & Adhkar section (category cards); props `isPremium`, `onOpenPaywall`. (Req 2.1–2.5)
-- [ ] 4.4 Gate premium categories/targets: locked items open `onOpenPaywall('dhikr_library')`; free users get Tasbih + After-Salah. (Req 2.5, 4.3)
-- [ ] 4.5 Render `DhikrScreen` as the `dhikr` tab page in `App.tsx`, mirroring the other tab pages. (Req 2.1, 5.1)
-- [ ] 4.6 Add the post-prayer "Continue with dhikr?" dismissible nudge in `handleTogglePrayerWithChallenges` success path; accept opens Dhikr; never blocks completion. (Req 2.6)
+- [x] 4.1 Create `data/adhkar.ts` with typed presets + adhkar; After-Salah + tasbih presets `premium:false`, other categories `premium:true`; mark Arabic/translations with VERIFY comments. (Req 2.4, 2.5, 2.7)
+- [x] 4.2 Create `hooks/useDhikr.ts`: count/target/preset state, increment/reset, persistence (`@GrowPray:tasbih`); optional premium dhikr streak (`@GrowPray:dhikrStreak`). (Req 2.3)
+- [x] 4.3 Create `components/DhikrScreen.tsx` (asPage + FreezeWhenHidden, dark glass): Tasbih section (tap counter, preset chips, haptics, completion signal) + Duas & Adhkar section (category cards); props `isPremium`, `onOpenPaywall`. (Req 2.1–2.5)
+- [x] 4.4 Gate premium categories/targets: locked items open `onOpenPaywall('dhikr_library')`; free users get Tasbih + After-Salah. (Req 2.5, 4.3)
+- [x] 4.5 Render `DhikrScreen` as the `dhikr` tab page in `App.tsx`, mirroring the other tab pages. (Req 2.1, 5.1)
+- [x] 4.6 Add the post-prayer "Continue with dhikr?" dismissible nudge in `handleTogglePrayerWithChallenges` success path; accept opens Dhikr; never blocks completion. (Req 2.6)
 
 ### Phase 5 — Optional tie-in (off by default)
 - [ ] 5.1 (Optional) Grant a small, capped XP/coin nudge on completing a dhikr session via existing earn paths; keep disabled until economy-tuned.
 
 ### Phase 6 — Verification
-- [ ] 6.1 `tsc --noEmit` and `get_diagnostics` clean on all changed files. (Req 5.3)
+- [x] 6.1 `tsc --noEmit` and `get_diagnostics` clean on all changed files. (Req 5.3)
 - [ ] 6.2 Manual pass (dev Toggle Premium + Replay Onboarding): History free-lock vs premium charts; Dhikr tasbih persist + locked categories + paywall; Settings via gear; post-prayer nudge; garden pan/zoom (no freeze regression). (Req 5.4)
-- [ ] 6.3 Confirm no new permissions, no network calls, no ads, no faces/animals/humans. (Req 5.2)
+- [x] 6.3 Confirm no new permissions, no network calls, no ads, no faces/animals/humans. (Req 5.2)
 - [ ] 6.4 Owner: verify all Arabic, transliterations, and translations in `data/adhkar.ts` before release. (Req 2.7)
 
 ## Task Dependency Graph

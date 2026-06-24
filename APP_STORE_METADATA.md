@@ -64,12 +64,14 @@ Grow Pray turns your daily prayers into a living, growing garden. Every salah yo
 • Unlimited garden size
 • 2× coin earning rate
 • Exclusive premium tree varieties
+• Advanced prayer insights and trends
 • Priority support
 
-🤲 DIFFICULT DAY MODE
-• Having a tough day? Activate Difficult Day mode
-• Reduced prayer requirements with compassion
-• 3 uses per month — because we all need grace sometimes
+🧭 WORSHIP TOOLS
+• Qibla compass to find the direction of the Kaaba
+• Digital tasbih counter for your daily dhikr
+• Authentic duas and adhkar: after salah, morning, evening, before sleep, and travel
+• A daily ayah or hadith to reflect on
 
 Built with love for the Muslim community. No ads. Your data stays on your device.
 
@@ -96,7 +98,7 @@ Your first release includes:
 • Streak freeze protection
 • Consistency multiplier rewards
 • Ramadan mode with 2× XP
-• Difficult Day mode
+• Qibla compass, tasbih, duas & adhkar, and a daily reflection
 • Premium subscription option
 • Beautiful pixel-art garden with gesture controls
 
