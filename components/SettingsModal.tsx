@@ -54,6 +54,7 @@ interface SettingsModalProps {
   asPage?: boolean;
   onRest?: () => void;
   onDebug?: () => void;
+  onReplayTutorial?: () => void;
 }
 
 const ALL_STORAGE_KEYS = [
@@ -69,8 +70,6 @@ const ALL_STORAGE_KEYS = [
   '@GrowPray:perfectDays',
   '@GrowPray:lastPerfectDate',
   '@GrowPray:weeklyChallenges',
-  '@GrowPray:difficultDay',
-  '@GrowPray:difficultDayUses',
   '@GrowPray:notificationsEnabled',
   '@GrowPray:premiumStatus',
   '@GrowPray:prayerHistory',
@@ -107,6 +106,7 @@ export const SettingsModal = memo(function SettingsModal({
   asPage,
   onRest,
   onDebug,
+  onReplayTutorial,
 }: SettingsModalProps) {
   const [restoringPurchases, setRestoringPurchases] = useState(false);
   const [cityInput, setCityInput] = useState(manualCity);
@@ -388,6 +388,12 @@ export const SettingsModal = memo(function SettingsModal({
       {/* ── SUPPORT ───────────────────────────────────────── */}
       <SectionLabel label="SUPPORT" />
       <View style={s.groupCard}>
+        {onReplayTutorial && (
+          <>
+            <PageLinkRow icon="school-outline" label="Replay Tutorial" onPress={onReplayTutorial} />
+            <View style={s.groupDivider} />
+          </>
+        )}
         <PageLinkRow icon="shield-lock-outline" label="Privacy Policy" onPress={() => handleOpenLink(PRIVACY_URL)} />
         <View style={s.groupDivider} />
         <PageLinkRow icon="file-document-outline" label="Terms of Service" onPress={() => handleOpenLink(TERMS_URL)} />

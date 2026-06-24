@@ -15,6 +15,8 @@ export const FONTS = {
   displayMedium: 'Fraunces_500Medium',
   /** Regular weight display — quotes, softer headings */
   displayRegular: 'Fraunces_400Regular',
+  /** Arabic script — Indopak-style (Amiri) for all Arabic text */
+  arabic: 'Amiri_400Regular',
 } as const;
 
 // Convenience style fragments to spread into a heading's style object.
@@ -22,4 +24,5 @@ export const HEADING = {
   display: { fontFamily: FONTS.display },
   displayMedium: { fontFamily: FONTS.displayMedium },
   displayRegular: { fontFamily: FONTS.displayRegular },
+  arabic: { fontFamily: FONTS.arabic },
 } as const;

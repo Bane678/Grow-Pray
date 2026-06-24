@@ -7,6 +7,9 @@ import { Asset } from 'expo-asset';
 import { type PrayerDeadlines } from './usePrayerTimes';
 
 const NOTIFICATIONS_KEY = '@GrowPray:notificationsEnabled';
+const REFLECTION_REMINDER_KEY = '@GrowPray:reflectionReminder';
+const REFLECTION_REMINDER_ID = 'daily-reflection';
+const REFLECTION_REMINDER_HOUR = 9; // 9:00 local
 
 // Configure how notifications are handled when the app is in foreground
 Notifications.setNotificationHandler({
@@ -92,6 +95,7 @@ export function useNotifications(
 ) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
+  const [reflectionReminderEnabled, setReflectionReminderEnabled] = useState(false);
   const notificationListener = useRef<Notifications.EventSubscription | null>(null);
   const responseListener = useRef<Notifications.EventSubscription | null>(null);
 
@@ -101,6 +105,7 @@ export function useNotifications(
 
     registerForPushNotifications();
     loadNotificationPreference();
+    loadReflectionReminderPreference();
 
     // Set up listeners for when notifications are received/tapped
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
@@ -149,6 +154,55 @@ export function useNotifications(
       }
     } catch (error) {
       console.error('Error loading notification preference:', error);
+    }
+  };
+
+  const loadReflectionReminderPreference = async () => {
+    try {
+      const stored = await AsyncStorage.getItem(REFLECTION_REMINDER_KEY);
+      setReflectionReminderEnabled(stored !== null ? JSON.parse(stored) : false);
+    } catch (error) {
+      console.error('Error loading reflection reminder preference:', error);
+    }
+  };
+
+  // Schedule (or cancel) one daily local reflection reminder. Reuses the existing
+  // notification permission — no new prompt beyond what prayer reminders already ask.
+  const scheduleReflectionReminder = async () => {
+    try {
+      await Notifications.cancelScheduledNotificationAsync(REFLECTION_REMINDER_ID).catch(() => {});
+      await Notifications.scheduleNotificationAsync({
+        identifier: REFLECTION_REMINDER_ID,
+        content: {
+          title: 'Reflection of the day',
+          body: 'Take a moment for today\'s ayah or hadith.',
+          data: { type: 'reflection' },
+          sound: 'default',
+          ...(Platform.OS === 'android' && { channelId: 'prayer-reminders' }),
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
+          hour: REFLECTION_REMINDER_HOUR,
+          minute: 0,
+          repeats: true,
+        },
+      });
+    } catch (error) {
+      console.error('Error scheduling reflection reminder:', error);
+    }
+  };
+
+  const toggleReflectionReminder = async (enabled: boolean) => {
+    if (enabled && permissionStatus !== 'granted') {
+      const granted = await registerForPushNotifications();
+      if (!granted) return;
+    }
+    setReflectionReminderEnabled(enabled);
+    await AsyncStorage.setItem(REFLECTION_REMINDER_KEY, JSON.stringify(enabled));
+    if (enabled) {
+      await scheduleReflectionReminder();
+    } else {
+      await Notifications.cancelScheduledNotificationAsync(REFLECTION_REMINDER_ID).catch(() => {});
     }
   };
 
@@ -373,8 +427,7 @@ export function useNotifications(
     }
   };
 
-  const toggleNotifications = async (enabled: boolean) => {
-    if (enabled && permissionStatus !== 'granted') {
+  const toggleNotifications = async (enabled: boolean) => {    if (enabled && permissionStatus !== 'granted') {
       const granted = await registerForPushNotifications();
       if (!granted) return;
     }
@@ -450,5 +503,7 @@ export function useNotifications(
     cancelPrayerNotification,
     requestPermission: registerForPushNotifications,
     sendTestNotifications,
+    reflectionReminderEnabled,
+    toggleReflectionReminder,
   };
 }

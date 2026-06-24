@@ -10,8 +10,11 @@ import {
   Dimensions,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 import * as Haptics from 'expo-haptics';
 import { FONTS } from '../theme/typography';
+import { InsightsView } from './InsightsView';
+import { usePrayerInsights, PrayerInsights } from '../hooks/usePrayerInsights';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
@@ -31,7 +34,22 @@ interface PrayerHistoryModalProps {
   prayerHistory: DailyPrayerLog;
   completedToday: Set<string>;
   asPage?: boolean;
+  isPremium?: boolean;
+  onOpenPaywall?: (reason: 'insights') => void;
 }
+
+// Sample numbers shown (heavily blurred) to non-premium users so real values
+// never leak through the locked preview.
+const SAMPLE_INSIGHTS: PrayerInsights = {
+  perPrayerRate: { Fajr: 0.62, Dhuhr: 0.88, Asr: 0.74, Maghrib: 0.93, Isha: 0.7 },
+  mostConsistent: 'Maghrib',
+  leastConsistent: 'Fajr',
+  completionTrend: [0.5, 0.6, 0.55, 0.72, 0.8, 0.85],
+  perfectDays: 12,
+  totalPrayers: 118,
+  bestStreak: 9,
+  hasData: true,
+};
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -117,11 +135,16 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
   prayerHistory,
   completedToday,
   asPage = false,
+  isPremium = false,
+  onOpenPaywall,
 }: PrayerHistoryModalProps) {
   const today = new Date();
   const [viewYear, setViewYear] = useState(today.getFullYear());
   const [viewMonth, setViewMonth] = useState(today.getMonth());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  const [tab, setTab] = useState<'calendar' | 'insights'>('calendar');
+
+  const insights = usePrayerInsights(prayerHistory, streaks, 30, 6);
 
   const prevMonth = useCallback(() => {
     Haptics.selectionAsync();
@@ -194,6 +217,34 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
             )}
           </View>
 
+          {/* Calendar | Insights segmented control */}
+          <View style={styles.segmentWrap}>
+            {(['calendar', 'insights'] as const).map((seg) => {
+              const active = tab === seg;
+              return (
+                <TouchableOpacity
+                  key={seg}
+                  onPress={() => { Haptics.selectionAsync(); setTab(seg); }}
+                  activeOpacity={0.8}
+                  style={[styles.segment, active && styles.segmentActive]}
+                >
+                  <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
+                    {seg === 'calendar' ? 'Calendar' : 'Insights'}
+                  </Text>
+                  {seg === 'insights' && !isPremium && (
+                    <MaterialCommunityIcons
+                      name="lock"
+                      size={11}
+                      color={active ? '#e8a87c' : 'rgba(232,224,214,0.4)'}
+                      style={{ marginLeft: 4 }}
+                    />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {tab === 'calendar' ? (
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
             {/* ── Streak Cards ──────────────────────────────── */}
             <View style={styles.streaksContainer}>
@@ -402,6 +453,43 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
               ))}
             </View>
           </ScrollView>
+          ) : (
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+            {isPremium ? (
+              <InsightsView insights={insights} prayerHistory={prayerHistory} windowDays={30} />
+            ) : (
+              <View style={{ position: 'relative' }}>
+                {/* Blurred sample preview — real values never rendered for free users */}
+                <View pointerEvents="none">
+                  <InsightsView insights={SAMPLE_INSIGHTS} windowDays={30} />
+                </View>
+                <BlurView
+                  intensity={18}
+                  tint="dark"
+                  style={StyleSheet.absoluteFill}
+                />
+                <View style={styles.lockOverlay} pointerEvents="box-none">
+                  <View style={styles.lockBadge}>
+                    <MaterialCommunityIcons name="lock" size={26} color="#e8a87c" />
+                  </View>
+                  <Text style={styles.lockTitle}>Advanced Insights</Text>
+                  <Text style={styles.lockSub}>
+                    See your completion by prayer, trends over time, and your most
+                    consistent salah.
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => { Haptics.selectionAsync(); onOpenPaywall?.('insights'); }}
+                    activeOpacity={0.85}
+                    style={styles.unlockBtn}
+                  >
+                    <MaterialCommunityIcons name="crown" size={16} color="#1a1205" />
+                    <Text style={styles.unlockBtnText}>Unlock with Premium</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+          </ScrollView>
+          )}
     </>
   );
 
@@ -450,6 +538,83 @@ const styles = StyleSheet.create({
   },
   closeBtn: {
     padding: 4,
+  },
+
+  // Segmented control
+  segmentWrap: {
+    flexDirection: 'row',
+    marginHorizontal: 20,
+    marginBottom: 16,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderRadius: 12,
+    padding: 4,
+    gap: 4,
+  },
+  segment: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    borderRadius: 9,
+  },
+  segmentActive: {
+    backgroundColor: 'rgba(232,168,124,0.16)',
+  },
+  segmentText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: 'rgba(232,224,214,0.5)',
+  },
+  segmentTextActive: {
+    color: '#e8a87c',
+    fontWeight: '700',
+  },
+
+  // Insights lock overlay
+  lockOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+  },
+  lockBadge: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(232,168,124,0.14)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+  lockTitle: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#e8e0d6',
+    fontFamily: FONTS.display,
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  lockSub: {
+    fontSize: 13,
+    color: 'rgba(232,224,214,0.6)',
+    textAlign: 'center',
+    lineHeight: 19,
+    marginBottom: 18,
+  },
+  unlockBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    backgroundColor: '#e8a87c',
+    paddingHorizontal: 22,
+    paddingVertical: 12,
+    borderRadius: 14,
+  },
+  unlockBtnText: {
+    fontSize: 14,
+    fontWeight: '800',
+    color: '#1a1205',
   },
 
   // Streak cards row

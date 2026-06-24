@@ -30,7 +30,7 @@ interface PaywallModalProps {
   onPurchaseMonthly: () => Promise<boolean>;
   onPurchaseYearly: () => Promise<boolean>;
   onRestore: () => Promise<boolean>;
-  triggerReason?: 'garden_limit' | 'premium_tree' | 'settings' | 'general';
+  triggerReason?: 'garden_limit' | 'premium_tree' | 'settings' | 'insights' | 'dhikr_library' | 'reflection_archive' | 'general';
 }
 
 const COMPARISON_ROWS: Array<{
@@ -52,10 +52,10 @@ const COMPARISON_ROWS: Array<{
     premium: `${PREMIUM_LIMITS.coinMultiplier}× coins`,
   },
   {
-    label: 'Difficult Days',
-    icon: 'weather-partly-cloudy',
-    free: `${FREE_LIMITS.difficultDayUses}/month`,
-    premium: `${PREMIUM_LIMITS.difficultDayUses}/month`,
+    label: 'Advanced Insights',
+    icon: 'chart-line',
+    free: 'Locked',
+    premium: 'Unlocked',
   },
   {
     label: 'Free Freezes',
@@ -83,6 +83,18 @@ const TRIGGER_MESSAGES: Record<string, { title: string; subtitle: string }> = {
   settings: {
     title: 'Go Premium',
     subtitle: 'Unlock the full Grow Pray experience',
+  },
+  insights: {
+    title: 'Unlock Insights',
+    subtitle: 'See your prayer patterns, trends, and consistency over time',
+  },
+  dhikr_library: {
+    title: 'Full Dhikr Library',
+    subtitle: 'Unlock Morning, Evening, Sleep and Travel adhkar, plus custom counts',
+  },
+  reflection_archive: {
+    title: 'Reflection Archive',
+    subtitle: 'Browse every ayah and hadith, and save your favourites',
   },
   general: {
     title: 'Upgrade to Premium',

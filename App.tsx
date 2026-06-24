@@ -3,7 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Text, View, ActivityIndicator, TouchableOpacity, Image, ImageBackground, Animated, Modal, ScrollView, TouchableWithoutFeedback, Pressable, Easing, StyleSheet, Dimensions, Platform } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
-import { SafeAreaView, SafeAreaProvider } from 'react-native-safe-area-context';
+import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { GardenScene } from './components/GardenScene';
 import { useGardenState, TileState } from './hooks/useGardenState';
 import { OnboardingScreen } from './components/OnboardingScreen';
@@ -16,10 +16,15 @@ import { ChallengesModal } from './components/ChallengesModal';
 
 import { SettingsModal } from './components/SettingsModal';
 import { PrayerHistoryModal } from './components/PrayerHistoryModal';
+import { DhikrScreen } from './components/DhikrScreen';
+import { QiblaScreen } from './components/QiblaScreen';
+import { TutorialOverlay, Rect as TutorialRect } from './components/TutorialOverlay';
+import { useTutorial } from './hooks/useTutorial';
 import { useBoosts, BOOST_CATALOG } from './hooks/useBoosts';
 
 import { Asset } from 'expo-asset';
 import { useFonts, Fraunces_400Regular, Fraunces_500Medium, Fraunces_600SemiBold } from '@expo-google-fonts/fraunces';
+import { Amiri_400Regular } from '@expo-google-fonts/amiri';
 import { FONTS } from './theme/typography';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Location from 'expo-location';
@@ -118,7 +123,7 @@ const THEME = {
   coinMuted: 'rgba(251,191,36,0.12)',
   danger: '#ef4444',           // Missed prayers, destructive
   dangerMuted: 'rgba(239,68,68,0.12)',
-  purple: '#a78bfa',           // Rest, difficult day
+  purple: '#a78bfa',           // Rest mode
   purpleMuted: 'rgba(167,139,250,0.12)',
   divider: 'rgba(255,255,255,0.06)', // Barely visible separators
   tabInactive: 'rgba(156,163,175,0.5)',
@@ -131,6 +136,7 @@ const COINS_KEY = '@GrowPray:coins';
 
 const REST_PERIOD_KEY = '@GrowPray:restPeriod';
 const PRAYER_HISTORY_KEY = '@GrowPray:prayerHistory';
+const PRAYER_TIMING_LOG_KEY = '@GrowPray:prayerTimingLog';
 
 // Per-prayer streak type
 type PrayerStreaks = Record<string, number>;
@@ -681,6 +687,8 @@ function TopInfoBar({
   activeBoostIcon,
   activeBoostName,
   boostTimeRemaining,
+  onOpenSettings,
+  onOpenQibla,
 }: { 
   streaks: PrayerStreaks; 
   coins: number;
@@ -695,12 +703,66 @@ function TopInfoBar({
   activeBoostIcon?: string;
   activeBoostName?: string;
   boostTimeRemaining?: string;
+  onOpenSettings: () => void;
+  onOpenQibla: () => void;
 }) {
   const bestStreak = Math.max(...Object.values(streaks));
   const combinedMultiplier = consistencyMultiplier;
 
   return (
     <View style={{ paddingTop: 6 }}>
+
+      {/* Settings gear — top-right corner overlay */}
+      <TouchableOpacity
+        onPress={onOpenSettings}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        style={{
+          position: 'absolute',
+          top: 6,
+          right: 16,
+          zIndex: 10,
+          alignItems: 'center',
+        }}
+      >
+        <View style={{
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(255,255,255,0.06)',
+        }}>
+          <MaterialCommunityIcons name="cog" size={18} color="rgba(232,224,214,0.55)" />
+        </View>
+        <Text style={{ fontSize: 8, fontWeight: '500', color: 'rgba(232,224,214,0.35)', letterSpacing: 0.5, marginTop: 2 }}>SETTINGS</Text>
+      </TouchableOpacity>
+
+      {/* Qibla compass — top-left corner overlay */}
+      <TouchableOpacity
+        onPress={onOpenQibla}
+        activeOpacity={0.7}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        style={{
+          position: 'absolute',
+          top: 6,
+          left: 16,
+          zIndex: 10,
+          alignItems: 'center',
+        }}
+      >
+        <View style={{
+          width: 32,
+          height: 32,
+          borderRadius: 16,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'rgba(255,255,255,0.06)',
+        }}>
+          <MaterialCommunityIcons name="compass-outline" size={18} color="rgba(232,224,214,0.55)" />
+        </View>
+        <Text style={{ fontSize: 8, fontWeight: '500', color: 'rgba(232,224,214,0.35)', letterSpacing: 0.5, marginTop: 2 }}>QIBLA</Text>
+      </TouchableOpacity>
 
       {/* ── Top-edge stats row ── */}
       <View style={{
@@ -1069,7 +1131,7 @@ function BottomTabBar({
     { key: 'challenges', icon: 'trophy' as const, label: 'Challenges', badge: challengeClaimable },
     { key: 'shop', icon: 'store' as const, label: 'Shop', badge: 0 },
     { key: 'history', icon: 'calendar-month' as const, label: 'History', badge: 0 },
-    { key: 'settings', icon: 'cog' as const, label: 'Settings', badge: 0 },
+    { key: 'dhikr', icon: 'star-crescent' as const, label: 'Dhikr', badge: 0 },
   ];
 
   return (
@@ -1855,6 +1917,28 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     return getPrayerWindowStatus(prayer) === 'active';
   };
 
+  // Classify a completion as 'onTime' or 'grace' based on how far into the prayer's
+  // window we are (grace = final quarter). Forward-looking data only; no UI yet.
+  const getPrayerTimingLabel = (prayer: string): 'onTime' | 'grace' => {
+    if (!timings) return 'onTime';
+    try {
+      const currentMinutes = getPrayerTzMinutes(currentTime, prayerConfig?.manualCoords?.timezone);
+      let start = timeToMinutes(timings[prayer]);
+      let end = getPrayerEndTime(prayer);
+      let now = currentMinutes;
+      // Isha crosses midnight: normalise to a continuous scale.
+      if (prayer === 'Isha') {
+        if (now < start) now += 24 * 60; // after midnight, before Fajr
+      }
+      const span = end - start;
+      if (span <= 0) return 'onTime';
+      const elapsed = (now - start) / span;
+      return elapsed >= 0.75 ? 'grace' : 'onTime';
+    } catch {
+      return 'onTime';
+    }
+  };
+
   const togglePrayerCompleted = async (prayer: string) => {
     if (!canCompletePrayer(prayer)) return;
 
@@ -1940,6 +2024,21 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
       const updatedHistory = { ...prayerHistory, [dateKey]: Array.from(newCompleted) };
       setPrayerHistory(updatedHistory);
       await AsyncStorage.setItem(PRAYER_HISTORY_KEY, JSON.stringify(updatedHistory));
+
+      // Forward-only on-time/grace log (separate key; never mutates prayerHistory).
+      // Only record when newly completing this prayer.
+      if (!wasCompleted) {
+        try {
+          const raw = await AsyncStorage.getItem(PRAYER_TIMING_LOG_KEY);
+          const log: Record<string, Record<string, 'onTime' | 'grace'>> = raw ? JSON.parse(raw) : {};
+          const day = log[dateKey] || {};
+          day[prayer] = getPrayerTimingLabel(prayer);
+          log[dateKey] = day;
+          await AsyncStorage.setItem(PRAYER_TIMING_LOG_KEY, JSON.stringify(log));
+        } catch {
+          // Non-critical; ignore timing-log failures.
+        }
+      }
     } catch (error) {
       console.error('Error saving completed prayers:', error);
     }
@@ -2420,6 +2519,7 @@ function AppInner() {
     Fraunces_400Regular,
     Fraunces_500Medium,
     Fraunces_600SemiBold,
+    Amiri_400Regular,
   });
 
   const [assetsProgress, setAssetsProgress] = useState({
@@ -2450,7 +2550,7 @@ function AppInner() {
 
   const [showHistoryModal, setShowHistoryModal] = useState(false);
   // showMoreMenu removed — replaced by dedicated Settings tab
-  const [activeTab, setActiveTab] = useState<'garden' | 'shop' | 'challenges' | 'history' | 'settings'>('garden');
+  const [activeTab, setActiveTab] = useState<'garden' | 'shop' | 'challenges' | 'history' | 'settings' | 'dhikr'>('garden');
   // Track which tabs have been opened at least once — mount lazily, keep alive after
   const visitedTabs = useRef<Set<string>>(new Set()).current;
   if (activeTab !== 'garden') visitedTabs.add(activeTab);
@@ -2609,7 +2709,70 @@ function AppInner() {
   boostSpendRef.current = (amount: number, _reason: string) => prayerState.spendCoins(amount);
   const challengesHook = useChallenges();
   const [showPaywall, setShowPaywall] = useState(false);
-  const [paywallReason, setPaywallReason] = useState<'garden_limit' | 'premium_tree' | 'settings' | 'general'>('general');
+  const [paywallReason, setPaywallReason] = useState<'garden_limit' | 'premium_tree' | 'settings' | 'insights' | 'dhikr_library' | 'reflection_archive' | 'general'>('general');
+  const [showDhikrNudge, setShowDhikrNudge] = useState(false);
+  const [showQibla, setShowQibla] = useState(false);
+  const [qiblaSeen, setQiblaSeen] = useState(true); // default true so the pulse never flashes before load
+
+  // Load the one-time Qibla-seen flag (drives the attention pulse).
+  useEffect(() => {
+    AsyncStorage.getItem('@GrowPray:qiblaSeen').then((v) => {
+      setQiblaSeen(v === 'true');
+    }).catch(() => setQiblaSeen(true));
+  }, []);
+
+  const openQibla = useCallback(() => {
+    setShowQibla(true);
+    if (!qiblaSeen) {
+      setQiblaSeen(true);
+      AsyncStorage.setItem('@GrowPray:qiblaSeen', 'true').catch(() => {});
+    }
+  }, [qiblaSeen]);
+
+  // ── First-run tutorial ──────────────────────────────────────────────────────
+  const tutorial = useTutorial();
+  // Use window metrics directly (not the hook) since AppInner renders the provider.
+  const insets = initialWindowMetrics?.insets ?? { top: 44, bottom: 34, left: 0, right: 0 };
+  const tutorialTriggeredRef = useRef(false);
+
+  // Approximate screen rects for each tutorial target (robust, no deep refs).
+  const rectForStep = useCallback((id: string): TutorialRect | null => {
+    const { width: SW, height: SH } = Dimensions.get('window');
+    const top = insets.top;
+    const bottom = insets.bottom;
+    switch (id) {
+      case 'garden':
+        return null; // centered caption
+      case 'qibla':
+        return { x: 8, y: top + 2, width: 48, height: 50 };
+      case 'settings':
+        return { x: SW - 66, y: top + 2, width: 56, height: 50 };
+      case 'stats':
+        return { x: SW * 0.16, y: top + 2, width: SW * 0.68, height: 46 };
+      case 'prayerBar':
+        return { x: 20, y: SH - bottom - 195, width: SW - 40, height: 98 };
+      case 'tabs':
+        return { x: 20, y: SH - bottom - 70, width: SW - 40, height: 56 };
+      default:
+        return null;
+    }
+  }, [insets.top, insets.bottom]);
+
+  const tutorialRect = tutorial.active && tutorial.currentStep
+    ? rectForStep(tutorial.currentStep.id)
+    : null;
+
+  // Start the tour once the garden is visible for a user who hasn't seen it.
+  useEffect(() => {
+    if (showOnboarding !== false) return;       // still onboarding/loading
+    if (showPreparing) return;                   // wait for garden reveal
+    if (!tutorial.completedLoaded) return;
+    if (tutorialTriggeredRef.current) return;
+    if (tutorial.hasCompleted()) return;
+    tutorialTriggeredRef.current = true;
+    const t = setTimeout(() => tutorial.start(), 650);
+    return () => clearTimeout(t);
+  }, [showOnboarding, showPreparing, tutorial.completedLoaded]);
 
   // Garden state hook — organic tile recovery based on XP
   // Free users capped at limits.maxGridSize; premium gets full MAX_GRID_SIZE
@@ -2890,6 +3053,8 @@ function AppInner() {
       challengesHook.undoPrayerCompletion(prayer, isOnTime);
     } else {
       challengesHook.recordPrayerCompletion(prayer, isOnTime);
+      // Gentle, dismissible nudge to continue with dhikr. Never blocks completion.
+      setTimeout(() => setShowDhikrNudge(true), 1600);
     }
   }, [prayerState, challengesHook, debugPrayersUnlocked]);
 
@@ -3016,7 +3181,9 @@ function AppInner() {
     notificationsEnabled, 
     toggleNotifications,
     cancelPrayerNotification,
-    sendTestNotifications
+    sendTestNotifications,
+    reflectionReminderEnabled,
+    toggleReflectionReminder,
   } = useNotifications(
     isResting ? null : prayerState.timings,  // Don't schedule if resting
     prayerState.completedPrayers,
@@ -3169,7 +3336,7 @@ function AppInner() {
   const appDataReady = isReady && !gardenState.loading && prayerState.stateLoaded;
 
   return (
-    <SafeAreaProvider>
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
     <ImageBackground
         source={require('./assets/Garden Assets/Icons/Starry_Night_Sky.png')}
         style={{ flex: 1, backgroundColor: THEME.bg }}
@@ -3780,6 +3947,73 @@ function AppInner() {
         triggerReason={paywallReason}
       />
 
+      {/* Qibla compass — full-screen surface; unmounts on close so the magnetometer stops */}
+      <Modal
+        visible={showQibla}
+        animationType="slide"
+        onRequestClose={() => setShowQibla(false)}
+      >
+        <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: '#0f1526' }}>
+          <QiblaScreen
+            manualCoords={manualCoords ? { lat: manualCoords.lat, lng: manualCoords.lng } : null}
+            active={showQibla}
+            onClose={() => setShowQibla(false)}
+          />
+        </SafeAreaView>
+      </Modal>
+
+      {/* Post-prayer dhikr nudge — gentle, dismissible, never blocks completion */}
+      <Modal
+        visible={showDhikrNudge}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowDhikrNudge(false)}
+      >
+        <Pressable
+          style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.55)', justifyContent: 'center', alignItems: 'center', padding: 32 }}
+          onPress={() => setShowDhikrNudge(false)}
+        >
+          <Pressable
+            onPress={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#0f1526',
+              borderRadius: 22,
+              paddingVertical: 26,
+              paddingHorizontal: 24,
+              alignItems: 'center',
+              width: '100%',
+              maxWidth: 320,
+              borderWidth: 1,
+              borderColor: 'rgba(255,255,255,0.08)',
+            }}
+          >
+            <View style={{
+              width: 54, height: 54, borderRadius: 27,
+              backgroundColor: 'rgba(232,168,124,0.14)',
+              alignItems: 'center', justifyContent: 'center', marginBottom: 14,
+            }}>
+              <MaterialCommunityIcons name="star-crescent" size={26} color="#e8a87c" />
+            </View>
+            <Text style={{ fontSize: 19, fontWeight: '800', color: '#e8e0d6', fontFamily: FONTS.display, textAlign: 'center', marginBottom: 6 }}>
+              Continue with dhikr?
+            </Text>
+            <Text style={{ fontSize: 13, color: 'rgba(232,224,214,0.6)', textAlign: 'center', lineHeight: 19, marginBottom: 20 }}>
+              Take a moment for the adhkar after your salah.
+            </Text>
+            <TouchableOpacity
+              onPress={() => { setShowDhikrNudge(false); setActiveTab('dhikr'); }}
+              activeOpacity={0.85}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 7, backgroundColor: '#e8a87c', paddingHorizontal: 24, paddingVertical: 13, borderRadius: 14, width: '100%', justifyContent: 'center' }}
+            >
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#1a1205' }}>Open Dhikr</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowDhikrNudge(false)} activeOpacity={0.7} style={{ paddingVertical: 12, marginTop: 4 }}>
+              <Text style={{ fontSize: 13, color: 'rgba(232,224,214,0.5)', fontWeight: '600' }}>Not now</Text>
+            </TouchableOpacity>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
       {/* Debug Modal - Decay Testing (dev only — never shipped in production) */}
       {__DEV__ && (
       <Modal
@@ -4091,6 +4325,22 @@ function AppInner() {
               streaks={prayerState.streaks}
               prayerHistory={prayerState.prayerHistory}
               completedToday={prayerState.completedPrayers}
+              isPremium={premium.isPremium}
+              onOpenPaywall={(reason) => { setActiveTab('garden'); setPaywallReason(reason); setShowPaywall(true); }}
+            />
+          </SafeAreaView>
+        </FreezeWhenHidden>
+        </View>
+      )}
+      {visitedTabs.has('dhikr') && (
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'dhikr' ? 1 : 0 }} pointerEvents={activeTab === 'dhikr' ? 'auto' : 'none'}>
+        <FreezeWhenHidden visible={activeTab === 'dhikr'}>
+          <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: 'rgba(10,14,28,0.75)' }}>
+            <DhikrScreen
+              isPremium={premium.isPremium}
+              onOpenPaywall={(reason) => { setActiveTab('garden'); setPaywallReason(reason); setShowPaywall(true); }}
+              reflectionReminderEnabled={reflectionReminderEnabled}
+              onToggleReflectionReminder={toggleReflectionReminder}
             />
           </SafeAreaView>
         </FreezeWhenHidden>
@@ -4122,6 +4372,7 @@ function AppInner() {
               onResetProgress={noopResetProgress}
               onRest={() => setShowRestModal(true)}
               onDebug={() => setShowDebugModal(true)}
+              onReplayTutorial={() => { setActiveTab('garden'); setTimeout(() => tutorial.replay(), 400); }}
             />
           </SafeAreaView>
         </FreezeWhenHidden>
@@ -4186,6 +4437,8 @@ function AppInner() {
             activeBoostIcon={boosts.activeBoost ? BOOST_CATALOG.find(b => b.id === boosts.activeBoost!.boostId)?.icon : undefined}
             activeBoostName={boosts.activeBoost ? BOOST_CATALOG.find(b => b.id === boosts.activeBoost!.boostId)?.name : undefined}
             boostTimeRemaining={boosts.activeBoost ? (() => { const ms = boosts.timeRemainingMs; const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return h > 0 ? `${h}h ${m}m left` : `${m}m left`; })() : undefined}
+            onOpenSettings={() => setActiveTab('settings')}
+            onOpenQibla={openQibla}
           />
         )}
         </SafeAreaView>
@@ -4221,7 +4474,7 @@ function AppInner() {
           <BottomTabBar
             activeTab={activeTab}
             onTabChange={(tab) => {
-              setActiveTab(tab as 'garden' | 'shop' | 'challenges' | 'history' | 'settings');
+              setActiveTab(tab as 'garden' | 'shop' | 'challenges' | 'history' | 'settings' | 'dhikr');
             }}
             challengeClaimable={challengesHook.totalClaimable}
           />
@@ -4250,6 +4503,17 @@ function AppInner() {
           onImageLoaded={() => SplashScreen.hideAsync().catch(() => {})}
         />
       )}
+
+      {/* First-run tutorial — overlays everything once the garden is visible */}
+      <TutorialOverlay
+        visible={tutorial.active}
+        step={tutorial.currentStep}
+        rect={tutorialRect}
+        stepIndex={tutorial.stepIndex}
+        totalSteps={tutorial.totalSteps}
+        onNext={tutorial.next}
+        onSkip={tutorial.skip}
+      />
     </SafeAreaProvider>
   );
 }

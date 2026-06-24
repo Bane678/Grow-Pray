@@ -37,13 +37,13 @@ const HERO_DAWN = require('../assets/Garden Assets/Icons/Loading_Screen.png');
 const HERO_NIGHT = require('../assets/Garden Assets/Icons/Starry_Night_Sky.png');
 const DEMO_IMAGE = require('../assets/Garden Assets/Icons/Demo_Image.png');
 const ICON_SPARKLE = require('../assets/Garden Assets/Icons/Icon_Sparkle.png');
-const GOLDEN_TREE = require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Grown.png');
-const CEDAR_TREE  = require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Grown.png');
-const STARRY_NIGHT = require('../assets/Garden Assets/Icons/Starry_Night_Sky.png');
 // New onboarding hero images
 const OB_WELCOME  = require('../assets/Garden Assets/Icons/Onboarding_Welcome.png');
 const OB_AYAH     = require('../assets/Garden Assets/Icons/Onboarding_Ayah.png');
 const OB_REFRAME  = require('../assets/Garden Assets/Icons/Onboarding_Refreame.png'); // note typo in filename
+const OB_PLAN     = require('../assets/Garden Assets/Icons/Onboarding_Plan.png');
+const OB_PLEDGE   = require('../assets/Garden Assets/Icons/Onboarding_Pledge.png');
+const OB_PAYWALL  = require('../assets/Garden Assets/Icons/Onboarding_Paywall.png');
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -504,7 +504,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           title: 'Guilt can be a sign of iman',
           body: 'Feeling the weight of a missed prayer shows you care. Grow Pray helps you channel that into action rather than shame.',
           icon: 'heart-outline',
-          bullets: ['No punitive language, just encouragement', 'Difficult Day mode for hard seasons', 'Streak freeze for life\'s obstacles'],
+          bullets: ['No punitive language, just encouragement', 'Rest periods for hard seasons', 'Streak freezes for life\'s obstacles'],
         },
         disconnected: {
           title: 'Prayer is the connection',
@@ -861,6 +861,10 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     if (currentStep.kind === 'reframe') {
       return (
         <View style={styles.panelTall}>
+          <View style={styles.reframeHero}>
+            <Image source={OB_REFRAME} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            <View style={styles.pillarHeroOverlay} />
+          </View>
           <Text style={[styles.title, { textAlign: 'center' }]}>{currentStep.title}</Text>
           <View style={styles.notifyDemo}>
             <Text style={styles.notifyLabel}>Before</Text>
@@ -989,11 +993,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
         <>
           {/* Premium hero — golden tree on starry night */}
           <View style={styles.paywallHero}>
-            <Image source={STARRY_NIGHT} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-            {/* Golden tree — left */}
-            <Image source={GOLDEN_TREE} style={styles.paywallHeroTreeLeft} resizeMode="contain" />
-            {/* Cedar of Jannah — right */}
-            <Image source={CEDAR_TREE} style={styles.paywallHeroTreeRight} resizeMode="contain" />
+            <Image source={OB_PAYWALL} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
             {/* Bottom gradient fade into panel */}
             <LinearGradient
               colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0.6)', 'rgba(9,14,22,0.98)']}
@@ -1019,8 +1019,8 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
                 { icon: 'grid' as const, text: 'Unlimited garden' },
                 { icon: 'circle-multiple' as const, text: '2x coins and XP' },
                 { icon: 'tree' as const, text: 'Premium trees' },
+                { icon: 'chart-line' as const, text: 'Advanced insights' },
                 { icon: 'shield-check' as const, text: 'Free streak freezes' },
-                { icon: 'star-four-points' as const, text: 'Exclusive rewards' },
               ].map((b, i) => (
                 <View key={i} style={styles.benefitPill}>
                   <MaterialCommunityIcons name={b.icon} size={15} color="#d9a75f" />
@@ -1242,17 +1242,20 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
         character: 'become a better Muslim',
       };
       const features: string[] = [];
-      if (hardest === 'Fajr' || blockers.includes('waking_up')) features.push('Fajr reminders');
-      if (blockers.includes('forgetting')) features.push('Prayer-time notifications');
-      if (blockers.includes('motivation')) features.push('Garden growth + challenge rewards');
-      if (blockers.includes('distractions') || blockers.includes('focus')) features.push('Clean, distraction-free design');
-      if (blockers.includes('busy')) features.push('Deadline warnings before each prayer window closes');
-      if (features.length === 0) features.push('Prayer-time reminders', 'Streak tracking', 'Weekly challenges');
+      if (hardest === 'Fajr' || blockers.includes('waking_up')) features.push('Fajr reminders to start your day in prayer');
+      if (blockers.includes('forgetting')) features.push('Prayer-time alerts so no window slips by');
+      if (blockers.includes('motivation')) features.push('A garden that grows with every salah');
+      if (blockers.includes('focus')) features.push('Tasbih and after-salah adhkar to steady your focus');
+      if (blockers.includes('distractions')) features.push('A calm, ad-free, distraction-free space');
+      if (blockers.includes('busy')) features.push('Deadline warnings before each window closes');
+      // Spiritual tools everyone gets, free
+      features.push('A daily reflection, Qibla compass, and dua library');
+      if (features.length < 3) features.push('A garden that grows with your salah', 'Streak tracking and weekly challenges');
       return (
         <View style={styles.pillarCard}>
-          <View style={styles.pillarHero}>
-            <View style={styles.pillarGlow} />
-            <MaterialCommunityIcons name="map-marker-path" size={60} color="#d9a75f" />
+          <View style={styles.pillarHeroImage}>
+            <Image source={OB_PLAN} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
+            <View style={styles.pillarHeroOverlay} />
           </View>
           <View style={styles.pillarContent}>
             <Text style={styles.pillarTitle}>Your personalised path</Text>
@@ -1288,9 +1291,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       return (
         <>
           <View style={styles.paywallHero}>
-            <Image source={STARRY_NIGHT} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-            <Image source={GOLDEN_TREE} style={styles.paywallHeroTreeLeft} resizeMode="contain" />
-            <Image source={CEDAR_TREE} style={styles.paywallHeroTreeRight} resizeMode="contain" />
+            <Image source={OB_PAYWALL} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
             <LinearGradient
               colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0.6)', 'rgba(9,14,22,0.98)']}
               style={StyleSheet.absoluteFillObject}
@@ -1303,13 +1304,14 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <View style={styles.pillarContent}>
             <Text style={styles.pillarTitle}>Give your journey its best chance</Text>
             <Text style={styles.pillarBody}>
-              {`You're working toward ${goalLine[goal ?? 'consistency'] ?? 'consistency'}. Premium removes every limit and grows your garden twice as fast — so your effort goes further.`}
+              {`You're working toward ${goalLine[goal ?? 'consistency'] ?? 'consistency'}. Premium removes every limit, grows your garden twice as fast, and shows you exactly how your salah is improving.`}
             </Text>
             <View style={styles.pillarHighlights}>
               {[
                 'Unlimited garden, grow without a ceiling',
-                'Exclusive Golden Tree and Ancient Cedar of Jannah',
                 '2x coins and XP, progress twice as fast',
+                'Exclusive premium trees: the Golden Tree and Ancient Cedar',
+                'Advanced insights into your prayer habits and trends',
                 'Free streak freezes every month',
               ].map((h) => (
                 <View key={h} style={styles.pillarChip}>
@@ -1330,7 +1332,8 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     if (currentStep.kind === 'pledge') {
       const displayName = name.trim() || 'I';
       return (
-        <View style={styles.pledgeWrap}>
+        <ImageBackground source={OB_PLEDGE} style={styles.pledgeWrap} imageStyle={styles.pledgeBgImage} resizeMode="cover">
+          <View style={styles.pledgeOverlay} />
           {/* Hadith Qudsi */}
           <Text style={styles.pledgeHadithLabel}>Allah ﷻ says:</Text>
           <Text style={styles.pledgeHadith}>
@@ -1357,7 +1360,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             onConfirm={goNext}
             label={pledgeSigned ? 'Hold to seal your intention' : 'Sign above first'}
           />
-        </View>
+        </ImageBackground>
       );
     }
 
@@ -1454,6 +1457,12 @@ const styles = StyleSheet.create({
     paddingVertical: 24,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+  },
+  reframeHero: {
+    height: 160,
+    borderRadius: 18,
+    overflow: 'hidden',
+    marginBottom: 18,
   },
   heroArt: {
     height: SCREEN_HEIGHT * 0.33,
@@ -1715,20 +1724,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.9,
     shadowRadius: 40,
     elevation: 20,
-  },
-  paywallHeroTreeLeft: {
-    width: '56%',
-    height: '96%',
-    position: 'absolute' as const,
-    bottom: 0,
-    left: '0%',
-  },
-  paywallHeroTreeRight: {
-    width: '44%',
-    height: '96%',
-    position: 'absolute' as const,
-    bottom: 0,
-    right: '0%',
   },
   paywallHeroBadge: {
     flexDirection: 'row' as const,
@@ -2052,8 +2047,18 @@ const styles = StyleSheet.create({
 
   // Pledge card
   pledgeWrap: {
-    paddingTop: 8,
-    paddingBottom: 8,
+    paddingTop: 20,
+    paddingBottom: 20,
+    paddingHorizontal: 18,
+  },
+  pledgeBgImage: {
+    borderRadius: 28,
+    opacity: 0.5,
+  },
+  pledgeOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(7,13,22,0.62)',
+    borderRadius: 28,
   },
   pledgeHadithLabel: {
     color: '#7fb0e8',

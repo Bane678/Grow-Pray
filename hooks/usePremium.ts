@@ -34,7 +34,6 @@ export const PREMIUM_PLANS = {
 export const FREE_LIMITS = {
   maxGridSize: 7,          // 7×7 garden max (one expansion from 5×5 start)
   coinMultiplier: 1,       // 1× coins
-  difficultDayUses: 3,     // 3 per month
   monthlyFreeFreezes: 0,   // No free freezes
   premiumTrees: false,     // Can't buy premium trees
 } as const;
@@ -42,7 +41,6 @@ export const FREE_LIMITS = {
 export const PREMIUM_LIMITS = {
   maxGridSize: 21,         // Unlimited garden (up to 21×21)
   coinMultiplier: 2,       // 2× coins
-  difficultDayUses: 10,    // 10 per month
   monthlyFreeFreezes: 3,   // 3 free freezes on 1st of month
   premiumTrees: true,      // Can buy premium trees
 } as const;
