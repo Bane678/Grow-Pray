@@ -7,10 +7,10 @@
 <meta name="description" content="Grow Pray turns your five daily prayers into a living garden. Track salah, build streaks, collect trees, and watch your paradise flourish. Free on iOS.">
 <meta property="og:title" content="Grow Pray — Grow a Garden Through Prayer">
 <meta property="og:description" content="Turn your daily prayers into a thriving garden. Track salah, build streaks, and grow your paradise.">
-<meta property="og:image" content="https://growpray.com/assets/Garden%20Assets/Icons/Demo_Image.png">
+<meta property="og:image" content="https://growpray.com/web-assets/screenshot.png">
 <meta property="og:type" content="website">
 <meta property="og:url" content="https://growpray.com">
-<meta name="theme-color" content="#0d1b2d">
+<meta name="theme-color" content="#0a1422">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700;9..144,900&family=Nunito:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -55,7 +55,7 @@ nav.scrolled{background:rgba(10,20,34,.9);backdrop-filter:blur(14px);box-shadow:
 /* ---------- HERO ---------- */
 .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:120px 0 0;overflow:hidden;
   background:linear-gradient(180deg,#1b3a5c 0%,#2d5f86 35%,#5e94b0 70%,#86b89c 100%)}
-.hero-sky{position:absolute;inset:0;background-image:url("assets/Garden Assets/Icons/Background_Sky.png");background-size:cover;background-position:center top;opacity:.55;mix-blend-mode:screen}
+.hero-sky{position:absolute;inset:0;background-image:url("web-assets/sky-day.png");background-size:cover;background-position:center top;opacity:.55;mix-blend-mode:screen}
 .hero-glow{position:absolute;top:-10%;left:50%;transform:translateX(-50%);width:900px;height:600px;background:radial-gradient(circle,rgba(255,212,121,.35),transparent 65%);filter:blur(20px)}
 .hero-inner{position:relative;z-index:5;display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;width:100%}
 .hero-copy .pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;font-weight:700;font-size:14px;padding:7px 16px;border-radius:999px;margin-bottom:22px;backdrop-filter:blur(6px)}
@@ -89,6 +89,7 @@ nav.scrolled{background:rgba(10,20,34,.9);backdrop-filter:blur(14px);box-shadow:
 @keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
 @keyframes drift{0%{transform:translateY(-40px) translateX(0) rotate(0)}100%{transform:translateY(110vh) translateX(60px) rotate(360deg)}}
+@keyframes twinkle{0%,100%{opacity:.25}50%{opacity:.9}}
 
 /* ---------- SECTION SHELL ---------- */
 section{position:relative;padding:100px 0}
@@ -125,7 +126,7 @@ section{position:relative;padding:100px 0}
 .ptime .pn{font-weight:800;color:#fff;font-size:17px}
 .ptime .pt{margin-left:auto;color:var(--gold-l);font-weight:800}
 .ptime.done{border-color:rgba(47,174,107,.5);background:rgba(47,174,107,.12)}
-.ptime.done .check{color:var(--green-l);font-weight:900}
+.ptime.done .check{color:var(--green-l);font-weight:900;margin-left:auto}
 .reward-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%}
 .reward{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:22px;text-align:center}
 .reward img{width:56px;height:56px;margin:0 auto 10px}
@@ -144,10 +145,10 @@ section{position:relative;padding:100px 0}
 
 /* ---------- ANYWHERE / NIGHT ---------- */
 .anywhere{background:linear-gradient(180deg,#0c1c30 0%,#0a1422 100%);position:relative;overflow:hidden}
-.night-sky{position:absolute;inset:0;background-image:url("assets/Garden Assets/Icons/Starry_Night_Sky.png");background-size:cover;background-position:center;opacity:.4}
+.night-sky{position:absolute;inset:0;background-image:url("web-assets/sky-night.png");background-size:cover;background-position:center;opacity:.4}
 .anywhere .container{position:relative;z-index:2}
 .anywhere-inner{display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center}
-.phone-pair{display:flex;justify-content:center;gap:-30px}
+.phone-pair{display:flex;justify-content:center}
 .phone-pair .phone{width:230px}
 .phone-pair .phone:nth-child(2){transform:rotate(5deg) translateY(20px);margin-left:-60px;z-index:1}
 .phone-pair .phone:nth-child(1){z-index:2;transform:rotate(-5deg)}
@@ -166,6 +167,26 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
 .foot-links a:hover{color:var(--green-l)}
 .copyright{color:#54697d;font-size:13px;text-align:center;width:100%;margin-top:30px;font-weight:600}
 
+/* ============================================================
+   NIGHT THEME  —  to REVERT to the daytime look, simply delete
+   the word "night" from the <body> tag below.
+   ============================================================ */
+body.night .hero{background:linear-gradient(180deg,#05070f 0%,#0a1426 38%,#0e2238 68%,#163049 100%)}
+body.night .hero-sky{background-image:url("web-assets/sky-night.png");opacity:.85;mix-blend-mode:normal}
+body.night .hero-glow{background:radial-gradient(circle,rgba(150,185,255,.30),transparent 62%);top:-6%}
+body.night .hero-copy .pill{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
+body.night .hero-copy p.sub{color:#cdd9ec}
+body.night .hero-note{color:#aebfd6}
+body.night .hero-ground{background:linear-gradient(180deg,transparent,#1c3a2c 32%,#102619 100%)}
+body.night .hero-ground .tile-row{opacity:.55;filter:brightness(.7)}
+body.night .growth{background:linear-gradient(180deg,#0a1422 0%,#0e2236 100%)}
+body.night #features{background:linear-gradient(180deg,#0e2236 0%,#0a1626 100%)}
+/* a soft moon in the night hero */
+body.night .moon{position:absolute;top:90px;right:8%;width:90px;height:90px;border-radius:50%;
+  background:radial-gradient(circle at 35% 35%,#fff,#dfe8ff 55%,#aebbe0);
+  box-shadow:0 0 60px 18px rgba(180,200,255,.35);z-index:2}
+body:not(.night) .moon{display:none}
+
 /* ---------- RESPONSIVE ---------- */
 @media(max-width:900px){
   .hero-inner,.anywhere-inner{grid-template-columns:1fr;gap:40px}
@@ -173,6 +194,7 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
   .hero-copy .hero-cta,.hero-note{justify-content:center}
   .hero-visual{margin-top:10px}
   .mascot{display:none}
+  body.night .moon{right:6%;top:80px;width:64px;height:64px}
   .frow{grid-template-columns:1fr;gap:32px;margin-bottom:80px}
   .frow.flip .fr-text{order:0}
   .tree-grid{grid-template-columns:repeat(2,1fr)}
@@ -189,7 +211,7 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
 <!-- ===== NAV ===== -->
 <nav id="nav">
   <div class="container nav-inner">
-    <div class="brand"><img src="assets/Garden%20Assets/Icons/Icon_Seedling.png" alt="Grow Pray seedling"> Grow Pray</div>
+    <div class="brand"><img src="web-assets/seedling.png" alt="Grow Pray seedling"> Grow Pray</div>
     <a href="#download" class="nav-cta">Download free</a>
   </div>
 </nav>
@@ -198,6 +220,7 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
 <header class="hero">
   <div class="hero-sky"></div>
   <div class="hero-glow"></div>
+  <div class="moon"></div>
   <div class="particles" id="particles"></div>
 
   <div class="container hero-inner">
@@ -217,17 +240,17 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
     </div>
 
     <div class="hero-visual">
-      <img class="mascot" src="assets/Garden%20Assets/Icons/Icon_Seedling.png" alt="Seedling mascot">
-      <img class="float-tree t1" src="assets/Garden%20Assets/Tree%20Types/Oak%20Trees/Oak_Flourishing.png" alt="">
-      <img class="float-tree t2" src="assets/Garden%20Assets/Tree%20Types/Cherry%20Blossom%20Trees/Cherry_Blossom_Flourishing.png" alt="">
+      <img class="mascot" src="web-assets/seedling.png" alt="Seedling mascot">
+      <img class="float-tree t1" src="web-assets/tree-oak.png" alt="">
+      <img class="float-tree t2" src="web-assets/tree-cherry.png" alt="">
       <div class="phone">
-        <img src="assets/Garden%20Assets/Icons/Demo_Image.png" alt="Grow Pray app garden screen">
+        <img src="web-assets/screenshot.png" alt="Grow Pray app garden screen">
       </div>
     </div>
   </div>
 
   <div class="hero-ground">
-    <div class="tile-row" style="background-image:url('assets/Garden Assets/Ground Tiles/Grass_Blades.png')"></div>
+    <div class="tile-row" style="background-image:url('web-assets/grass.png')"></div>
   </div>
 </header>
 
@@ -241,22 +264,22 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
     </div>
     <div class="growth-stages reveal">
       <div class="stage">
-        <div class="pot"><img src="assets/Garden%20Assets/Tree%20Types/Basic%20Trees/Sapling_converted.png" style="max-height:90px" alt=""></div>
+        <div class="pot"><img src="web-assets/stage-sapling.png" style="max-height:90px" alt=""></div>
         <div class="lbl">Sapling</div><div class="desc">Your first prayers</div>
       </div>
       <div class="arrow">→</div>
       <div class="stage">
-        <div class="pot"><img src="assets/Garden%20Assets/Tree%20Types/Basic%20Trees/Growing_Tree_converted.png" style="max-height:130px" alt=""></div>
+        <div class="pot"><img src="web-assets/stage-growing.png" style="max-height:130px" alt=""></div>
         <div class="lbl">Growing</div><div class="desc">Building the habit</div>
       </div>
       <div class="arrow">→</div>
       <div class="stage">
-        <div class="pot"><img src="assets/Garden%20Assets/Tree%20Types/Basic%20Trees/Grown_Tree_converted.png" style="max-height:165px" alt=""></div>
+        <div class="pot"><img src="web-assets/stage-grown.png" style="max-height:165px" alt=""></div>
         <div class="lbl">Grown</div><div class="desc">Going strong</div>
       </div>
       <div class="arrow">→</div>
       <div class="stage">
-        <div class="pot"><img src="assets/Garden%20Assets/Tree%20Types/Basic%20Trees/Flourishing_Tree_converted.png" style="max-height:195px" alt=""></div>
+        <div class="pot"><img src="web-assets/stage-flourishing.png" style="max-height:195px" alt=""></div>
         <div class="lbl">Flourishing</div><div class="desc">Devotion rewarded</div>
       </div>
     </div>
@@ -274,17 +297,17 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
         <h3>All five prayers, perfectly timed</h3>
         <p>Accurate times for Fajr, Dhuhr, Asr, Maghrib and Isha based on your exact location. Gentle reminders nudge you before each window closes, and a grace period gives you breathing room.</p>
         <ul class="fr-list">
-          <li><img src="assets/Garden%20Assets/Icons/Icon_Location.png" alt=""> Location-accurate prayer times</li>
-          <li><img src="assets/Garden%20Assets/Icons/Icon_Bell.png" alt=""> Smart reminders before time runs out</li>
+          <li><img src="web-assets/icon-location.png" alt=""> Location-accurate prayer times</li>
+          <li><img src="web-assets/icon-bell.png" alt=""> Smart reminders before time runs out</li>
         </ul>
       </div>
       <div class="fr-visual">
         <div class="prayer-times">
-          <div class="ptime done"><img src="assets/Garden%20Assets/Icons/Fajr.png" alt=""><span class="pn">Fajr</span><span class="check">✓ Prayed</span></div>
-          <div class="ptime done"><img src="assets/Garden%20Assets/Icons/Dhuhr.png" alt=""><span class="pn">Dhuhr</span><span class="check">✓ Prayed</span></div>
-          <div class="ptime"><img src="assets/Garden%20Assets/Icons/Asr.png" alt=""><span class="pn">Asr</span><span class="pt">15:42</span></div>
-          <div class="ptime"><img src="assets/Garden%20Assets/Icons/Maghrib.png" alt=""><span class="pn">Maghrib</span><span class="pt">18:09</span></div>
-          <div class="ptime"><img src="assets/Garden%20Assets/Icons/Isha.png" alt=""><span class="pn">Isha</span><span class="pt">19:36</span></div>
+          <div class="ptime done"><img src="web-assets/fajr.png" alt=""><span class="pn">Fajr</span><span class="check">✓ Prayed</span></div>
+          <div class="ptime done"><img src="web-assets/dhuhr.png" alt=""><span class="pn">Dhuhr</span><span class="check">✓ Prayed</span></div>
+          <div class="ptime"><img src="web-assets/asr.png" alt=""><span class="pn">Asr</span><span class="pt">15:42</span></div>
+          <div class="ptime"><img src="web-assets/maghrib.png" alt=""><span class="pn">Maghrib</span><span class="pt">18:09</span></div>
+          <div class="ptime"><img src="web-assets/isha.png" alt=""><span class="pn">Isha</span><span class="pt">19:36</span></div>
         </div>
       </div>
     </div>
@@ -296,16 +319,16 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
         <h3>Streaks, coins & rewards that keep you going</h3>
         <p>Track a separate streak for every prayer and hit milestones at 7, 30 and 100 days. Earn coins and XP for each salah, climb the consistency multiplier, and protect your hard work with streak freezes.</p>
         <ul class="fr-list">
-          <li><img src="assets/Garden%20Assets/Icons/Icon_Fire.png" alt=""> Per-prayer streaks with milestone celebrations</li>
-          <li><img src="assets/Garden%20Assets/Icons/5_Streak_Freeze.png" alt=""> Streak freezes to protect your progress</li>
+          <li><img src="web-assets/icon-fire.png" alt=""> Per-prayer streaks with milestone celebrations</li>
+          <li><img src="web-assets/streak-freeze.png" alt=""> Streak freezes to protect your progress</li>
         </ul>
       </div>
       <div class="fr-visual">
         <div class="reward-grid">
-          <div class="reward"><img src="assets/Garden%20Assets/Icons/Icon_Fire.png" alt=""><b>100 Days</b><small>Prayer streak</small></div>
-          <div class="reward"><img src="assets/Garden%20Assets/Icons/Icon_Coin.png" alt=""><b>Coins</b><small>Earn & spend</small></div>
-          <div class="reward"><img src="assets/Garden%20Assets/Icons/Icon_XP.png" alt=""><b>XP</b><small>Level up</small></div>
-          <div class="reward"><img src="assets/Garden%20Assets/Icons/Icon_Trophy.png" alt=""><b>Challenges</b><small>Weekly bonuses</small></div>
+          <div class="reward"><img src="web-assets/icon-fire.png" alt=""><b>100 Days</b><small>Prayer streak</small></div>
+          <div class="reward"><img src="web-assets/icon-coin.png" alt=""><b>Coins</b><small>Earn & spend</small></div>
+          <div class="reward"><img src="web-assets/icon-xp.png" alt=""><b>XP</b><small>Level up</small></div>
+          <div class="reward"><img src="web-assets/icon-trophy.png" alt=""><b>Challenges</b><small>Weekly bonuses</small></div>
         </div>
       </div>
     </div>
@@ -317,17 +340,17 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
         <h3>Your complete companion for worship</h3>
         <p>Everything you reach for in a day, in one calm place — find the Qibla, count your dhikr, read authentic duas, and reflect on a fresh ayah or hadith each morning.</p>
         <ul class="fr-list">
-          <li><img src="assets/Garden%20Assets/Icons/Icon_Location.png" alt=""> Qibla compass to find the Kaaba</li>
-          <li><img src="assets/Garden%20Assets/Icons/Icon_Hands.png" alt=""> Digital tasbih & authentic duas</li>
-          <li><img src="assets/Garden%20Assets/Icons/Icon_Scroll.png" alt=""> A daily ayah or hadith to reflect on</li>
+          <li><img src="web-assets/icon-location.png" alt=""> Qibla compass to find the Kaaba</li>
+          <li><img src="web-assets/icon-hands.png" alt=""> Digital tasbih & authentic duas</li>
+          <li><img src="web-assets/icon-scroll.png" alt=""> A daily ayah or hadith to reflect on</li>
         </ul>
       </div>
       <div class="fr-visual">
         <div class="reward-grid">
-          <div class="reward"><img src="assets/Garden%20Assets/Icons/Icon_Location.png" alt=""><b>Qibla</b><small>Compass</small></div>
-          <div class="reward"><img src="assets/Garden%20Assets/Icons/Icon_Hands.png" alt=""><b>Dhikr</b><small>Tasbih counter</small></div>
-          <div class="reward"><img src="assets/Garden%20Assets/Icons/Icon_Scroll.png" alt=""><b>Duas</b><small>Morning & evening</small></div>
-          <div class="reward"><img src="assets/Garden%20Assets/Icons/Icon_Moon.png" alt=""><b>Reflection</b><small>Daily ayah</small></div>
+          <div class="reward"><img src="web-assets/icon-location.png" alt=""><b>Qibla</b><small>Compass</small></div>
+          <div class="reward"><img src="web-assets/icon-hands.png" alt=""><b>Dhikr</b><small>Tasbih counter</small></div>
+          <div class="reward"><img src="web-assets/icon-scroll.png" alt=""><b>Duas</b><small>Morning & evening</small></div>
+          <div class="reward"><img src="web-assets/icon-moon.png" alt=""><b>Reflection</b><small>Daily ayah</small></div>
         </div>
       </div>
     </div>
@@ -344,14 +367,14 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
       <p>Spend the coins you earn in the Garden Shop to unlock rare trees — from humble oaks to shimmering golden trees reserved for the most devoted.</p>
     </div>
     <div class="tree-grid reveal">
-      <div class="tree-card"><div class="th"><img src="assets/Garden%20Assets/Tree%20Types/Oak%20Trees/Oak_Flourishing.png" alt=""></div><b>Oak</b></div>
-      <div class="tree-card"><div class="th"><img src="assets/Garden%20Assets/Tree%20Types/Maple%20Trees/Maple_Flourishing.png" alt=""></div><b>Maple</b></div>
-      <div class="tree-card"><div class="th"><img src="assets/Garden%20Assets/Tree%20Types/Cherry%20Blossom%20Trees/Cherry_Blossom_Flourishing.png" alt=""></div><b>Cherry Blossom</b></div>
-      <div class="tree-card"><div class="th"><img src="assets/Garden%20Assets/Tree%20Types/Willow%20Trees/Willow_Flourishing.png" alt=""></div><b>Willow</b></div>
-      <div class="tree-card"><div class="th"><img src="assets/Garden%20Assets/Tree%20Types/Palm%20Trees/Palm_Flourishing.png" alt=""></div><b>Palm</b></div>
-      <div class="tree-card"><div class="th"><img src="assets/Garden%20Assets/Tree%20Types/Cedar%20Trees/Cedar_Flourished.png" alt=""></div><b>Cedar</b></div>
-      <div class="tree-card"><div class="th"><img src="assets/Garden%20Assets/Tree%20Types/Basic%20Trees/Flourishing_Tree_converted.png" alt=""></div><b>Classic</b></div>
-      <div class="tree-card rare"><div class="th"><img src="assets/Garden%20Assets/Tree%20Types/Golden%20Trees/Golden_Tree_Flourishing.png" alt=""></div><b>✦ Golden (Premium)</b></div>
+      <div class="tree-card"><div class="th"><img src="web-assets/tree-oak.png" alt=""></div><b>Oak</b></div>
+      <div class="tree-card"><div class="th"><img src="web-assets/tree-maple.png" alt=""></div><b>Maple</b></div>
+      <div class="tree-card"><div class="th"><img src="web-assets/tree-cherry.png" alt=""></div><b>Cherry Blossom</b></div>
+      <div class="tree-card"><div class="th"><img src="web-assets/tree-willow.png" alt=""></div><b>Willow</b></div>
+      <div class="tree-card"><div class="th"><img src="web-assets/tree-palm.png" alt=""></div><b>Palm</b></div>
+      <div class="tree-card"><div class="th"><img src="web-assets/tree-cedar.png" alt=""></div><b>Cedar</b></div>
+      <div class="tree-card"><div class="th"><img src="web-assets/tree-classic.png" alt=""></div><b>Classic</b></div>
+      <div class="tree-card rare"><div class="th"><img src="web-assets/tree-golden.png" alt=""></div><b>✦ Golden (Premium)</b></div>
     </div>
   </div>
 </section>
@@ -368,8 +391,8 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
         <a href="#" class="store-badge"><span class="apple"></span><span><small>Download on the</small><b>App Store</b></span></a>
       </div>
       <div class="phone-pair reveal">
-        <div class="phone"><img src="assets/Garden%20Assets/Icons/Demo_Image.png" alt="Grow Pray app"></div>
-        <div class="phone"><img src="assets/Garden%20Assets/Icons/Demo_Image.png" alt="Grow Pray app"></div>
+        <div class="phone"><img src="web-assets/screenshot.png" alt="Grow Pray app"></div>
+        <div class="phone"><img src="web-assets/screenshot.png" alt="Grow Pray app"></div>
       </div>
     </div>
   </div>
@@ -378,7 +401,7 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
 <!-- ===== CTA BAND ===== -->
 <section class="cta-band">
   <div class="container">
-    <img class="mascot-big" src="assets/Garden%20Assets/Icons/Icon_Seedling.png" alt="Seedling mascot">
+    <img class="mascot-big" src="web-assets/seedling.png" alt="Seedling mascot">
     <h2>Plant your first tree today</h2>
     <p>Turn your salah into a garden you'll be proud to grow. Free, no ads, made with care.</p>
     <a href="#" class="btn btn-primary">🌿 Download Grow Pray free</a>
@@ -389,7 +412,7 @@ footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255
 <footer>
   <div class="container">
     <div class="foot-inner">
-      <div class="brand"><img src="assets/Garden%20Assets/Icons/Icon_Seedling.png" style="width:30px;height:30px" alt=""> Grow Pray</div>
+      <div class="brand"><img src="web-assets/seedling.png" style="width:30px;height:30px" alt=""> Grow Pray</div>
       <div class="foot-links">
         <a href="/support.html">Support</a>
         <a href="/privacy-policy.html">Privacy Policy</a>
@@ -409,18 +432,28 @@ addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40));
 const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in')}),{threshold:.15});
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 
-// ambient particles (falling leaves / pollen)
+// ambient particles — leaves & pollen by day, twinkling sparkles by night
 const pc=document.getElementById('particles');
-const imgs=['assets/Garden%20Assets/Effects/Falling_Leaf.png','assets/Garden%20Assets/Effects/Pollen_Mote.png','assets/Garden%20Assets/Effects/Dew_Sparkle.png'];
-for(let i=0;i<14;i++){
+const night=document.body.classList.contains('night');
+const imgs=night
+  ? ['web-assets/sparkle.png','web-assets/pollen.png']
+  : ['web-assets/leaf.png','web-assets/pollen.png','web-assets/sparkle.png'];
+for(let i=0;i<16;i++){
   const p=document.createElement('img');
   p.className='particle';
   p.src=imgs[i%imgs.length];
-  const size=10+Math.random()*26;
+  const size=(night?6:10)+Math.random()*(night?16:26);
   p.style.width=size+'px';
   p.style.left=Math.random()*100+'%';
-  p.style.animationDuration=(8+Math.random()*10)+'s';
-  p.style.animationDelay=(-Math.random()*12)+'s';
+  if(night){
+    // gentle twinkle in place rather than falling
+    p.style.top=Math.random()*100+'%';
+    p.style.animation='twinkle '+(2+Math.random()*3)+'s ease-in-out infinite';
+    p.style.animationDelay=(-Math.random()*4)+'s';
+  }else{
+    p.style.animationDuration=(8+Math.random()*10)+'s';
+    p.style.animationDelay=(-Math.random()*12)+'s';
+  }
   pc.appendChild(p);
 }
 </script>
