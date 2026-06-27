@@ -24,7 +24,10 @@
   --ink:#0c2030;
 }
 html{scroll-behavior:smooth}
-body{font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--navy);color:var(--text);line-height:1.6;overflow-x:hidden}
+/* One continuous day→night gradient flows behind every section below the hero,
+   so there are no flat "stacked box" seams. */
+body{font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text);line-height:1.6;overflow-x:hidden;
+  background:linear-gradient(180deg,#16344e 0%,#13314a 12%,#102a42 32%,#0d2138 52%,#0a1830 70%,#081224 86%,#060d1b 100%)}
 h1,h2,h3,.display{font-family:'Fraunces',Georgia,serif}
 img{max-width:100%;display:block}
 a{color:inherit;text-decoration:none}
@@ -46,13 +49,15 @@ nav.scrolled{background:rgba(10,20,34,.9);backdrop-filter:blur(14px);box-shadow:
 .btn-primary:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(47,174,107,.55)}
 .btn-ghost{background:rgba(255,255,255,.08);color:#fff;padding:16px 28px;font-size:17px;border:1px solid rgba(255,255,255,.16)}
 .btn-ghost:hover{background:rgba(255,255,255,.14);transform:translateY(-3px)}
+/* TODO (post-launch): replace .store-badge with Apple's OFFICIAL "Download on the App Store"
+   badge from https://developer.apple.com/app-store/marketing/guidelines/ and set the real href. */
 .store-badge{display:inline-flex;align-items:center;gap:12px;background:#000;border:1px solid rgba(255,255,255,.25);color:#fff;padding:12px 22px;border-radius:14px;transition:transform .15s}
 .store-badge:hover{transform:translateY(-3px)}
 .store-badge .apple{font-size:30px;line-height:1}
 .store-badge small{display:block;font-size:11px;opacity:.8;font-weight:600}
 .store-badge b{font-size:19px;font-family:'Fraunces';font-weight:700}
 
-/* ---------- HERO ---------- */
+/* ---------- HERO (unchanged — user-approved) ---------- */
 .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:120px 0 0;overflow:hidden;
   background:linear-gradient(180deg,#1b3a5c 0%,#2d5f86 35%,#5e94b0 70%,#86b89c 100%)}
 .hero-sky{position:absolute;inset:0;background-image:url("web-assets/sky-day.png");background-size:cover;background-position:center top;opacity:.55;mix-blend-mode:screen}
@@ -66,8 +71,6 @@ nav.scrolled{background:rgba(10,20,34,.9);backdrop-filter:blur(14px);box-shadow:
 .hero-note{margin-top:20px;color:#dbece2;font-size:14px;font-weight:700;display:flex;gap:18px;flex-wrap:wrap}
 .hero-note span{display:inline-flex;align-items:center;gap:7px}
 .hero-note b{color:var(--gold-l)}
-
-/* phone mockup */
 .hero-visual{position:relative;display:flex;justify-content:center;align-items:flex-end}
 .phone{position:relative;width:300px;border-radius:42px;background:#0a1422;padding:12px;box-shadow:0 40px 80px rgba(0,20,10,.5),0 0 0 2px rgba(255,255,255,.08);transform:rotate(-3deg);z-index:4}
 .phone::before{content:"";position:absolute;top:20px;left:50%;transform:translateX(-50%);width:90px;height:7px;background:#1e2a3a;border-radius:99px;z-index:3}
@@ -76,32 +79,39 @@ nav.scrolled{background:rgba(10,20,34,.9);backdrop-filter:blur(14px);box-shadow:
 .float-tree.t1{left:-40px;width:120px;animation:sway 6s ease-in-out infinite}
 .float-tree.t2{right:-30px;width:90px;bottom:30px;animation:sway 7s ease-in-out infinite reverse}
 .mascot{position:absolute;left:-70px;top:30px;width:120px;z-index:6;filter:drop-shadow(0 10px 16px rgba(0,30,10,.35));animation:bob 4s ease-in-out infinite}
-
-/* ground */
-.hero-ground{position:absolute;left:0;right:0;bottom:0;height:140px;z-index:3;
-  background:linear-gradient(180deg,transparent,#6aa377 30%,#4f8a63 100%)}
+.hero-ground{position:absolute;left:0;right:0;bottom:0;height:140px;z-index:3;background:linear-gradient(180deg,transparent,#6aa377 30%,#4f8a63 100%)}
 .hero-ground .tile-row{position:absolute;bottom:0;left:0;right:0;height:100%;background-repeat:repeat-x;background-size:auto 100%;opacity:.9}
 
-/* floating particles */
-.particles{position:absolute;inset:0;z-index:4;pointer-events:none;overflow:hidden}
+/* particles */
+.particles,.amb{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 .particle{position:absolute;opacity:.7;animation:drift linear infinite}
-
 @keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
 @keyframes drift{0%{transform:translateY(-40px) translateX(0) rotate(0)}100%{transform:translateY(110vh) translateX(60px) rotate(360deg)}}
-@keyframes twinkle{0%,100%{opacity:.25}50%{opacity:.9}}
+@keyframes twinkle{0%,100%{opacity:.2}50%{opacity:.9}}
 
 /* ---------- SECTION SHELL ---------- */
-section{position:relative;padding:100px 0}
+section{position:relative;padding:100px 0;background:transparent;overflow:hidden}
+.sec-inner{position:relative;z-index:5}
 .sec-head{text-align:center;max-width:680px;margin:0 auto 64px}
 .sec-head h2{font-size:clamp(30px,4.2vw,46px);color:#fff;font-weight:900;letter-spacing:-1px;margin:14px 0 16px;line-height:1.08}
 .sec-head p{color:var(--muted);font-size:18px;font-weight:600}
 .reveal{opacity:0;transform:translateY(34px);transition:opacity .7s ease,transform .7s ease}
 .reveal.in{opacity:1;transform:none}
 
+/* seedling guide above section heads */
+.guide{display:flex;justify-content:center;margin-bottom:6px}
+.guide img{width:58px;height:58px;filter:drop-shadow(0 8px 12px rgba(0,40,15,.45));animation:bob 4s ease-in-out infinite}
+
+/* organic hill dividers + ground silhouettes carry the garden between sections */
+.hills{position:absolute;left:0;right:0;z-index:1;line-height:0;pointer-events:none}
+.hills.top{top:-2px}
+.hills.bottom{bottom:-2px;transform:scaleY(-1)}
+.hills svg{display:block;width:100%;height:90px}
+.scene-tree{position:absolute;bottom:14px;z-index:3;filter:drop-shadow(0 12px 14px rgba(0,30,10,.45));opacity:.96}
+
 /* ---------- GROWTH STRIP ---------- */
-.growth{background:linear-gradient(180deg,var(--navy) 0%,#13314a 100%)}
-.growth-stages{display:flex;align-items:flex-end;justify-content:center;gap:8px;flex-wrap:wrap}
+.growth-stages{position:relative;z-index:5;display:flex;align-items:flex-end;justify-content:center;gap:8px;flex-wrap:wrap}
 .stage{text-align:center;flex:1;min-width:130px;max-width:200px}
 .stage .pot{height:200px;display:flex;align-items:flex-end;justify-content:center}
 .stage img{filter:drop-shadow(0 12px 16px rgba(0,40,15,.4))}
@@ -110,7 +120,7 @@ section{position:relative;padding:100px 0}
 .arrow{font-size:30px;color:var(--green-l);align-self:center;padding-bottom:60px}
 
 /* ---------- FEATURE ROWS ---------- */
-.frow{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;margin-bottom:120px}
+.frow{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;margin-bottom:120px;position:relative;z-index:5}
 .frow:last-child{margin-bottom:0}
 .frow.flip .fr-text{order:2}
 .fr-text .eyebrow{margin-bottom:14px;display:block}
@@ -119,73 +129,64 @@ section{position:relative;padding:100px 0}
 .fr-list{list-style:none;display:flex;flex-direction:column;gap:12px}
 .fr-list li{display:flex;align-items:center;gap:12px;font-weight:700;color:#dfe9ef}
 .fr-list li img{width:30px;height:30px}
-.fr-visual{position:relative;border-radius:28px;padding:36px;background:radial-gradient(120% 120% at 30% 10%,rgba(95,217,154,.14),transparent 60%),var(--navy-2);border:1px solid rgba(255,255,255,.07);min-height:300px;display:flex;align-items:center;justify-content:center}
-.prayer-times{display:flex;flex-direction:column;gap:14px;width:100%}
-.ptime{display:flex;align-items:center;gap:16px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px 18px}
-.ptime img{width:42px;height:42px}
-.ptime .pn{font-weight:800;color:#fff;font-size:17px}
-.ptime .pt{margin-left:auto;color:var(--gold-l);font-weight:800}
+.fr-visual{display:flex;align-items:center;justify-content:center}
+
+/* feature 1 shown as a real app screen inside a phone */
+.mini-phone{width:300px;max-width:100%;border-radius:40px;background:#0a1422;padding:14px;position:relative;
+  box-shadow:0 34px 70px rgba(0,20,10,.5),0 0 0 2px rgba(255,255,255,.07)}
+.mini-phone::before{content:"";position:absolute;top:22px;left:50%;transform:translateX(-50%);width:80px;height:6px;background:#1e2a3a;border-radius:99px;z-index:3}
+.mini-phone .scr{background:linear-gradient(180deg,#12263c,#0c1a2b);border-radius:28px;padding:40px 14px 18px}
+.mini-phone .scr-title{color:#fff;font-family:'Fraunces';font-weight:700;font-size:16px;margin-bottom:14px;text-align:center}
+.prayer-times{display:flex;flex-direction:column;gap:11px}
+.ptime{display:flex;align-items:center;gap:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:11px 14px}
+.ptime img{width:36px;height:36px}
+.ptime .pn{font-weight:800;color:#fff;font-size:15px}
+.ptime .pt{margin-left:auto;color:var(--gold-l);font-weight:800;font-size:14px}
+.ptime .check{margin-left:auto;color:var(--green-l);font-weight:900;font-size:13px}
 .ptime.done{border-color:rgba(47,174,107,.5);background:rgba(47,174,107,.12)}
-.ptime.done .check{color:var(--green-l);font-weight:900;margin-left:auto}
-.reward-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;width:100%}
-.reward{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:22px;text-align:center}
-.reward img{width:56px;height:56px;margin:0 auto 10px}
+
+/* garden card — reward/tools tiles planted on grass instead of floating in a box */
+.garden-card{position:relative;width:100%;border-radius:26px;overflow:hidden;padding:30px 26px 64px;
+  background:radial-gradient(130% 90% at 50% 0%,rgba(95,217,154,.16),transparent 62%),#10243b;border:1px solid rgba(255,255,255,.08)}
+.garden-card .grass-base{position:absolute;left:0;right:0;bottom:0;height:42px;background-image:url('web-assets/grass.png');background-repeat:repeat-x;background-size:auto 100%;opacity:.5}
+.garden-card .card-mascot{position:absolute;right:14px;bottom:18px;width:62px;z-index:2;animation:bob 5s ease-in-out infinite;filter:drop-shadow(0 6px 8px rgba(0,30,10,.4))}
+.reward-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;position:relative;z-index:1}
+.reward{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:20px 16px;text-align:center}
+.reward img{width:54px;height:54px;margin:0 auto 10px}
 .reward b{display:block;color:#fff;font-size:16px}
 .reward small{color:var(--muted);font-weight:700}
 
-/* ---------- TREE COLLECTION ---------- */
-.collection{background:linear-gradient(180deg,#0a1422 0%,#0c1c30 100%);overflow:hidden}
-.tree-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:22px}
-.tree-card{background:radial-gradient(120% 100% at 50% 0%,rgba(95,217,154,.12),transparent 60%),rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.07);border-radius:22px;padding:24px 18px;text-align:center;transition:transform .2s,border-color .2s}
-.tree-card:hover{transform:translateY(-6px) scale(1.02);border-color:rgba(95,217,154,.5)}
-.tree-card .th{height:150px;display:flex;align-items:flex-end;justify-content:center}
-.tree-card img{filter:drop-shadow(0 12px 16px rgba(0,40,15,.45));max-height:150px}
-.tree-card b{display:block;color:#fff;font-weight:800;margin-top:14px;font-size:15px}
-.tree-card.rare b{color:var(--gold-l)}
+/* ---------- TREE COLLECTION — a garden shelf on the ground ---------- */
+.tree-shelf{position:relative;z-index:5;display:flex;align-items:flex-end;justify-content:center;flex-wrap:wrap;gap:0 6px;padding-bottom:46px}
+.tree-shelf .grass-line{position:absolute;left:-60px;right:-60px;bottom:30px;height:34px;background-image:url('web-assets/grass.png');background-repeat:repeat-x;background-size:auto 100%;opacity:.6;z-index:1}
+.tree-shelf .mound{position:absolute;left:-60px;right:-60px;bottom:30px;height:80px;z-index:0;background:linear-gradient(180deg,transparent,#1f5a3c);border-radius:50% 50% 0 0/40px}
+.shelf-tree{position:relative;z-index:2;text-align:center;width:118px;flex:0 0 auto}
+.shelf-tree img{filter:drop-shadow(0 12px 14px rgba(0,40,15,.5));margin:0 auto}
+.shelf-tree b{display:block;color:#dfe9ef;font-weight:800;font-size:13px;margin-top:8px}
+.shelf-tree.rare b{color:var(--gold-l)}
 
 /* ---------- ANYWHERE / NIGHT ---------- */
-.anywhere{background:linear-gradient(180deg,#0c1c30 0%,#0a1422 100%);position:relative;overflow:hidden}
-.night-sky{position:absolute;inset:0;background-image:url("web-assets/sky-night.png");background-size:cover;background-position:center;opacity:.4}
-.anywhere .container{position:relative;z-index:2}
-.anywhere-inner{display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center}
+.night-sky{position:absolute;inset:0;background-image:url("web-assets/sky-night.png");background-size:cover;background-position:center;opacity:.45;z-index:0}
+.anywhere-inner{position:relative;z-index:5;display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center}
 .phone-pair{display:flex;justify-content:center}
 .phone-pair .phone{width:230px}
 .phone-pair .phone:nth-child(2){transform:rotate(5deg) translateY(20px);margin-left:-60px;z-index:1}
 .phone-pair .phone:nth-child(1){z-index:2;transform:rotate(-5deg)}
 
 /* ---------- CTA BAND ---------- */
-.cta-band{text-align:center;background:linear-gradient(180deg,#0d2740,#0d3b27);border-top:1px solid rgba(255,255,255,.06)}
-.cta-band .mascot-big{width:130px;margin:0 auto 24px;animation:bob 4s ease-in-out infinite}
+.cta-band{text-align:center;position:relative}
+.cta-band .sec-inner{padding:20px 0}
+.cta-band .mascot-big{width:130px;margin:0 auto 24px;animation:bob 4s ease-in-out infinite;filter:drop-shadow(0 12px 16px rgba(0,40,15,.45))}
 .cta-band h2{font-size:clamp(32px,4.6vw,52px);color:#fff;font-weight:900;letter-spacing:-1px;margin-bottom:16px}
 .cta-band p{color:#cfe3d6;font-size:19px;font-weight:600;margin-bottom:34px}
 
 /* ---------- FOOTER ---------- */
-footer{background:var(--night);padding:56px 0 40px;border-top:1px solid rgba(255,255,255,.06)}
+footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,255,.06);position:relative;z-index:5}
 .foot-inner{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:24px}
 .foot-links{display:flex;gap:26px;flex-wrap:wrap}
 .foot-links a{color:var(--muted);font-weight:700;transition:color .15s}
 .foot-links a:hover{color:var(--green-l)}
 .copyright{color:#54697d;font-size:13px;text-align:center;width:100%;margin-top:30px;font-weight:600}
-
-/* ============================================================
-   NIGHT THEME  —  to REVERT to the daytime look, simply delete
-   the word "night" from the <body> tag below.
-   ============================================================ */
-body.night .hero{background:linear-gradient(180deg,#05070f 0%,#0a1426 38%,#0e2238 68%,#163049 100%)}
-body.night .hero-sky{background-image:url("web-assets/sky-night.png");opacity:.85;mix-blend-mode:normal}
-body.night .hero-glow{background:radial-gradient(circle,rgba(150,185,255,.30),transparent 62%);top:-6%}
-body.night .hero-copy .pill{background:rgba(255,255,255,.1);border-color:rgba(255,255,255,.2)}
-body.night .hero-copy p.sub{color:#cdd9ec}
-body.night .hero-note{color:#aebfd6}
-body.night .hero-ground{background:linear-gradient(180deg,transparent,#1c3a2c 32%,#102619 100%)}
-body.night .hero-ground .tile-row{opacity:.55;filter:brightness(.7)}
-body.night .growth{background:linear-gradient(180deg,#0a1422 0%,#0e2236 100%)}
-body.night #features{background:linear-gradient(180deg,#0e2236 0%,#0a1626 100%)}
-/* a soft moon in the night hero */
-body.night .moon{position:absolute;top:90px;right:8%;width:90px;height:90px;border-radius:50%;
-  background:radial-gradient(circle at 35% 35%,#fff,#dfe8ff 55%,#aebbe0);
-  box-shadow:0 0 60px 18px rgba(180,200,255,.35);z-index:2}
-body:not(.night) .moon{display:none}
 
 /* ---------- RESPONSIVE ---------- */
 @media(max-width:900px){
@@ -194,16 +195,16 @@ body:not(.night) .moon{display:none}
   .hero-copy .hero-cta,.hero-note{justify-content:center}
   .hero-visual{margin-top:10px}
   .mascot{display:none}
-  body.night .moon{right:6%;top:80px;width:64px;height:64px}
   .frow{grid-template-columns:1fr;gap:32px;margin-bottom:80px}
   .frow.flip .fr-text{order:0}
-  .tree-grid{grid-template-columns:repeat(2,1fr)}
   .arrow{display:none}
-  section{padding:72px 0}
+  .scene-tree{width:70px!important}
+  section{padding:76px 0}
 }
 @media(max-width:480px){
   .reward-grid{grid-template-columns:1fr 1fr}
   .phone{width:260px}
+  .shelf-tree{width:88px}
 }
 </style>
 </head>
@@ -220,9 +221,7 @@ body:not(.night) .moon{display:none}
 <header class="hero">
   <div class="hero-sky"></div>
   <div class="hero-glow"></div>
-  <div class="moon"></div>
-  <div class="particles" id="particles"></div>
-
+  <div class="particles" data-particles></div>
   <div class="container hero-inner">
     <div class="hero-copy">
       <span class="pill">🕌 Build a prayer habit that actually sticks</span>
@@ -238,59 +237,45 @@ body:not(.night) .moon{display:none}
         <span>🔒 Data stays <b>on device</b></span>
       </div>
     </div>
-
     <div class="hero-visual">
       <img class="mascot" src="web-assets/seedling.png" alt="Seedling mascot">
       <img class="float-tree t1" src="web-assets/tree-oak.png" alt="">
       <img class="float-tree t2" src="web-assets/tree-cherry.png" alt="">
-      <div class="phone">
-        <img src="web-assets/screenshot.png" alt="Grow Pray app garden screen">
-      </div>
+      <div class="phone"><img src="web-assets/screenshot.png" alt="Grow Pray app garden screen"></div>
     </div>
   </div>
-
-  <div class="hero-ground">
-    <div class="tile-row" style="background-image:url('web-assets/grass.png')"></div>
-  </div>
+  <div class="hero-ground"><div class="tile-row" style="background-image:url('web-assets/grass.png')"></div></div>
 </header>
 
 <!-- ===== GROWTH PROGRESSION ===== -->
 <section class="growth">
-  <div class="container">
+  <img class="scene-tree" src="web-assets/tree-willow.png" style="left:-10px;width:120px" alt="">
+  <img class="scene-tree" src="web-assets/tree-palm.png" style="right:-6px;width:110px" alt="">
+  <div class="container sec-inner">
     <div class="sec-head reveal">
+      <div class="guide"><img src="web-assets/seedling.png" alt=""></div>
       <span class="eyebrow">The core idea</span>
       <h2>Your consistency, made visible</h2>
       <p>A tree mirrors your devotion. Pray on time and it climbs through four beautiful stages — from a fragile sapling to a flourishing tree heavy with fruit.</p>
     </div>
     <div class="growth-stages reveal">
-      <div class="stage">
-        <div class="pot"><img src="web-assets/stage-sapling.png" style="max-height:90px" alt=""></div>
-        <div class="lbl">Sapling</div><div class="desc">Your first prayers</div>
-      </div>
+      <div class="stage"><div class="pot"><img src="web-assets/stage-sapling.png" style="max-height:90px" alt=""></div><div class="lbl">Sapling</div><div class="desc">Your first prayers</div></div>
       <div class="arrow">→</div>
-      <div class="stage">
-        <div class="pot"><img src="web-assets/stage-growing.png" style="max-height:130px" alt=""></div>
-        <div class="lbl">Growing</div><div class="desc">Building the habit</div>
-      </div>
+      <div class="stage"><div class="pot"><img src="web-assets/stage-growing.png" style="max-height:130px" alt=""></div><div class="lbl">Growing</div><div class="desc">Building the habit</div></div>
       <div class="arrow">→</div>
-      <div class="stage">
-        <div class="pot"><img src="web-assets/stage-grown.png" style="max-height:165px" alt=""></div>
-        <div class="lbl">Grown</div><div class="desc">Going strong</div>
-      </div>
+      <div class="stage"><div class="pot"><img src="web-assets/stage-grown.png" style="max-height:165px" alt=""></div><div class="lbl">Grown</div><div class="desc">Going strong</div></div>
       <div class="arrow">→</div>
-      <div class="stage">
-        <div class="pot"><img src="web-assets/stage-flourishing.png" style="max-height:195px" alt=""></div>
-        <div class="lbl">Flourishing</div><div class="desc">Devotion rewarded</div>
-      </div>
+      <div class="stage"><div class="pot"><img src="web-assets/stage-flourishing.png" style="max-height:195px" alt=""></div><div class="lbl">Flourishing</div><div class="desc">Devotion rewarded</div></div>
     </div>
   </div>
 </section>
 
 <!-- ===== FEATURES ===== -->
 <section id="features">
-  <div class="container">
+  <div class="amb" data-particles></div>
+  <div class="container sec-inner">
 
-    <!-- Feature 1: prayer tracking -->
+    <!-- Feature 1: prayer tracking — shown as a real app screen -->
     <div class="frow reveal">
       <div class="fr-text">
         <span class="eyebrow">Never miss a prayer</span>
@@ -302,12 +287,18 @@ body:not(.night) .moon{display:none}
         </ul>
       </div>
       <div class="fr-visual">
-        <div class="prayer-times">
-          <div class="ptime done"><img src="web-assets/fajr.png" alt=""><span class="pn">Fajr</span><span class="check">✓ Prayed</span></div>
-          <div class="ptime done"><img src="web-assets/dhuhr.png" alt=""><span class="pn">Dhuhr</span><span class="check">✓ Prayed</span></div>
-          <div class="ptime"><img src="web-assets/asr.png" alt=""><span class="pn">Asr</span><span class="pt">15:42</span></div>
-          <div class="ptime"><img src="web-assets/maghrib.png" alt=""><span class="pn">Maghrib</span><span class="pt">18:09</span></div>
-          <div class="ptime"><img src="web-assets/isha.png" alt=""><span class="pn">Isha</span><span class="pt">19:36</span></div>
+        <!-- SWAP-IN POINT: replace this .mini-phone with a real app screenshot when available -->
+        <div class="mini-phone">
+          <div class="scr">
+            <div class="scr-title">Today's Prayers</div>
+            <div class="prayer-times">
+              <div class="ptime done"><img src="web-assets/fajr.png" alt=""><span class="pn">Fajr</span><span class="check">✓ Prayed</span></div>
+              <div class="ptime done"><img src="web-assets/dhuhr.png" alt=""><span class="pn">Dhuhr</span><span class="check">✓ Prayed</span></div>
+              <div class="ptime"><img src="web-assets/asr.png" alt=""><span class="pn">Asr</span><span class="pt">15:42</span></div>
+              <div class="ptime"><img src="web-assets/maghrib.png" alt=""><span class="pn">Maghrib</span><span class="pt">18:09</span></div>
+              <div class="ptime"><img src="web-assets/isha.png" alt=""><span class="pn">Isha</span><span class="pt">19:36</span></div>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -324,11 +315,15 @@ body:not(.night) .moon{display:none}
         </ul>
       </div>
       <div class="fr-visual">
-        <div class="reward-grid">
-          <div class="reward"><img src="web-assets/icon-fire.png" alt=""><b>100 Days</b><small>Prayer streak</small></div>
-          <div class="reward"><img src="web-assets/icon-coin.png" alt=""><b>Coins</b><small>Earn & spend</small></div>
-          <div class="reward"><img src="web-assets/icon-xp.png" alt=""><b>XP</b><small>Level up</small></div>
-          <div class="reward"><img src="web-assets/icon-trophy.png" alt=""><b>Challenges</b><small>Weekly bonuses</small></div>
+        <div class="garden-card">
+          <div class="reward-grid">
+            <div class="reward"><img src="web-assets/icon-fire.png" alt=""><b>100 Days</b><small>Prayer streak</small></div>
+            <div class="reward"><img src="web-assets/icon-coin.png" alt=""><b>Coins</b><small>Earn & spend</small></div>
+            <div class="reward"><img src="web-assets/icon-xp.png" alt=""><b>XP</b><small>Level up</small></div>
+            <div class="reward"><img src="web-assets/icon-trophy.png" alt=""><b>Challenges</b><small>Weekly bonuses</small></div>
+          </div>
+          <img class="card-mascot" src="web-assets/seedling.png" alt="">
+          <div class="grass-base"></div>
         </div>
       </div>
     </div>
@@ -346,11 +341,14 @@ body:not(.night) .moon{display:none}
         </ul>
       </div>
       <div class="fr-visual">
-        <div class="reward-grid">
-          <div class="reward"><img src="web-assets/icon-location.png" alt=""><b>Qibla</b><small>Compass</small></div>
-          <div class="reward"><img src="web-assets/icon-hands.png" alt=""><b>Dhikr</b><small>Tasbih counter</small></div>
-          <div class="reward"><img src="web-assets/icon-scroll.png" alt=""><b>Duas</b><small>Morning & evening</small></div>
-          <div class="reward"><img src="web-assets/icon-moon.png" alt=""><b>Reflection</b><small>Daily ayah</small></div>
+        <div class="garden-card">
+          <div class="reward-grid">
+            <div class="reward"><img src="web-assets/icon-location.png" alt=""><b>Qibla</b><small>Compass</small></div>
+            <div class="reward"><img src="web-assets/icon-hands.png" alt=""><b>Dhikr</b><small>Tasbih counter</small></div>
+            <div class="reward"><img src="web-assets/icon-scroll.png" alt=""><b>Duas</b><small>Morning & evening</small></div>
+            <div class="reward"><img src="web-assets/icon-moon.png" alt=""><b>Reflection</b><small>Daily ayah</small></div>
+          </div>
+          <div class="grass-base"></div>
         </div>
       </div>
     </div>
@@ -358,23 +356,26 @@ body:not(.night) .moon{display:none}
   </div>
 </section>
 
-<!-- ===== TREE COLLECTION ===== -->
+<!-- ===== TREE COLLECTION (garden shelf) ===== -->
 <section class="collection">
-  <div class="container">
+  <div class="amb" data-particles></div>
+  <div class="container sec-inner">
     <div class="sec-head reveal">
       <span class="eyebrow">Collect them all</span>
       <h2>Eight tree species to discover</h2>
       <p>Spend the coins you earn in the Garden Shop to unlock rare trees — from humble oaks to shimmering golden trees reserved for the most devoted.</p>
     </div>
-    <div class="tree-grid reveal">
-      <div class="tree-card"><div class="th"><img src="web-assets/tree-oak.png" alt=""></div><b>Oak</b></div>
-      <div class="tree-card"><div class="th"><img src="web-assets/tree-maple.png" alt=""></div><b>Maple</b></div>
-      <div class="tree-card"><div class="th"><img src="web-assets/tree-cherry.png" alt=""></div><b>Cherry Blossom</b></div>
-      <div class="tree-card"><div class="th"><img src="web-assets/tree-willow.png" alt=""></div><b>Willow</b></div>
-      <div class="tree-card"><div class="th"><img src="web-assets/tree-palm.png" alt=""></div><b>Palm</b></div>
-      <div class="tree-card"><div class="th"><img src="web-assets/tree-cedar.png" alt=""></div><b>Cedar</b></div>
-      <div class="tree-card"><div class="th"><img src="web-assets/tree-classic.png" alt=""></div><b>Classic</b></div>
-      <div class="tree-card rare"><div class="th"><img src="web-assets/tree-golden.png" alt=""></div><b>✦ Golden (Premium)</b></div>
+    <div class="tree-shelf reveal">
+      <div class="mound"></div>
+      <div class="grass-line"></div>
+      <div class="shelf-tree"><img src="web-assets/tree-oak.png" style="max-height:150px" alt=""><b>Oak</b></div>
+      <div class="shelf-tree"><img src="web-assets/tree-maple.png" style="max-height:122px" alt=""><b>Maple</b></div>
+      <div class="shelf-tree"><img src="web-assets/tree-cherry.png" style="max-height:158px" alt=""><b>Cherry Blossom</b></div>
+      <div class="shelf-tree"><img src="web-assets/tree-willow.png" style="max-height:138px" alt=""><b>Willow</b></div>
+      <div class="shelf-tree"><img src="web-assets/tree-palm.png" style="max-height:150px" alt=""><b>Palm</b></div>
+      <div class="shelf-tree"><img src="web-assets/tree-cedar.png" style="max-height:128px" alt=""><b>Cedar</b></div>
+      <div class="shelf-tree"><img src="web-assets/tree-classic.png" style="max-height:144px" alt=""><b>Classic</b></div>
+      <div class="shelf-tree rare"><img src="web-assets/tree-golden.png" style="max-height:150px" alt=""><b>✦ Golden · Premium</b></div>
     </div>
   </div>
 </section>
@@ -382,14 +383,16 @@ body:not(.night) .moon{display:none}
 <!-- ===== ANYWHERE / NIGHT ===== -->
 <section class="anywhere">
   <div class="night-sky"></div>
+  <div class="amb" data-particles></div>
   <div class="container">
     <div class="anywhere-inner">
       <div class="reveal">
         <span class="eyebrow">From dawn to dusk</span>
         <h2 style="font-size:clamp(28px,4vw,42px);color:#fff;font-weight:900;letter-spacing:-1px;margin:14px 0 16px">Grow your deen, wherever you are</h2>
-        <p style="color:var(--muted);font-size:18px;font-weight:600;margin-bottom:28px">A single tap to mark a prayer. A glance to find the Qibla. Grow Pray follows your day from Fajr at first light to Isha under the stars.</p>
+        <p style="color:var(--muted);font-size:18px;font-weight:600;margin-bottom:28px">A single tap to mark a prayer. A glance to find the Qibla. Grow Pray follows your day from Fajr at first light to Isha under the stars — even the garden's sky shifts from day to night with you.</p>
         <a href="#" class="store-badge"><span class="apple"></span><span><small>Download on the</small><b>App Store</b></span></a>
       </div>
+      <!-- SWAP-IN POINT: replace these two with different real screenshots when available -->
       <div class="phone-pair reveal">
         <div class="phone"><img src="web-assets/screenshot.png" alt="Grow Pray app"></div>
         <div class="phone"><img src="web-assets/screenshot.png" alt="Grow Pray app"></div>
@@ -400,7 +403,7 @@ body:not(.night) .moon{display:none}
 
 <!-- ===== CTA BAND ===== -->
 <section class="cta-band">
-  <div class="container">
+  <div class="container sec-inner">
     <img class="mascot-big" src="web-assets/seedling.png" alt="Seedling mascot">
     <h2>Plant your first tree today</h2>
     <p>Turn your salah into a garden you'll be proud to grow. Free, no ads, made with care.</p>
@@ -429,33 +432,24 @@ const nav=document.getElementById('nav');
 addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40));
 
 // scroll reveal
-const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in')}),{threshold:.15});
+const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in')}),{threshold:.12});
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 
-// ambient particles — leaves & pollen by day, twinkling sparkles by night
-const pc=document.getElementById('particles');
-const night=document.body.classList.contains('night');
-const imgs=night
-  ? ['web-assets/sparkle.png','web-assets/pollen.png']
-  : ['web-assets/leaf.png','web-assets/pollen.png','web-assets/sparkle.png'];
-for(let i=0;i<16;i++){
-  const p=document.createElement('img');
-  p.className='particle';
-  p.src=imgs[i%imgs.length];
-  const size=(night?6:10)+Math.random()*(night?16:26);
-  p.style.width=size+'px';
-  p.style.left=Math.random()*100+'%';
-  if(night){
-    // gentle twinkle in place rather than falling
-    p.style.top=Math.random()*100+'%';
-    p.style.animation='twinkle '+(2+Math.random()*3)+'s ease-in-out infinite';
-    p.style.animationDelay=(-Math.random()*4)+'s';
-  }else{
-    p.style.animationDuration=(8+Math.random()*10)+'s';
-    p.style.animationDelay=(-Math.random()*12)+'s';
+// ambient drifting leaves/pollen across every [data-particles] layer
+const leafSet=['web-assets/leaf.png','web-assets/pollen.png','web-assets/sparkle.png'];
+document.querySelectorAll('[data-particles]').forEach((pc,idx)=>{
+  const count = idx===0 ? 16 : 9;
+  for(let i=0;i<count;i++){
+    const p=document.createElement('img');
+    p.className='particle';
+    p.src=leafSet[(i+idx)%leafSet.length];
+    p.style.width=(10+Math.random()*22)+'px';
+    p.style.left=Math.random()*100+'%';
+    p.style.animationDuration=(9+Math.random()*11)+'s';
+    p.style.animationDelay=(-Math.random()*14)+'s';
+    pc.appendChild(p);
   }
-  pc.appendChild(p);
-}
+});
 </script>
 </body>
 </html>

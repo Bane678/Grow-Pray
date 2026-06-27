@@ -210,3 +210,128 @@ Once the Step 1 build processes:
 ---
 
 *Bismillah. The hard part's done — this is the home stretch. 🌿🚀*
+
+
+---
+
+# 🖥️ Running the growpray.com website locally (for the next AI)
+
+The landing page (`index.html`), `support.html`, and `privacy-policy.html` are plain static files served from the **project root**. No build step.
+
+**Start a local preview server** (the user is on Windows; use this exact command from the project root):
+```
+python -m http.server 8080
+```
+Then open **http://localhost:8080/** (also `/support.html`, `/privacy-policy.html`).
+> Treat this as a long-running background process — start it in the background, don't block on it. To stop it, kill the process.
+
+**Share a live preview with someone (temporary public URL):** in a second terminal:
+```
+npx ngrok http 8080
+```
+Copy the `https://….ngrok-free.app` URL it prints. (ngrok account on file: `Killerbane678`, free plan. First-time visitors see an ngrok interstitial — they click "Visit Site".)
+
+**Deploy changes to the real growpray.com** (GitHub Pages auto-deploys on push):
+```
+git add . && git commit -m "..." && git push origin master
+```
+Repo: `https://github.com/Bane678/Grow-Pray.git` · branch `master` · Pages serves the root · a `CNAME` file in the repo binds it to growpray.com. Push the progress flag if PowerShell mis-reports git's stderr: `git push origin master --progress`.
+
+---
+
+# 📚 Full Context Reference
+
+**Machine / environment**
+- Project path: `c:\Users\sayee\.gemini\antigravity\scratch\jannah-garden`
+- OS: Windows (shell: PowerShell/cmd). No iOS simulator available (can't screenshot via simulator — use a real iPhone).
+- Note: the shell sometimes drops the FIRST character of a command — if a command errors with a mangled first word, just re-run it.
+
+**Owner**
+- Name: Sayeed Ali (full legal: Mohammad Raihan Sayeed Ali)
+- Personal Apple ID / dev login: `sayeedali224@gmail.com`
+- Home address (do NOT use publicly — used only where a personal address is unavoidable): 53 Bradford Road, Portsmouth, PO5 1AA, UK
+- ⚠️ **Working rule the user explicitly asked for:** if you are unsure of a specific detail (an address, a number, a name), **ASK — never make it up.** (This came from an incident where a placeholder address was invented.)
+
+**Apple / App Store Connect**
+- App name: `Grow Pray - Daily Prayer Tracker`
+- Bundle ID: `com.antigravity.growpray`
+- ASC App ID (ascAppId): `6762623534`
+- Apple Team ID: `NZ8X3B789X`
+- TestFlight: an early build is uploaded (builds 1–9 visible). Internal testing group includes tester `d0rpit`. Beta "Test Information" filled; feedback email `support@growpray.com`; sign-in NOT required (no accounts).
+- DSA / trader info: SUBMITTED and address VERIFIED. Trader address = the virtual office below. DSA contact email `support@growpray.com`. Verified by uploading the Capital Office invoice (`order-invoice-15271171`).
+
+**Business / address**
+- Virtual office (registered/trader address): **124 City Road, London, EC1V 2NX** — provider **Capital Office Ltd** (yourvirtualofficelondon.co.uk). Their phone `+44 (0)207 566 3939` is THEIRS, not the user's. Service: Registered Office Address, 12 months, expires 19-Jun-2027.
+
+**Domain & DNS (Namecheap)**
+- Domain: **growpray.com**
+- Website DNS: 4 × A records on `@` → `185.199.108.153`, `185.199.109.153`, `185.199.110.153`, `185.199.111.153` (GitHub Pages) + CNAME `www` → `bane678.github.io.`
+- ⚠️ **Do NOT delete the email DNS records** (they keep `support@growpray.com` working): MX `@` → `mailserver.purelymail.com` (priority 50); TXT `@` SPF `v=spf1 include:_spf.purelymail.com ~all`; TXT `@` purelymail ownership; CNAME DKIM `purelymail1/2/3._domainkey` → `key1/2/3.dkimroot.purelymail.com`; CNAME `_dmarc` → `dmarcroot.purelymail.com`.
+
+**Email**
+- `support@growpray.com` via **Purelymail**. Account login `sayeed@purelymail.com`. Webmail at purelymail.com → Webmail. Used as the public support + feedback + DSA contact address.
+
+**The app (tech)**
+- React Native + **Expo SDK 54**, TypeScript. EAS build/submit/update. `expo-updates` (OTA possible for JS/asset-only changes). RevenueCat (`react-native-purchases`) for IAP. `adhan` lib computes prayer times on-device. `nativewind`, `reanimated`.
+- Expo projectId: `b4abc15f-4bf1-4add-979f-122f1c51bcb7`.
+- **Cannot run in Expo Go** (custom native modules). For live-reload dev: build a dev client (`eas build --profile development-device --platform ios`), install on iPhone, then `npx expo start --dev-client --tunnel`.
+- Data storage: **all local on device** via AsyncStorage. No accounts, no cloud, no server, no ads. (Cloud backup is a future idea.)
+- `App.tsx` is a ~4600-line monolith holding the root component, `usePrayerState`, and `SkyBackground`.
+
+**Features in the app**
+- 5-prayer tracking with on-device times + notifications; garden that grows trees per prayer (withers when missed); per-prayer streaks + milestones (7/30/100); coins + XP; consistency multiplier; Garden Shop (8 tree species, streak freezes, expansions); weekly challenges; Ramadan mode (2× XP); Qibla compass; dhikr/tasbih counter (**indopak** Arabic font); authentic duas (after salah, morning, evening, sleep, travel — these are FREE, not premium); daily ayah/hadith reflection; first-run tutorial; prayer insights; premium subscription.
+- **Removed:** the old "difficult day" feature (deleted everywhere).
+- **Day/night sky** (`SkyBackground` in `App.tsx`): crossfades `Daytime_Sky.png` / `Starry_Night_Sky.png` based on real sunrise/sunset; snaps instantly on open; rechecks via timer + AppState. ⚠️ Currently has a DEBUG `return true;` forcing daytime in `computeIsDay()` — REMOVE before production build.
+
+**Monetisation (must exist in App Store Connect, "Ready to Submit")**
+- Subscriptions group "Grow Pray Premium": `growpray_premium_monthly` $6.99/mo (7-day trial), `growpray_premium_yearly` $44.99/yr (7-day trial).
+- Consumable coins: `growpray_coins_500` $0.99, `growpray_coins_1500` $2.99, `growpray_coins_5000` $7.99, `growpray_coins_12000` $14.99.
+
+**Landing page structure (`index.html`) — current state after redesign**
+- Single file, inline CSS + small JS. Fonts: Fraunces (headings) + Nunito (body). Palette: dark navy + emerald + gold.
+- Hero = a full daytime garden scene (sky image, grass ground, swaying trees, bobbing seedling mascot, drifting particles, phone with `web-assets/screenshot.png`). **User loves the hero — don't break it.**
+- Below the hero: ONE continuous day→night gradient on `<body>` so sections flow with no flat-box seams; sections are transparent. The mascot reappears as a guide; trees are rooted into sections; particles drift across all sections; tree collection is a "garden shelf" on a grassy mound; the prayer feature is shown inside a phone frame ("Today's Prayers"); reward/tools tiles sit on grassy "garden cards".
+- **Two `SWAP-IN POINT` HTML comments** mark where real screenshots should replace mockups (the mini-phone prayer screen, and the night-section phone pair which currently reuses one screenshot).
+- A removable full-page **night theme** exists: add `class="night"` to `<body>` to enable, remove the word to revert. (User tried full-night once and reverted to day — keep daytime hero unless asked.)
+- **App Store badge is still a CSS fake** (`.store-badge`, appears 3×) — Step 7 replaces it with Apple's official badge + real store URL post-approval. There's a TODO comment above `.store-badge` in the CSS.
+- `web-assets/` holds clean, space-free copies of all art the page uses (originals live in `assets/Garden Assets/...` which have SPACES in paths — those spaces break on GitHub Pages, hence the copies). To add art: copy into `web-assets/` with a simple lowercase-dashed name.
+
+**User working style (helps the next AI)**
+- Prefers you to **act** and build rather than over-explain; says things like "just start building".
+- Not deeply technical with deployment/Apple tooling — give **click-by-click** browser steps for App Store Connect, Namecheap, GitHub, etc.
+- Has strong design taste; dislikes anything that looks "generic / AI-generated" — push for real assets, real screenshots, scenes with character.
+- Wants honesty over flattery, and to be asked when a detail is unknown.
+
+---
+
+# 🧠 Memory Primer — paste this into a new AI to transfer context
+
+> Copy everything in the block below into the new AI at the start of your session (or save it to its long-term memory). It encodes the project state so the new assistant can continue seamlessly.
+
+```
+You are helping Sayeed finish and ship "Grow Pray" — an iOS app (React Native + Expo SDK 54, TypeScript) that gamifies the 5 daily Islamic prayers as a growing garden. The project lives at c:\Users\sayee\.gemini\antigravity\scratch\jannah-garden on Windows.
+
+STATUS: The app's code is essentially complete (prayer tracking, garden, streaks, coins/XP, shop with 8 tree species, Qibla compass, dhikr counter with indopak font, free duas, daily reflection, first-run tutorial, insights, Ramadan mode, premium subscription, and a day/night sky that crossfades on real sunrise/sunset). Data is stored locally only (AsyncStorage) — no accounts, no cloud, no ads. The old "difficult day" feature was removed. An early build is on TestFlight; DSA trader info is submitted and the address is verified.
+
+KEY IDS: bundle com.antigravity.growpray · ascAppId 6762623534 · Apple Team NZ8X3B789X · Apple ID sayeedali224@gmail.com · Expo projectId b4abc15f-4bf1-4add-979f-122f1c51bcb7.
+
+INFRASTRUCTURE: Domain growpray.com (Namecheap) → GitHub Pages on repo Bane678/Grow-Pray (branch master; deploy by pushing). Website files: index.html (marketing), support.html, privacy-policy.html, and a web-assets/ folder of clean-named art copies (originals under "assets/Garden Assets/..." have spaces that break on Pages). Email support@growpray.com via Purelymail. Trader/virtual-office address: 124 City Road, London EC1V 2NX (Capital Office). DO NOT delete the Purelymail DNS records (MX/SPF/DKIM/DMARC).
+
+WHAT'S LEFT before App Store submission (see REMAINING_BEFORE_SUBMISSION.md for full detail):
+1. Remove the DEBUG `return true;` in App.tsx > SkyBackground > computeIsDay(), then make a FRESH production build (`eas build --profile production --platform ios`) — the TestFlight build predates many features.
+2. Verify subscriptions + coin IAPs are "Ready to Submit" in App Store Connect.
+3. Take real app screenshots (no simulator on Windows — use a real iPhone).
+4. Finish the App Store listing metadata using growpray.com URLs (copy from APP_STORE_METADATA.md).
+5. Confirm growpray.com + HTTPS live.
+6. Landing page: keep improving the lower sections with REAL screenshots at the two SWAP-IN POINT markers in index.html.
+7. Replace the fake CSS App Store badge (.store-badge, 3×) with Apple's official badge + the real App Store URL once approved.
+8. TestFlight the fresh build, then submit for review.
+
+RUN THE WEBSITE LOCALLY: `python -m http.server 8080` from the project root → http://localhost:8080/ . Share via `npx ngrok http 8080`.
+
+HOW TO WORK WITH SAYEED: He prefers you to take action and build rather than over-explain. He is NOT a deep technical expert on Apple/DNS tooling, so give clear click-by-click browser steps. He has strong design taste and hates anything that looks generic/AI-generated — favour real assets and real screenshots. Be honest, not flattering. CRITICAL: if you don't know a specific detail (an address, number, name), ASK him — never invent it.
+```
+
+---
+
+*This file is the single source of truth for finishing Grow Pray. Bismillah. 🌿🚀*
