@@ -1,6 +1,6 @@
 import "./global.css";
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, ActivityIndicator, TouchableOpacity, Image, ImageBackground, Animated, Modal, ScrollView, TouchableWithoutFeedback, Pressable, Easing, StyleSheet, Dimensions, Platform } from 'react-native';
+import { Text, View, ActivityIndicator, TouchableOpacity, Image, ImageBackground, Animated, Modal, ScrollView, TouchableWithoutFeedback, Pressable, Easing, StyleSheet, Dimensions, Platform, AppState } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
@@ -38,6 +38,90 @@ import { Audio } from 'expo-av';
 import Svg, { Circle, Defs, LinearGradient as SvgGradient, RadialGradient, Stop, Path, Rect, ClipPath, G } from 'react-native-svg';
 
 const SINGLE_FREEZE_ICON = require('./assets/Garden Assets/Icons/Streak_Freeze.png');
+
+// ─── Day / Night Sky ──────────────────────────────────────────────────────────
+// Two stacked, pre-bundled sky images. The night layer crossfades over the day
+// layer based on the user's real sunrise/sunset. On first mount the opacity is
+// SNAPPED to the correct value (no fade), so reopening the app instantly shows
+// the right sky with no wait or flash. A 1-min timer + AppState foreground check
+// keep it accurate; both images are local requires so there is nothing to load.
+const DAY_SKY = require('./assets/Garden Assets/Icons/Daytime_Sky.png');
+const NIGHT_SKY = require('./assets/Garden Assets/Icons/Starry_Night_Sky.png');
+
+function SkyBackground({
+  sunrise,
+  sunset,
+  children,
+}: {
+  sunrise?: string;
+  sunset?: string;
+  children?: React.ReactNode;
+}) {
+  const computeIsDay = useCallback(() => {
+    // DEBUG: force daytime — remove this line to restore real day/night logic
+    return true;
+    const now = new Date();
+    const mins = now.getHours() * 60 + now.getMinutes();
+    const toMins = (s?: string) => {
+      if (!s || !/^\d{1,2}:\d{2}/.test(s)) return null;
+      const [h, m] = s.split(':').map(Number);
+      return h * 60 + m;
+    };
+    const sr = toMins(sunrise) ?? 6 * 60;   // fallback 06:00
+    const ss = toMins(sunset) ?? 18 * 60;   // fallback 18:00
+    return mins >= sr && mins < ss;
+  }, [sunrise, sunset]);
+
+  const [isDay, setIsDay] = useState(computeIsDay);
+  // night layer: 1 = night visible, 0 = day visible
+  const nightOpacity = useRef(new Animated.Value(computeIsDay() ? 0 : 1)).current;
+  const hasMounted = useRef(false);
+
+  // Recompute whenever sunrise/sunset become available or the function changes
+  useEffect(() => {
+    setIsDay(computeIsDay());
+  }, [computeIsDay]);
+
+  // Drive the crossfade. First run snaps instantly (no animation) for a seamless open.
+  useEffect(() => {
+    if (!hasMounted.current) {
+      nightOpacity.setValue(isDay ? 0 : 1);
+      hasMounted.current = true;
+      return;
+    }
+    Animated.timing(nightOpacity, {
+      toValue: isDay ? 0 : 1,
+      duration: 1500,
+      useNativeDriver: true,
+    }).start();
+  }, [isDay, nightOpacity]);
+
+  // Keep it accurate over time and when returning to the foreground
+  useEffect(() => {
+    const tick = () => setIsDay(computeIsDay());
+    const id = setInterval(tick, 60 * 1000);
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') tick();
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, [computeIsDay]);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: THEME.bg }}>
+      <Image source={DAY_SKY} style={StyleSheet.absoluteFill} resizeMode="cover" />
+      <Animated.Image
+        source={NIGHT_SKY}
+        style={[StyleSheet.absoluteFill, { opacity: nightOpacity }]}
+        resizeMode="cover"
+      />
+      {children}
+    </View>
+  );
+}
+
 
 // Preload reward sound once at app startup — avoids 200-400ms createAsync delay on first tap
 let _rewardSound: Audio.Sound | null = null;
@@ -3337,10 +3421,9 @@ function AppInner() {
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-    <ImageBackground
-        source={require('./assets/Garden Assets/Icons/Starry_Night_Sky.png')}
-        style={{ flex: 1, backgroundColor: THEME.bg }}
-        resizeMode="cover"
+    <SkyBackground
+        sunrise={prayerState.timings?.Sunrise}
+        sunset={prayerState.timings?.Sunset}
       >
       <StatusBar style="light" />
       {/* Decode prayer icons off-screen before FloatingPrayerBar first mounts */}
@@ -4484,7 +4567,7 @@ function AppInner() {
 
 
 
-    </ImageBackground>
+    </SkyBackground>
       {/* Preparing overlay — hides the garden while it loads after onboarding */}
       {showPreparing && (
         <PreparingScreen
