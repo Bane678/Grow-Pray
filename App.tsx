@@ -58,8 +58,6 @@ function SkyBackground({
   children?: React.ReactNode;
 }) {
   const computeIsDay = useCallback(() => {
-    // DEBUG: force daytime — remove this line to restore real day/night logic
-    return true;
     const now = new Date();
     const mins = now.getHours() * 60 + now.getMinutes();
     const toMins = (s?: string) => {
