@@ -72,7 +72,7 @@ body>*:not(.starfield){position:relative;z-index:1}
 /* ---------- HERO ---------- */
 /* No own background — the hero sits directly on the shared fixed starfield so it's
    seamless with every section below it. Balanced padding keeps content centred. */
-.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:84px 0 48px;overflow:hidden}
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:70px 0 70px;overflow:hidden}
 .hero-inner{position:relative;z-index:5;display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;width:100%}
 .hero-copy .pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#dfe9ef;font-weight:700;font-size:14px;padding:7px 16px;border-radius:999px;margin-bottom:22px;backdrop-filter:blur(6px)}
 .hero-copy h1{font-size:clamp(40px,5.6vw,68px);font-weight:900;line-height:1.02;color:#fff;letter-spacing:-1.5px;text-shadow:0 4px 30px rgba(0,0,0,.5)}
@@ -93,9 +93,10 @@ body>*:not(.starfield){position:relative;z-index:1}
 .float-tree.t2{right:-34px;width:92px;bottom:34px;animation:sway 7s ease-in-out infinite reverse}
 .mascot{position:absolute;left:-66px;top:24px;width:116px;z-index:6;filter:drop-shadow(0 12px 18px rgba(0,0,0,.5));animation:bob 4s ease-in-out infinite}
 
-/* particles */
-.particles,.amb{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
-.particle{position:absolute;opacity:.55;animation:drift linear infinite}
+/* particles — one fixed full-page layer so they drift down the whole site with
+   no arbitrary origin line (sits just above the starfield, behind content) */
+.particle-field{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden}
+.particle{position:absolute;opacity:.5;animation:drift linear infinite}
 @keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
 /* hero scene elements ease up from the ground on load so nothing snaps in */
@@ -226,8 +227,9 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 </style>
 </head>
 <body>
-<!-- shared night starfield behind everything -->
+<!-- shared night starfield + drifting particle layer behind everything -->
 <div class="starfield" id="starfield"></div>
+<div class="particle-field" data-particles></div>
 
 <!-- ===== NAV ===== -->
 <nav id="nav">
@@ -239,7 +241,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 
 <!-- ===== HERO ===== -->
 <header class="hero">
-  <div class="particles" data-particles></div>
   <div class="container hero-inner">
     <div class="hero-copy">
       <span class="pill">🕌 Build a prayer habit that actually sticks</span>
@@ -266,7 +267,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 
 <!-- ===== PRAYER RAIL — the five real prayer-icon scenes ===== -->
 <section class="rail-sec">
-  <div class="amb" data-particles></div>
   <div class="container sec-inner">
     <div class="sec-head reveal">
       <span class="eyebrow">Five prayers, one rhythm</span>
@@ -306,7 +306,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 
 <!-- ===== FEATURES ===== -->
 <section id="features">
-  <div class="amb" data-particles></div>
   <div class="container sec-inner">
 
     <!-- Feature 1: prayer tracking — shown as the REAL app screen -->
@@ -381,7 +380,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 
 <!-- ===== TREE COLLECTION (garden shelf) ===== -->
 <section class="collection">
-  <div class="amb" data-particles></div>
   <div class="container sec-inner">
     <div class="sec-head reveal">
       <span class="eyebrow">Collect them all</span>
@@ -405,7 +403,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 
 <!-- ===== ANYWHERE / NIGHT ===== -->
 <section class="anywhere">
-  <div class="amb" data-particles></div>
   <div class="container">
     <div class="anywhere-inner">
       <div class="reveal">
@@ -474,21 +471,25 @@ addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40));
 const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in')}),{threshold:.12});
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 
-// ambient drifting leaves/pollen across every [data-particles] layer
+// ambient leaves/pollen drifting down the whole page from one fixed layer.
+// negative delays stagger them so they're already spread top-to-bottom on load
+// (no visible spawn line at any section edge).
 const leafSet=['web-assets/leaf.png','web-assets/pollen.png','web-assets/sparkle.png'];
-document.querySelectorAll('[data-particles]').forEach((pc,idx)=>{
-  const count = idx===0 ? 16 : 8;
+const field=document.querySelector('.particle-field');
+if(field){
+  const count=26;
   for(let i=0;i<count;i++){
     const p=document.createElement('img');
     p.className='particle';
-    p.src=leafSet[(i+idx)%leafSet.length];
-    p.style.width=(10+Math.random()*22)+'px';
+    p.src=leafSet[i%leafSet.length];
+    const dur=11+Math.random()*12;
+    p.style.width=(10+Math.random()*20)+'px';
     p.style.left=Math.random()*100+'%';
-    p.style.animationDuration=(9+Math.random()*11)+'s';
-    p.style.animationDelay=(-Math.random()*14)+'s';
-    pc.appendChild(p);
+    p.style.animationDuration=dur+'s';
+    p.style.animationDelay=(-Math.random()*dur)+'s'; // spread across the full cycle
+    field.appendChild(p);
   }
-});
+}
 </script>
 </body>
 </html>
