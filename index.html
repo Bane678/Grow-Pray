@@ -70,12 +70,9 @@ nav.scrolled{background:rgba(8,16,30,.86);backdrop-filter:blur(14px);box-shadow:
 body>*:not(.starfield){position:relative;z-index:1}
 
 /* ---------- HERO ---------- */
-.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:120px 0 0;overflow:hidden}
-/* hero sky shares the same starfield canvas below it — the moon/nebula image is
-   blended in (screen) and faded top+bottom so there's no seam against the page. */
-.hero-sky{position:absolute;inset:0;background-image:url("web-assets/sky-night.png");background-size:cover;background-position:center top;opacity:.5;mix-blend-mode:screen}
-.hero-sky::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0a1530 0%,transparent 30%,transparent 70%,#060d1b 100%)}
-.hero-glow{position:absolute;top:-6%;right:14%;width:520px;height:420px;background:radial-gradient(circle,rgba(255,212,121,.22),transparent 62%);filter:blur(26px)}
+/* No own background — the hero sits directly on the shared fixed starfield so it's
+   seamless with every section below it. Balanced padding keeps content centred. */
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:84px 0 48px;overflow:hidden}
 .hero-inner{position:relative;z-index:5;display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;width:100%}
 .hero-copy .pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#dfe9ef;font-weight:700;font-size:14px;padding:7px 16px;border-radius:999px;margin-bottom:22px;backdrop-filter:blur(6px)}
 .hero-copy h1{font-size:clamp(40px,5.6vw,68px);font-weight:900;line-height:1.02;color:#fff;letter-spacing:-1.5px;text-shadow:0 4px 30px rgba(0,0,0,.5)}
@@ -86,6 +83,8 @@ body>*:not(.starfield){position:relative;z-index:1}
 .hero-note span{display:inline-flex;align-items:center;gap:7px}
 .hero-note b{color:var(--gold-l)}
 .hero-visual{position:relative;display:flex;justify-content:center;align-items:flex-end}
+/* group entrance on the whole visual so the per-element sway/bob loops stay intact */
+.hero-visual{animation:growUp .9s cubic-bezier(.16,.84,.44,1) .15s both}
 .phone{position:relative;width:300px;border-radius:42px;background:#0a1422;padding:12px;box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.08),0 0 60px rgba(95,217,154,.12);z-index:4}
 .phone::before{content:"";position:absolute;top:20px;left:50%;transform:translateX(-50%);width:90px;height:7px;background:#1e2a3a;border-radius:99px;z-index:3}
 .phone img{width:100%;border-radius:32px}
@@ -99,6 +98,8 @@ body>*:not(.starfield){position:relative;z-index:1}
 .particle{position:absolute;opacity:.55;animation:drift linear infinite}
 @keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
+/* hero scene elements ease up from the ground on load so nothing snaps in */
+@keyframes growUp{0%{opacity:0;transform:translateY(26px) scale(.92)}100%{opacity:1;transform:none}}
 @keyframes drift{0%{transform:translateY(-40px) translateX(0) rotate(0)}100%{transform:translateY(110vh) translateX(60px) rotate(360deg)}}
 @keyframes twinkle{0%,100%{opacity:.18}50%{opacity:.95}}
 
@@ -124,7 +125,7 @@ section{position:relative;padding:100px 0;background:transparent;overflow:hidden
 .stage img{filter:drop-shadow(0 12px 18px rgba(0,0,0,.5))}
 .stage .lbl{margin-top:14px;font-weight:800;color:#fff;font-size:16px}
 .stage .desc{color:var(--muted);font-size:13px;font-weight:600}
-.arrow{font-size:30px;color:var(--green-l);align-self:center;padding-bottom:60px;opacity:.7}
+.arrow{font-size:28px;color:var(--green-l);align-self:flex-end;padding-bottom:78px;opacity:.6}
 
 /* ---------- PRAYER RAIL (real gradient prayer-icon scenes — the app's signature art) ---------- */
 .prayer-rail{position:relative;z-index:5;display:flex;justify-content:center;flex-wrap:wrap;gap:18px}
@@ -238,8 +239,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 
 <!-- ===== HERO ===== -->
 <header class="hero">
-  <div class="hero-sky"></div>
-  <div class="hero-glow"></div>
   <div class="particles" data-particles></div>
   <div class="container hero-inner">
     <div class="hero-copy">
