@@ -22,12 +22,14 @@
   --gold:#f2b441; --gold-l:#ffd479;
   --cream:#fdf6e9; --text:#eaf2ec; --muted:#9fb4c2;
   --ink:#0c2030;
+  --card:rgba(255,255,255,.045); --card-bd:rgba(255,255,255,.09);
 }
 html{scroll-behavior:smooth}
-/* One continuous day→night gradient flows behind every section below the hero,
-   so there are no flat "stacked box" seams. */
+/* ONE dark night-garden world top to bottom — matches the app's real aesthetic.
+   The deep-navy starfield is the canvas; the app screenshots sit on it naturally
+   instead of looking like dark holes punched into a bright page. */
 body{font-family:'Nunito',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:var(--text);line-height:1.6;overflow-x:hidden;
-  background:linear-gradient(180deg,#16344e 0%,#13314a 12%,#102a42 32%,#0d2138 52%,#0a1830 70%,#081224 86%,#060d1b 100%)}
+  background:#060d1b}
 h1,h2,h3,.display{font-family:'Fraunces',Georgia,serif}
 img{max-width:100%;display:block}
 a{color:inherit;text-decoration:none}
@@ -36,14 +38,14 @@ a{color:inherit;text-decoration:none}
 
 /* ---------- NAV ---------- */
 nav{position:fixed;top:0;left:0;right:0;z-index:200;transition:background .3s ease,box-shadow .3s ease,padding .3s ease;padding:18px 0}
-nav.scrolled{background:rgba(10,20,34,.9);backdrop-filter:blur(14px);box-shadow:0 6px 24px rgba(0,0,0,.3);padding:12px 0}
+nav.scrolled{background:rgba(8,16,30,.86);backdrop-filter:blur(14px);box-shadow:0 6px 24px rgba(0,0,0,.45);padding:12px 0}
 .nav-inner{display:flex;align-items:center;justify-content:space-between}
 .brand{display:flex;align-items:center;gap:10px;font-family:'Fraunces';font-weight:900;font-size:22px;color:#fff}
 .brand img{width:34px;height:34px;filter:drop-shadow(0 2px 6px rgba(0,0,0,.4))}
 .nav-cta{background:var(--green);color:#06281d;font-weight:800;padding:11px 22px;border-radius:999px;font-size:15px;transition:transform .15s,background .15s;box-shadow:0 6px 18px rgba(47,174,107,.4)}
 .nav-cta:hover{background:var(--green-l);transform:translateY(-2px)}
 
-/* ---------- BUTTONS ---------- */
+/* ---------- BUTTONS / STORE BADGE ---------- */
 .btn{display:inline-flex;align-items:center;gap:10px;font-family:'Nunito';font-weight:800;border-radius:16px;transition:transform .15s,box-shadow .15s;cursor:pointer}
 .btn-primary{background:var(--green);color:#06281d;padding:16px 30px;font-size:17px;box-shadow:0 10px 30px rgba(47,174,107,.45)}
 .btn-primary:hover{transform:translateY(-3px);box-shadow:0 16px 40px rgba(47,174,107,.55)}
@@ -57,38 +59,48 @@ nav.scrolled{background:rgba(10,20,34,.9);backdrop-filter:blur(14px);box-shadow:
 .store-badge small{display:block;font-size:11px;opacity:.8;font-weight:600}
 .store-badge b{font-size:19px;font-family:'Fraunces';font-weight:700}
 
-/* ---------- HERO (unchanged — user-approved) ---------- */
-.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:120px 0 0;overflow:hidden;
-  background:linear-gradient(180deg,#1b3a5c 0%,#2d5f86 35%,#5e94b0 70%,#86b89c 100%)}
-.hero-sky{position:absolute;inset:0;background-image:url("web-assets/sky-day.png");background-size:cover;background-position:center top;opacity:.55;mix-blend-mode:screen}
-.hero-glow{position:absolute;top:-10%;left:50%;transform:translateX(-50%);width:900px;height:600px;background:radial-gradient(circle,rgba(255,212,121,.35),transparent 65%);filter:blur(20px)}
+/* ---------- SHARED STARFIELD ---------- */
+/* A single starfield canvas painted once and shown behind everything via fixed layer. */
+.starfield{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(1100px 700px at 78% -8%, rgba(86,74,140,.30), transparent 60%),
+    radial-gradient(900px 600px at 12% 18%, rgba(40,70,120,.28), transparent 60%),
+    linear-gradient(180deg,#0a1530 0%,#0a1428 30%,#081020 60%,#060d1b 100%)}
+.star{position:absolute;border-radius:50%;background:#fff;animation:twinkle ease-in-out infinite}
+body>*:not(.starfield){position:relative;z-index:1}
+
+/* ---------- HERO ---------- */
+.hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:120px 0 0;overflow:hidden}
+.hero-sky{position:absolute;inset:0;background-image:url("web-assets/sky-night.png");background-size:cover;background-position:center top;opacity:.6}
+.hero-sky::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,#060d1b 99%)}
+.hero-glow{position:absolute;top:-6%;right:14%;width:520px;height:420px;background:radial-gradient(circle,rgba(255,212,121,.22),transparent 62%);filter:blur(26px)}
 .hero-inner{position:relative;z-index:5;display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;width:100%}
-.hero-copy .pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28);color:#fff;font-weight:700;font-size:14px;padding:7px 16px;border-radius:999px;margin-bottom:22px;backdrop-filter:blur(6px)}
-.hero-copy h1{font-size:clamp(40px,5.6vw,68px);font-weight:900;line-height:1.02;color:#fff;letter-spacing:-1.5px;text-shadow:0 4px 24px rgba(0,30,20,.35)}
+.hero-copy .pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#dfe9ef;font-weight:700;font-size:14px;padding:7px 16px;border-radius:999px;margin-bottom:22px;backdrop-filter:blur(6px)}
+.hero-copy h1{font-size:clamp(40px,5.6vw,68px);font-weight:900;line-height:1.02;color:#fff;letter-spacing:-1.5px;text-shadow:0 4px 30px rgba(0,0,0,.5)}
 .hero-copy h1 .leaf{color:var(--gold-l)}
-.hero-copy p.sub{font-size:clamp(17px,2vw,21px);color:#eef7f1;max-width:520px;margin:20px 0 32px;font-weight:600;text-shadow:0 2px 12px rgba(0,30,20,.3)}
+.hero-copy p.sub{font-size:clamp(17px,2vw,21px);color:#cdddd2;max-width:520px;margin:20px 0 32px;font-weight:600}
 .hero-cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
-.hero-note{margin-top:20px;color:#dbece2;font-size:14px;font-weight:700;display:flex;gap:18px;flex-wrap:wrap}
+.hero-note{margin-top:22px;color:#aebfca;font-size:14px;font-weight:700;display:flex;gap:18px;flex-wrap:wrap}
 .hero-note span{display:inline-flex;align-items:center;gap:7px}
 .hero-note b{color:var(--gold-l)}
 .hero-visual{position:relative;display:flex;justify-content:center;align-items:flex-end}
-.phone{position:relative;width:300px;border-radius:42px;background:#0a1422;padding:12px;box-shadow:0 40px 80px rgba(0,20,10,.5),0 0 0 2px rgba(255,255,255,.08);transform:rotate(-3deg);z-index:4}
+.phone{position:relative;width:300px;border-radius:42px;background:#0a1422;padding:12px;box-shadow:0 40px 90px rgba(0,0,0,.6),0 0 0 2px rgba(255,255,255,.08),0 0 60px rgba(95,217,154,.12);z-index:4}
 .phone::before{content:"";position:absolute;top:20px;left:50%;transform:translateX(-50%);width:90px;height:7px;background:#1e2a3a;border-radius:99px;z-index:3}
 .phone img{width:100%;border-radius:32px}
-.float-tree{position:absolute;bottom:-10px;z-index:5;filter:drop-shadow(0 14px 18px rgba(0,30,10,.4))}
-.float-tree.t1{left:-40px;width:120px;animation:sway 6s ease-in-out infinite}
-.float-tree.t2{right:-30px;width:90px;bottom:30px;animation:sway 7s ease-in-out infinite reverse}
-.mascot{position:absolute;left:-70px;top:30px;width:120px;z-index:6;filter:drop-shadow(0 10px 16px rgba(0,30,10,.35));animation:bob 4s ease-in-out infinite}
-.hero-ground{position:absolute;left:0;right:0;bottom:0;height:140px;z-index:3;background:linear-gradient(180deg,transparent,#6aa377 30%,#4f8a63 100%)}
-.hero-ground .tile-row{position:absolute;bottom:0;left:0;right:0;height:100%;background-repeat:repeat-x;background-size:auto 100%;opacity:.9}
+.float-tree{position:absolute;bottom:-6px;z-index:5;filter:drop-shadow(0 16px 22px rgba(0,0,0,.55))}
+.float-tree.t1{left:-46px;width:122px;animation:sway 6s ease-in-out infinite}
+.float-tree.t2{right:-34px;width:92px;bottom:34px;animation:sway 7s ease-in-out infinite reverse}
+.mascot{position:absolute;left:-66px;top:24px;width:116px;z-index:6;filter:drop-shadow(0 12px 18px rgba(0,0,0,.5));animation:bob 4s ease-in-out infinite}
+.hero-ground{position:absolute;left:0;right:0;bottom:0;height:120px;z-index:3;background:linear-gradient(180deg,transparent,#123426 42%,#0c2419 100%)}
+.hero-ground .tile-row{position:absolute;bottom:0;left:0;right:0;height:100%;background-repeat:repeat-x;background-size:auto 100%;opacity:.5}
 
 /* particles */
 .particles,.amb{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
-.particle{position:absolute;opacity:.7;animation:drift linear infinite}
+.particle{position:absolute;opacity:.55;animation:drift linear infinite}
 @keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
 @keyframes bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
 @keyframes drift{0%{transform:translateY(-40px) translateX(0) rotate(0)}100%{transform:translateY(110vh) translateX(60px) rotate(360deg)}}
-@keyframes twinkle{0%,100%{opacity:.2}50%{opacity:.9}}
+@keyframes twinkle{0%,100%{opacity:.18}50%{opacity:.95}}
 
 /* ---------- SECTION SHELL ---------- */
 section{position:relative;padding:100px 0;background:transparent;overflow:hidden}
@@ -101,23 +113,31 @@ section{position:relative;padding:100px 0;background:transparent;overflow:hidden
 
 /* seedling guide above section heads */
 .guide{display:flex;justify-content:center;margin-bottom:6px}
-.guide img{width:58px;height:58px;filter:drop-shadow(0 8px 12px rgba(0,40,15,.45));animation:bob 4s ease-in-out infinite}
+.guide img{width:58px;height:58px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.5));animation:bob 4s ease-in-out infinite}
 
-/* organic hill dividers + ground silhouettes carry the garden between sections */
-.hills{position:absolute;left:0;right:0;z-index:1;line-height:0;pointer-events:none}
-.hills.top{top:-2px}
-.hills.bottom{bottom:-2px;transform:scaleY(-1)}
-.hills svg{display:block;width:100%;height:90px}
-.scene-tree{position:absolute;bottom:14px;z-index:3;filter:drop-shadow(0 12px 14px rgba(0,30,10,.45));opacity:.96}
+/* faint ground silhouette anchoring scene trees between sections */
+.scene-tree{position:absolute;bottom:14px;z-index:3;filter:drop-shadow(0 14px 16px rgba(0,0,0,.55));opacity:.9}
 
 /* ---------- GROWTH STRIP ---------- */
 .growth-stages{position:relative;z-index:5;display:flex;align-items:flex-end;justify-content:center;gap:8px;flex-wrap:wrap}
 .stage{text-align:center;flex:1;min-width:130px;max-width:200px}
 .stage .pot{height:200px;display:flex;align-items:flex-end;justify-content:center}
-.stage img{filter:drop-shadow(0 12px 16px rgba(0,40,15,.4))}
+.stage img{filter:drop-shadow(0 12px 18px rgba(0,0,0,.5))}
 .stage .lbl{margin-top:14px;font-weight:800;color:#fff;font-size:16px}
 .stage .desc{color:var(--muted);font-size:13px;font-weight:600}
-.arrow{font-size:30px;color:var(--green-l);align-self:center;padding-bottom:60px}
+.arrow{font-size:30px;color:var(--green-l);align-self:center;padding-bottom:60px;opacity:.7}
+
+/* ---------- PRAYER RAIL (real gradient prayer-icon scenes — the app's signature art) ---------- */
+.prayer-rail{position:relative;z-index:5;display:flex;justify-content:center;flex-wrap:wrap;gap:18px}
+.prayer{position:relative;width:172px;border-radius:20px;overflow:hidden;border:1px solid var(--card-bd);
+  background:var(--card);box-shadow:0 18px 40px rgba(0,0,0,.4);transition:transform .2s,box-shadow .2s}
+.prayer:hover{transform:translateY(-6px);box-shadow:0 26px 54px rgba(0,0,0,.5)}
+.prayer .scene{display:block;width:100%;height:120px;object-fit:cover}
+.prayer .meta{display:flex;align-items:center;justify-content:space-between;padding:12px 14px}
+.prayer .nm{font-weight:800;color:#fff;font-size:15px;letter-spacing:.3px}
+.prayer .tm{color:var(--gold-l);font-weight:800;font-size:13px}
+.prayer .tick{position:absolute;top:10px;right:10px;width:22px;height:22px;border-radius:50%;background:var(--green);
+  color:#06281d;font-weight:900;font-size:12px;display:flex;align-items:center;justify-content:center;box-shadow:0 3px 8px rgba(0,0,0,.4)}
 
 /* ---------- FEATURE ROWS ---------- */
 .frow{display:grid;grid-template-columns:1fr 1fr;gap:60px;align-items:center;margin-bottom:120px;position:relative;z-index:5}
@@ -131,57 +151,55 @@ section{position:relative;padding:100px 0;background:transparent;overflow:hidden
 .fr-list li img{width:30px;height:30px}
 .fr-visual{display:flex;align-items:center;justify-content:center}
 
-/* feature 1 shown as a real app screen inside a phone */
-.mini-phone{width:300px;max-width:100%;border-radius:40px;background:#0a1422;padding:14px;position:relative;
-  box-shadow:0 34px 70px rgba(0,20,10,.5),0 0 0 2px rgba(255,255,255,.07)}
-.mini-phone::before{content:"";position:absolute;top:22px;left:50%;transform:translateX(-50%);width:80px;height:6px;background:#1e2a3a;border-radius:99px;z-index:3}
-.mini-phone .scr{background:linear-gradient(180deg,#12263c,#0c1a2b);border-radius:28px;padding:40px 14px 18px}
-.mini-phone .scr-title{color:#fff;font-family:'Fraunces';font-weight:700;font-size:16px;margin-bottom:14px;text-align:center}
-.prayer-times{display:flex;flex-direction:column;gap:11px}
-.ptime{display:flex;align-items:center;gap:13px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:11px 14px}
-.ptime img{width:36px;height:36px}
-.ptime .pn{font-weight:800;color:#fff;font-size:15px}
-.ptime .pt{margin-left:auto;color:var(--gold-l);font-weight:800;font-size:14px}
-.ptime .check{margin-left:auto;color:var(--green-l);font-weight:900;font-size:13px}
-.ptime.done{border-color:rgba(47,174,107,.5);background:rgba(47,174,107,.12)}
+/* HUD stat chips — mirrors the app's real top status bar (streak · coins · XP · multiplier) */
+.hud{width:100%;max-width:420px;border-radius:24px;padding:22px;position:relative;overflow:hidden;
+  background:radial-gradient(120% 90% at 50% 0%,rgba(95,217,154,.12),transparent 60%),#0b1a2c;border:1px solid var(--card-bd);
+  box-shadow:0 26px 56px rgba(0,0,0,.45)}
+.hud-row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap;margin-bottom:18px}
+.chip{display:inline-flex;align-items:center;gap:7px;background:rgba(255,255,255,.06);border:1px solid var(--card-bd);
+  border-radius:999px;padding:8px 14px;font-weight:800;color:#fff;font-size:15px}
+.chip .ic{font-size:16px}
+.chip.gold{color:var(--gold-l)} .chip.green{color:var(--green-l)} .chip.fire{color:#ff9a52}
+.hud-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;position:relative;z-index:1}
+.hud-cell{display:flex;align-items:center;gap:12px;background:rgba(255,255,255,.04);border:1px solid var(--card-bd);border-radius:16px;padding:14px}
+.hud-cell img{width:42px;height:42px}
+.hud-cell b{display:block;color:#fff;font-size:15px}
+.hud-cell small{color:var(--muted);font-weight:700;font-size:12px}
+.hud .grass-base{position:absolute;left:0;right:0;bottom:0;height:34px;background-image:url('web-assets/grass.png');background-repeat:repeat-x;background-size:auto 100%;opacity:.4}
 
-/* garden card — reward/tools tiles planted on grass instead of floating in a box */
-.garden-card{position:relative;width:100%;border-radius:26px;overflow:hidden;padding:30px 26px 64px;
-  background:radial-gradient(130% 90% at 50% 0%,rgba(95,217,154,.16),transparent 62%),#10243b;border:1px solid rgba(255,255,255,.08)}
-.garden-card .grass-base{position:absolute;left:0;right:0;bottom:0;height:42px;background-image:url('web-assets/grass.png');background-repeat:repeat-x;background-size:auto 100%;opacity:.5}
-.garden-card .card-mascot{position:absolute;right:14px;bottom:18px;width:62px;z-index:2;animation:bob 5s ease-in-out infinite;filter:drop-shadow(0 6px 8px rgba(0,30,10,.4))}
-.reward-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;position:relative;z-index:1}
-.reward{background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:18px;padding:20px 16px;text-align:center}
-.reward img{width:54px;height:54px;margin:0 auto 10px}
-.reward b{display:block;color:#fff;font-size:16px}
-.reward small{color:var(--muted);font-weight:700}
+/* tools list shown as real pixel-icon rows on a glass panel (no generic boxes) */
+.tool-card{width:100%;max-width:420px;border-radius:24px;padding:14px;background:#0b1a2c;border:1px solid var(--card-bd);box-shadow:0 26px 56px rgba(0,0,0,.45)}
+.tool{display:flex;align-items:center;gap:16px;padding:16px;border-radius:16px;transition:background .15s}
+.tool+.tool{border-top:1px solid rgba(255,255,255,.05)}
+.tool:hover{background:rgba(255,255,255,.03)}
+.tool img{width:46px;height:46px;flex:0 0 auto}
+.tool b{display:block;color:#fff;font-size:16px}
+.tool small{color:var(--muted);font-weight:700}
 
 /* ---------- TREE COLLECTION — a garden shelf on the ground ---------- */
 .tree-shelf{position:relative;z-index:5;display:flex;align-items:flex-end;justify-content:center;flex-wrap:wrap;gap:0 6px;padding-bottom:46px}
-.tree-shelf .grass-line{position:absolute;left:-60px;right:-60px;bottom:30px;height:34px;background-image:url('web-assets/grass.png');background-repeat:repeat-x;background-size:auto 100%;opacity:.6;z-index:1}
-.tree-shelf .mound{position:absolute;left:-60px;right:-60px;bottom:30px;height:80px;z-index:0;background:linear-gradient(180deg,transparent,#1f5a3c);border-radius:50% 50% 0 0/40px}
+.tree-shelf .grass-line{position:absolute;left:-60px;right:-60px;bottom:30px;height:34px;background-image:url('web-assets/grass.png');background-repeat:repeat-x;background-size:auto 100%;opacity:.55;z-index:1}
+.tree-shelf .mound{position:absolute;left:-60px;right:-60px;bottom:30px;height:80px;z-index:0;background:linear-gradient(180deg,transparent,#15402b);border-radius:50% 50% 0 0/40px}
 .shelf-tree{position:relative;z-index:2;text-align:center;width:118px;flex:0 0 auto}
-.shelf-tree img{filter:drop-shadow(0 12px 14px rgba(0,40,15,.5));margin:0 auto}
+.shelf-tree img{filter:drop-shadow(0 14px 16px rgba(0,0,0,.6));margin:0 auto}
 .shelf-tree b{display:block;color:#dfe9ef;font-weight:800;font-size:13px;margin-top:8px}
 .shelf-tree.rare b{color:var(--gold-l)}
 
 /* ---------- ANYWHERE / NIGHT ---------- */
-.night-sky{position:absolute;inset:0;background-image:url("web-assets/sky-night.png");background-size:cover;background-position:center;opacity:.45;z-index:0}
 .anywhere-inner{position:relative;z-index:5;display:grid;grid-template-columns:1fr 1fr;gap:50px;align-items:center}
-.phone-pair{display:flex;justify-content:center}
-.phone-pair .phone{width:230px}
-.phone-pair .phone:nth-child(2){transform:rotate(5deg) translateY(20px);margin-left:-60px;z-index:1}
-.phone-pair .phone:nth-child(1){z-index:2;transform:rotate(-5deg)}
+.phone-scene{position:relative;display:flex;justify-content:center}
+.phone-scene .float-tree.t1{left:0;bottom:-6px;width:96px}
+.phone-scene .float-tree.t2{right:6px;bottom:40px;width:74px}
 
 /* ---------- CTA BAND ---------- */
 .cta-band{text-align:center;position:relative}
 .cta-band .sec-inner{padding:20px 0}
-.cta-band .mascot-big{width:130px;margin:0 auto 24px;animation:bob 4s ease-in-out infinite;filter:drop-shadow(0 12px 16px rgba(0,40,15,.45))}
+.cta-band .mascot-big{width:130px;margin:0 auto 24px;animation:bob 4s ease-in-out infinite;filter:drop-shadow(0 14px 18px rgba(0,0,0,.55))}
 .cta-band h2{font-size:clamp(32px,4.6vw,52px);color:#fff;font-weight:900;letter-spacing:-1px;margin-bottom:16px}
 .cta-band p{color:#cfe3d6;font-size:19px;font-weight:600;margin-bottom:34px}
 
 /* ---------- FOOTER ---------- */
-footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,255,.06);position:relative;z-index:5}
+footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,255,.06);position:relative;z-index:5}
 .foot-inner{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:24px}
 .foot-links{display:flex;gap:26px;flex-wrap:wrap}
 .foot-links a{color:var(--muted);font-weight:700;transition:color .15s}
@@ -197,18 +215,22 @@ footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,
   .mascot{display:none}
   .frow{grid-template-columns:1fr;gap:32px;margin-bottom:80px}
   .frow.flip .fr-text{order:0}
+  .fr-visual .hud,.fr-visual .tool-card{margin:0 auto}
   .arrow{display:none}
   .scene-tree{width:70px!important}
   section{padding:76px 0}
 }
 @media(max-width:480px){
-  .reward-grid{grid-template-columns:1fr 1fr}
   .phone{width:260px}
   .shelf-tree{width:88px}
+  .prayer{width:140px}
 }
 </style>
 </head>
 <body>
+<!-- shared night starfield behind everything -->
+<div class="starfield" id="starfield"></div>
+
 <!-- ===== NAV ===== -->
 <nav id="nav">
   <div class="container nav-inner">
@@ -247,6 +269,25 @@ footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,
   <div class="hero-ground"><div class="tile-row" style="background-image:url('web-assets/grass.png')"></div></div>
 </header>
 
+<!-- ===== PRAYER RAIL — the five real prayer-icon scenes ===== -->
+<section class="rail-sec">
+  <div class="amb" data-particles></div>
+  <div class="container sec-inner">
+    <div class="sec-head reveal">
+      <span class="eyebrow">Five prayers, one rhythm</span>
+      <h2>Your whole day, from Fajr to Isha</h2>
+      <p>Each prayer has its own moment — and its own sky. Mark it the instant you've prayed and keep the rhythm going.</p>
+    </div>
+    <div class="prayer-rail reveal">
+      <div class="prayer"><span class="tick">✓</span><img class="scene" src="web-assets/fajr.png" alt="Fajr"><div class="meta"><span class="nm">Fajr</span><span class="tm">4:16 AM</span></div></div>
+      <div class="prayer"><span class="tick">✓</span><img class="scene" src="web-assets/dhuhr.png" alt="Dhuhr"><div class="meta"><span class="nm">Dhuhr</span><span class="tm">1:06 PM</span></div></div>
+      <div class="prayer"><img class="scene" src="web-assets/asr.png" alt="Asr"><div class="meta"><span class="nm">Asr</span><span class="tm">5:46 PM</span></div></div>
+      <div class="prayer"><img class="scene" src="web-assets/maghrib.png" alt="Maghrib"><div class="meta"><span class="nm">Maghrib</span><span class="tm">7:53 PM</span></div></div>
+      <div class="prayer"><img class="scene" src="web-assets/isha.png" alt="Isha"><div class="meta"><span class="nm">Isha</span><span class="tm">9:48 PM</span></div></div>
+    </div>
+  </div>
+</section>
+
 <!-- ===== GROWTH PROGRESSION ===== -->
 <section class="growth">
   <img class="scene-tree" src="web-assets/tree-willow.png" style="left:-10px;width:120px" alt="">
@@ -275,7 +316,7 @@ footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,
   <div class="amb" data-particles></div>
   <div class="container sec-inner">
 
-    <!-- Feature 1: prayer tracking — shown as a real app screen -->
+    <!-- Feature 1: prayer tracking — shown as the REAL app screen -->
     <div class="frow reveal">
       <div class="fr-text">
         <span class="eyebrow">Never miss a prayer</span>
@@ -287,23 +328,11 @@ footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,
         </ul>
       </div>
       <div class="fr-visual">
-        <!-- SWAP-IN POINT: replace this .mini-phone with a real app screenshot when available -->
-        <div class="mini-phone">
-          <div class="scr">
-            <div class="scr-title">Today's Prayers</div>
-            <div class="prayer-times">
-              <div class="ptime done"><img src="web-assets/fajr.png" alt=""><span class="pn">Fajr</span><span class="check">✓ Prayed</span></div>
-              <div class="ptime done"><img src="web-assets/dhuhr.png" alt=""><span class="pn">Dhuhr</span><span class="check">✓ Prayed</span></div>
-              <div class="ptime"><img src="web-assets/asr.png" alt=""><span class="pn">Asr</span><span class="pt">15:42</span></div>
-              <div class="ptime"><img src="web-assets/maghrib.png" alt=""><span class="pn">Maghrib</span><span class="pt">18:09</span></div>
-              <div class="ptime"><img src="web-assets/isha.png" alt=""><span class="pn">Isha</span><span class="pt">19:36</span></div>
-            </div>
-          </div>
-        </div>
+        <div class="phone" style="width:280px"><img src="web-assets/screenshot.png" alt="Grow Pray garden and prayer timeline"></div>
       </div>
     </div>
 
-    <!-- Feature 2: rewards -->
+    <!-- Feature 2: rewards — HUD chips mirroring the app's real top bar -->
     <div class="frow flip reveal">
       <div class="fr-text">
         <span class="eyebrow">Stay motivated</span>
@@ -315,20 +344,25 @@ footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,
         </ul>
       </div>
       <div class="fr-visual">
-        <div class="garden-card">
-          <div class="reward-grid">
-            <div class="reward"><img src="web-assets/icon-fire.png" alt=""><b>100 Days</b><small>Prayer streak</small></div>
-            <div class="reward"><img src="web-assets/icon-coin.png" alt=""><b>Coins</b><small>Earn & spend</small></div>
-            <div class="reward"><img src="web-assets/icon-xp.png" alt=""><b>XP</b><small>Level up</small></div>
-            <div class="reward"><img src="web-assets/icon-trophy.png" alt=""><b>Challenges</b><small>Weekly bonuses</small></div>
+        <div class="hud">
+          <div class="hud-row">
+            <span class="chip fire"><span class="ic">🔥</span>7</span>
+            <span class="chip gold"><img src="web-assets/icon-coin.png" style="width:18px;height:18px" alt="">47,157</span>
+            <span class="chip green"><span class="ic">✦</span>115</span>
+            <span class="chip"><span class="ic">⚡</span>1×</span>
           </div>
-          <img class="card-mascot" src="web-assets/seedling.png" alt="">
+          <div class="hud-grid">
+            <div class="hud-cell"><img src="web-assets/icon-fire.png" alt=""><div><b>100-day streak</b><small>Milestone rewards</small></div></div>
+            <div class="hud-cell"><img src="web-assets/icon-coin.png" alt=""><div><b>Coins</b><small>Earn & spend</small></div></div>
+            <div class="hud-cell"><img src="web-assets/icon-xp.png" alt=""><div><b>XP</b><small>Level up</small></div></div>
+            <div class="hud-cell"><img src="web-assets/icon-trophy.png" alt=""><div><b>Challenges</b><small>Weekly bonuses</small></div></div>
+          </div>
           <div class="grass-base"></div>
         </div>
       </div>
     </div>
 
-    <!-- Feature 3: worship tools -->
+    <!-- Feature 3: worship tools — real pixel-icon rows -->
     <div class="frow reveal">
       <div class="fr-text">
         <span class="eyebrow">More than a tracker</span>
@@ -341,14 +375,11 @@ footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,
         </ul>
       </div>
       <div class="fr-visual">
-        <div class="garden-card">
-          <div class="reward-grid">
-            <div class="reward"><img src="web-assets/icon-location.png" alt=""><b>Qibla</b><small>Compass</small></div>
-            <div class="reward"><img src="web-assets/icon-hands.png" alt=""><b>Dhikr</b><small>Tasbih counter</small></div>
-            <div class="reward"><img src="web-assets/icon-scroll.png" alt=""><b>Duas</b><small>Morning & evening</small></div>
-            <div class="reward"><img src="web-assets/icon-moon.png" alt=""><b>Reflection</b><small>Daily ayah</small></div>
-          </div>
-          <div class="grass-base"></div>
+        <div class="tool-card">
+          <div class="tool"><img src="web-assets/icon-location.png" alt=""><div><b>Qibla compass</b><small>Find the direction of the Kaaba</small></div></div>
+          <div class="tool"><img src="web-assets/icon-hands.png" alt=""><div><b>Digital tasbih</b><small>Count your dhikr, beautifully</small></div></div>
+          <div class="tool"><img src="web-assets/icon-scroll.png" alt=""><div><b>Authentic duas</b><small>Morning, evening, sleep & travel</small></div></div>
+          <div class="tool"><img src="web-assets/icon-moon.png" alt=""><div><b>Daily reflection</b><small>A fresh ayah or hadith each day</small></div></div>
         </div>
       </div>
     </div>
@@ -382,7 +413,6 @@ footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 
 <!-- ===== ANYWHERE / NIGHT ===== -->
 <section class="anywhere">
-  <div class="night-sky"></div>
   <div class="amb" data-particles></div>
   <div class="container">
     <div class="anywhere-inner">
@@ -392,10 +422,10 @@ footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,
         <p style="color:var(--muted);font-size:18px;font-weight:600;margin-bottom:28px">A single tap to mark a prayer. A glance to find the Qibla. Grow Pray follows your day from Fajr at first light to Isha under the stars — even the garden's sky shifts from day to night with you.</p>
         <a href="#" class="store-badge"><span class="apple"></span><span><small>Download on the</small><b>App Store</b></span></a>
       </div>
-      <!-- SWAP-IN POINT: replace these two with different real screenshots when available -->
-      <div class="phone-pair reveal">
-        <div class="phone"><img src="web-assets/screenshot.png" alt="Grow Pray app"></div>
-        <div class="phone"><img src="web-assets/screenshot.png" alt="Grow Pray app"></div>
+      <div class="phone-scene reveal">
+        <img class="float-tree t1" src="web-assets/tree-cedar.png" alt="">
+        <img class="float-tree t2" src="web-assets/tree-maple.png" alt="">
+        <div class="phone"><img src="web-assets/screenshot.png" alt="Grow Pray night garden"></div>
       </div>
     </div>
   </div>
@@ -431,6 +461,23 @@ footer{background:#060d1b;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 const nav=document.getElementById('nav');
 addEventListener('scroll',()=>nav.classList.toggle('scrolled',scrollY>40));
 
+// paint the shared starfield once
+(function(){
+  const sf=document.getElementById('starfield');
+  const N=90;
+  let html='';
+  for(let i=0;i<N;i++){
+    const s=(Math.random()*2.2+0.6).toFixed(1);
+    const top=(Math.random()*100).toFixed(2);
+    const left=(Math.random()*100).toFixed(2);
+    const dur=(2.5+Math.random()*4).toFixed(1);
+    const delay=(-Math.random()*6).toFixed(1);
+    const op=(0.3+Math.random()*0.5).toFixed(2);
+    html+=`<span class="star" style="width:${s}px;height:${s}px;top:${top}%;left:${left}%;animation-duration:${dur}s;animation-delay:${delay}s;opacity:${op}"></span>`;
+  }
+  sf.innerHTML=html;
+})();
+
 // scroll reveal
 const io=new IntersectionObserver((es)=>es.forEach(e=>{if(e.isIntersecting)e.target.classList.add('in')}),{threshold:.12});
 document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
@@ -438,7 +485,7 @@ document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 // ambient drifting leaves/pollen across every [data-particles] layer
 const leafSet=['web-assets/leaf.png','web-assets/pollen.png','web-assets/sparkle.png'];
 document.querySelectorAll('[data-particles]').forEach((pc,idx)=>{
-  const count = idx===0 ? 16 : 9;
+  const count = idx===0 ? 16 : 8;
   for(let i=0;i<count;i++){
     const p=document.createElement('img');
     p.className='particle';
