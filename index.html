@@ -71,8 +71,10 @@ body>*:not(.starfield){position:relative;z-index:1}
 
 /* ---------- HERO ---------- */
 .hero{position:relative;min-height:100vh;display:flex;align-items:center;padding:120px 0 0;overflow:hidden}
-.hero-sky{position:absolute;inset:0;background-image:url("web-assets/sky-night.png");background-size:cover;background-position:center top;opacity:.6}
-.hero-sky::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,transparent 40%,#060d1b 99%)}
+/* hero sky shares the same starfield canvas below it — the moon/nebula image is
+   blended in (screen) and faded top+bottom so there's no seam against the page. */
+.hero-sky{position:absolute;inset:0;background-image:url("web-assets/sky-night.png");background-size:cover;background-position:center top;opacity:.5;mix-blend-mode:screen}
+.hero-sky::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,#0a1530 0%,transparent 30%,transparent 70%,#060d1b 100%)}
 .hero-glow{position:absolute;top:-6%;right:14%;width:520px;height:420px;background:radial-gradient(circle,rgba(255,212,121,.22),transparent 62%);filter:blur(26px)}
 .hero-inner{position:relative;z-index:5;display:grid;grid-template-columns:1.05fr .95fr;gap:40px;align-items:center;width:100%}
 .hero-copy .pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#dfe9ef;font-weight:700;font-size:14px;padding:7px 16px;border-radius:999px;margin-bottom:22px;backdrop-filter:blur(6px)}
@@ -91,8 +93,6 @@ body>*:not(.starfield){position:relative;z-index:1}
 .float-tree.t1{left:-46px;width:122px;animation:sway 6s ease-in-out infinite}
 .float-tree.t2{right:-34px;width:92px;bottom:34px;animation:sway 7s ease-in-out infinite reverse}
 .mascot{position:absolute;left:-66px;top:24px;width:116px;z-index:6;filter:drop-shadow(0 12px 18px rgba(0,0,0,.5));animation:bob 4s ease-in-out infinite}
-.hero-ground{position:absolute;left:0;right:0;bottom:0;height:120px;z-index:3;background:linear-gradient(180deg,transparent,#123426 42%,#0c2419 100%)}
-.hero-ground .tile-row{position:absolute;bottom:0;left:0;right:0;height:100%;background-repeat:repeat-x;background-size:auto 100%;opacity:.5}
 
 /* particles */
 .particles,.amb{position:absolute;inset:0;z-index:2;pointer-events:none;overflow:hidden}
@@ -115,12 +115,11 @@ section{position:relative;padding:100px 0;background:transparent;overflow:hidden
 .guide{display:flex;justify-content:center;margin-bottom:6px}
 .guide img{width:58px;height:58px;filter:drop-shadow(0 8px 12px rgba(0,0,0,.5));animation:bob 4s ease-in-out infinite}
 
-/* faint ground silhouette anchoring scene trees between sections */
-.scene-tree{position:absolute;bottom:14px;z-index:3;filter:drop-shadow(0 14px 16px rgba(0,0,0,.55));opacity:.9}
-
 /* ---------- GROWTH STRIP ---------- */
+/* Stage PNGs are trimmed flush at the base (see web-assets), so bottom-aligning
+   the boxes makes every trunk sit on the same level line. */
 .growth-stages{position:relative;z-index:5;display:flex;align-items:flex-end;justify-content:center;gap:8px;flex-wrap:wrap}
-.stage{text-align:center;flex:1;min-width:130px;max-width:200px}
+.stage{position:relative;z-index:2;text-align:center;flex:1;min-width:130px;max-width:200px}
 .stage .pot{height:200px;display:flex;align-items:flex-end;justify-content:center}
 .stage img{filter:drop-shadow(0 12px 18px rgba(0,0,0,.5))}
 .stage .lbl{margin-top:14px;font-weight:800;color:#fff;font-size:16px}
@@ -165,7 +164,6 @@ section{position:relative;padding:100px 0;background:transparent;overflow:hidden
 .hud-cell img{width:42px;height:42px}
 .hud-cell b{display:block;color:#fff;font-size:15px}
 .hud-cell small{color:var(--muted);font-weight:700;font-size:12px}
-.hud .grass-base{position:absolute;left:0;right:0;bottom:0;height:34px;background-image:url('web-assets/grass.png');background-repeat:repeat-x;background-size:auto 100%;opacity:.4}
 
 /* tools list shown as real pixel-icon rows on a glass panel (no generic boxes) */
 .tool-card{width:100%;max-width:420px;border-radius:24px;padding:14px;background:#0b1a2c;border:1px solid var(--card-bd);box-shadow:0 26px 56px rgba(0,0,0,.45)}
@@ -217,7 +215,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
   .frow.flip .fr-text{order:0}
   .fr-visual .hud,.fr-visual .tool-card{margin:0 auto}
   .arrow{display:none}
-  .scene-tree{width:70px!important}
   section{padding:76px 0}
 }
 @media(max-width:480px){
@@ -266,7 +263,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
       <div class="phone"><img src="web-assets/screenshot.png" alt="Grow Pray app garden screen"></div>
     </div>
   </div>
-  <div class="hero-ground"><div class="tile-row" style="background-image:url('web-assets/grass.png')"></div></div>
 </header>
 
 <!-- ===== PRAYER RAIL — the five real prayer-icon scenes ===== -->
@@ -290,8 +286,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 
 <!-- ===== GROWTH PROGRESSION ===== -->
 <section class="growth">
-  <img class="scene-tree" src="web-assets/tree-willow.png" style="left:-10px;width:120px" alt="">
-  <img class="scene-tree" src="web-assets/tree-palm.png" style="right:-6px;width:110px" alt="">
   <div class="container sec-inner">
     <div class="sec-head reveal">
       <div class="guide"><img src="web-assets/seedling.png" alt=""></div>
@@ -357,7 +351,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
             <div class="hud-cell"><img src="web-assets/icon-xp.png" alt=""><div><b>XP</b><small>Level up</small></div></div>
             <div class="hud-cell"><img src="web-assets/icon-trophy.png" alt=""><div><b>Challenges</b><small>Weekly bonuses</small></div></div>
           </div>
-          <div class="grass-base"></div>
         </div>
       </div>
     </div>
@@ -403,7 +396,7 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
       <div class="shelf-tree"><img src="web-assets/tree-maple.png" style="max-height:122px" alt=""><b>Maple</b></div>
       <div class="shelf-tree"><img src="web-assets/tree-cherry.png" style="max-height:158px" alt=""><b>Cherry Blossom</b></div>
       <div class="shelf-tree"><img src="web-assets/tree-willow.png" style="max-height:138px" alt=""><b>Willow</b></div>
-      <div class="shelf-tree"><img src="web-assets/tree-palm.png" style="max-height:150px" alt=""><b>Palm</b></div>
+      <div class="shelf-tree"><img src="web-assets/tree-palm.png" style="max-height:150px;transform:translateX(18px)" alt=""><b>Palm</b></div>
       <div class="shelf-tree"><img src="web-assets/tree-cedar.png" style="max-height:128px" alt=""><b>Cedar</b></div>
       <div class="shelf-tree"><img src="web-assets/tree-classic.png" style="max-height:144px" alt=""><b>Classic</b></div>
       <div class="shelf-tree rare"><img src="web-assets/tree-golden.png" style="max-height:150px" alt=""><b>✦ Golden · Premium</b></div>
