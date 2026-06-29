@@ -190,10 +190,10 @@ No login required. All data is stored locally on device.
 ---
 
 ## Privacy Policy URL
-`https://bane678.github.io/Grow-Pray/privacy-policy.html`
+`https://growpray.com/privacy-policy.html`
 
 ## Support URL
-`https://bane678.github.io/Grow-Pray/support.html`
+`https://growpray.com/support.html`
 
 ## Marketing URL (optional)
-`https://bane678.github.io/Grow-Pray`
+`https://growpray.com`
