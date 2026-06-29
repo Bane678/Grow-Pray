@@ -90,13 +90,6 @@ body>*:not(.starfield){position:relative;z-index:1}
 .float-tree{position:absolute;bottom:-6px;z-index:5;filter:drop-shadow(0 16px 22px rgba(0,0,0,.55))}
 .float-tree.t1{left:-46px;width:122px;animation:sway 6s ease-in-out infinite}
 .float-tree.t2{right:-34px;width:92px;bottom:34px;animation:sway 7s ease-in-out infinite reverse}
-/* hero greeting: the mascot "says" the intro line via a speech bubble, so the
-   seedling is delivering the message instead of just decorating a corner */
-.hero-greet{display:inline-flex;align-items:center;gap:12px;margin-bottom:22px}
-.hero-greet .seed{width:54px;height:54px;flex:0 0 auto;animation:bob 4s ease-in-out infinite;filter:drop-shadow(0 8px 12px rgba(0,0,0,.5))}
-.hero-greet .bubble{position:relative;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#dfe9ef;font-weight:700;font-size:14px;padding:9px 16px;border-radius:14px;backdrop-filter:blur(6px)}
-/* little tail pointing back at the seedling */
-.hero-greet .bubble::before{content:"";position:absolute;left:-7px;top:50%;transform:translateY(-50%) rotate(45deg);width:12px;height:12px;background:rgba(255,255,255,.08);border-left:1px solid rgba(255,255,255,.18);border-bottom:1px solid rgba(255,255,255,.18)}
 
 /* particles — one fixed full-page layer so they drift down the whole site with
    no arbitrary origin line (sits just above the starfield, behind content) */
@@ -250,10 +243,6 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
 <header class="hero">
   <div class="container hero-inner">
     <div class="hero-copy">
-      <div class="hero-greet">
-        <img class="seed" src="web-assets/seedling.png" alt="Grow Pray seedling mascot">
-        <span class="bubble">🕌 Build a prayer habit that actually sticks</span>
-      </div>
       <h1>Grow a garden<br>through <span class="leaf">prayer</span>.</h1>
       <p class="sub">Every salah you pray on time plants and grows a tree in your own garden. Stay consistent and watch your paradise flourish — let it slip, and it withers.</p>
       <div class="hero-cta" id="download">
