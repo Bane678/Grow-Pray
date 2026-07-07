@@ -1,4 +1,4 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
@@ -44,6 +44,29 @@ const OB_REFRAME  = require('../assets/Garden Assets/Icons/Onboarding_Refreame.p
 const OB_PLAN     = require('../assets/Garden Assets/Icons/Onboarding_Plan.png');
 const OB_PLEDGE   = require('../assets/Garden Assets/Icons/Onboarding_Pledge.png');
 const OB_PAYWALL  = require('../assets/Garden Assets/Icons/Onboarding_Paywall.png');
+// Card 19 (premium showcase) gets its own image, distinct from the paywall art, so two
+// back-to-back premium cards don't repeat the same picture. Until the user supplies
+// Onboarding_Premium.png, this falls back to OB_PAYWALL (see the swap note below).
+const OB_PREMIUM  = OB_PAYWALL;
+
+// Tree sprites + tiles for the redesigned free-warning animated transformation (card 21).
+// The whole sequence uses the premium Golden Tree across its real growth stages, so the
+// "free" sapling is the Golden Tree's own sapling (just dim) blooming into its full form.
+const GOLD_SAPLING   = require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Sapling.png');
+const GOLD_GROWING   = require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Growing.png');
+const GOLD_GROWN     = require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Grown.png');
+const GOLD_FLOURISH  = require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Flourishing.png');
+const TILE_DEAD       = require('../assets/Garden Assets/Ground Tiles/Dead_Tile.png');
+const TILE_RECOVERING = require('../assets/Garden Assets/Ground Tiles/Recovering_Tile.png');
+const TILE_RECOVERED  = require('../assets/Garden Assets/Ground Tiles/Recovered_Tile.png');
+
+// ── Reversible redesign flags ───────────────────────────────────────────────────
+// Flip any of these back to `false` to instantly restore that card's previous design.
+// Each redesigned render path keeps its original ("legacy") branch intact behind the flag,
+// so reversal is a one-line edit and no assets are removed.
+const REDESIGN_INSIGHT        = true; // cards 4 & 8 — the empathy insight card
+const REDESIGN_PILLAR_PRIVACY = true; // card 11 — "Your spiritual life is private" pillar
+const REDESIGN_FREE_WARNING   = true; // card 21 — the "Are you sure?" free-version warning
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -289,6 +312,184 @@ function containsProfanity(text: string): boolean {
     return normalized.includes(clean);
   });
 }
+
+// ── Decorative starfield ────────────────────────────────────────────────────────
+// A faint scatter of stars used inside redesigned card heroes, echoing the app's
+// night-sky motif. Purely cosmetic; positions are deterministic (no random) so the
+// layout is stable across renders.
+const STAR_DOTS = [
+  { left: '12%', top: '22%', size: 2, op: 0.5 },
+  { left: '24%', top: '58%', size: 1.5, op: 0.35 },
+  { left: '38%', top: '16%', size: 2.5, op: 0.6 },
+  { left: '52%', top: '70%', size: 1.5, op: 0.3 },
+  { left: '63%', top: '28%', size: 2, op: 0.5 },
+  { left: '78%', top: '52%', size: 1.5, op: 0.4 },
+  { left: '86%', top: '20%', size: 2.5, op: 0.55 },
+  { left: '70%', top: '78%', size: 1.5, op: 0.3 },
+  { left: '18%', top: '80%', size: 2, op: 0.4 },
+];
+function StarRow() {
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      {STAR_DOTS.map((s, i) => (
+        <View
+          key={i}
+          style={{
+            position: 'absolute',
+            left: s.left as any,
+            top: s.top as any,
+            width: s.size,
+            height: s.size,
+            borderRadius: s.size,
+            backgroundColor: '#f5ebd8',
+            opacity: s.op,
+          }}
+        />
+      ))}
+    </View>
+  );
+}
+
+// ── Free → Premium transformation (card 21) ─────────────────────────────────────
+// A single garden plot that loops through a transformation: the barren "free" state
+// (dead tile, dim sapling) blooms into the flourishing "premium" state (recovered
+// tile, grown tree, gold glow). Conveys the upgrade as something that comes alive,
+// rather than a static side-by-side comparison.
+// tile: 0 = dead, 1 = recovering, 2 = recovered. The ground heals as the tree grows:
+// dead → dead → recovering (3rd tree) → recovered (final).
+const TRANSFORM_STAGES = [
+  { tree: GOLD_SAPLING,  scale: 0.7,  treeOpacity: 0.55, glow: 0,    tile: 0, label: 'Free',     premium: false },
+  { tree: GOLD_GROWING,  scale: 0.82, treeOpacity: 0.8,  glow: 0.25, tile: 0, label: 'Growing',  premium: false },
+  { tree: GOLD_GROWN,    scale: 0.92, treeOpacity: 0.95, glow: 0.6,  tile: 1, label: 'Growing',  premium: false },
+  { tree: GOLD_FLOURISH, scale: 1,    treeOpacity: 1,    glow: 1,    tile: 2, label: 'Premium',  premium: true },
+];
+function FreePremiumTransform({ size = 150 }: { size?: number }) {
+  const [stage, setStage] = useState(0);
+  const stageRef = useRef(0);
+  // Animated values driven toward the current stage's targets.
+  const scale = useRef(new Animated.Value(TRANSFORM_STAGES[0].scale)).current;
+  const treeOpacity = useRef(new Animated.Value(TRANSFORM_STAGES[0].treeOpacity)).current;
+  const glow = useRef(new Animated.Value(0)).current;
+  // One opacity per tile layer (dead / recovering / recovered); only the active one
+  // for the current stage fades to 1, so the ground heals in three steps.
+  const tileDead = useRef(new Animated.Value(1)).current;
+  const tileRecovering = useRef(new Animated.Value(0)).current;
+  const tileRecovered = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let cancelled = false;
+    const apply = (i: number) => {
+      const s = TRANSFORM_STAGES[i];
+      Animated.parallel([
+        Animated.spring(scale, { toValue: s.scale, friction: 6, tension: 50, useNativeDriver: true }),
+        Animated.timing(treeOpacity, { toValue: s.treeOpacity, duration: 600, useNativeDriver: true }),
+        Animated.timing(glow, { toValue: s.glow, duration: 600, useNativeDriver: true }),
+        Animated.timing(tileDead, { toValue: s.tile === 0 ? 1 : 0, duration: 600, useNativeDriver: true }),
+        Animated.timing(tileRecovering, { toValue: s.tile === 1 ? 1 : 0, duration: 600, useNativeDriver: true }),
+        Animated.timing(tileRecovered, { toValue: s.tile === 2 ? 1 : 0, duration: 600, useNativeDriver: true }),
+      ]).start();
+    };
+    apply(0);
+    const interval = setInterval(() => {
+      if (cancelled) return;
+      // Advance, looping back to the barren start after the flourishing peak (with a pause).
+      stageRef.current = (stageRef.current + 1) % (TRANSFORM_STAGES.length + 1);
+      const next = stageRef.current % TRANSFORM_STAGES.length;
+      setStage(next);
+      apply(next);
+    }, 1500);
+    return () => { cancelled = true; clearInterval(interval); };
+  }, []);
+
+  const current = TRANSFORM_STAGES[stage];
+  // Positioning mirrors GardenGrowthPreview exactly so the tree sits anchored on the
+  // tile the same way the existing onboarding GIF does.
+  return (
+    <View style={{ width: size, height: size }}>
+      {/* Gold bloom glow — fades in as the garden flourishes */}
+      <Animated.View
+        style={{
+          position: 'absolute',
+          width: size * 0.7, height: size * 0.7,
+          borderRadius: size * 0.35,
+          left: size * 0.15, top: size * 0.12,
+          backgroundColor: '#e8a87c',
+          opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.22] }),
+        }}
+      />
+      {/* Ground tiles heal in three steps: dead → recovering → recovered */}
+      {[
+        { src: TILE_DEAD, op: tileDead },
+        { src: TILE_RECOVERING, op: tileRecovering },
+        { src: TILE_RECOVERED, op: tileRecovered },
+      ].map((t, i) => (
+        <Animated.Image
+          key={i}
+          source={t.src}
+          resizeMode="contain"
+          style={{
+            position: 'absolute',
+            width: size * 0.66, height: size * 0.33,
+            left: size * 0.17, top: size * 0.455,
+            opacity: t.op,
+          }}
+        />
+      ))}
+      {/* Growing tree — anchored like the real garden (base rests ~25% below tile centre) */}
+      <Animated.Image
+        source={current.tree}
+        resizeMode="contain"
+        style={{
+          position: 'absolute',
+          width: size * 0.58, height: size * 0.58,
+          left: size * 0.21, top: size * 0.185,
+          opacity: treeOpacity,
+          transform: [{ scale }],
+        }}
+      />
+      {/* Stage label pill */}
+      <View style={transformStyles.labelRow}>
+        <View style={[transformStyles.labelPill, current.premium && transformStyles.labelPillPremium]}>
+          <Text style={[transformStyles.labelText, current.premium && transformStyles.labelTextPremium]}>
+            {current.label}
+          </Text>
+        </View>
+      </View>
+    </View>
+  );
+}
+
+const transformStyles = StyleSheet.create({
+  labelRow: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  labelPill: {
+    paddingHorizontal: 14,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.10)',
+  },
+  labelPillPremium: {
+    backgroundColor: 'rgba(217,167,95,0.16)',
+    borderColor: 'rgba(217,167,95,0.45)',
+  },
+  labelText: {
+    color: 'rgba(247,241,232,0.6)',
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    textTransform: 'uppercase',
+  },
+  labelTextPremium: {
+    color: '#e8c97e',
+  },
+});
 
 // ── Hold-to-confirm button ─────────────────────────────────────────────────────
 // Press and hold for ~1.1s to confirm — an intentional, deliberate gesture that
@@ -702,21 +903,61 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
 
   const renderCard = () => {
     if (insightCard) {
-      return (
-        <View style={styles.pillarCard}>
-          <View style={styles.pillarHero}>
-            <View style={styles.pillarGlow} />
-            <MaterialCommunityIcons name={insightCard.icon} size={60} color="#d9a75f" />
+      if (!REDESIGN_INSIGHT) {
+        // ── Legacy insight card (flip REDESIGN_INSIGHT to false to restore) ──────
+        return (
+          <View style={styles.pillarCard}>
+            <View style={styles.pillarHero}>
+              <View style={styles.pillarGlow} />
+              <MaterialCommunityIcons name={insightCard.icon} size={60} color="#d9a75f" />
+            </View>
+            <View style={styles.pillarContent}>
+              <Text style={styles.pillarTitle}>{insightCard.title}</Text>
+              <Text style={styles.pillarBody}>{insightCard.body}</Text>
+              {insightCard.bullets && insightCard.bullets.length > 0 ? (
+                <View style={styles.pillarHighlights}>
+                  {insightCard.bullets.map((bullet) => (
+                    <View key={bullet} style={styles.pillarChip}>
+                      <MaterialCommunityIcons name="check" size={13} color="#d9a75f" />
+                      <Text style={styles.pillarChipText}>{bullet}</Text>
+                    </View>
+                  ))}
+                </View>
+              ) : null}
+              <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+                <Text style={styles.primaryButtonText}>Continue</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          <View style={styles.pillarContent}>
-            <Text style={styles.pillarTitle}>{insightCard.title}</Text>
-            <Text style={styles.pillarBody}>{insightCard.body}</Text>
+        );
+      }
+      // ── Redesigned insight card (cards 4 & 8) ─────────────────────────────────
+      return (
+        <View style={styles.insightCardNew}>
+          {/* Layered hero — radial gold glow + faint starfield + glass medallion icon */}
+          <View style={styles.insightHero}>
+            <View style={styles.insightGlowOuter} />
+            <View style={styles.insightGlowInner} />
+            <StarRow />
+            <View style={styles.insightMedallion}>
+              <View style={styles.insightMedallionRing} />
+              <MaterialCommunityIcons name={insightCard.icon} size={40} color="#f0c27a" />
+            </View>
+          </View>
+          <View style={styles.insightBody}>
+            <Text style={styles.insightTitle}>{insightCard.title}</Text>
+            <Text style={styles.insightBodyText}>{insightCard.body}</Text>
             {insightCard.bullets && insightCard.bullets.length > 0 ? (
-              <View style={styles.pillarHighlights}>
-                {insightCard.bullets.map((bullet) => (
-                  <View key={bullet} style={styles.pillarChip}>
-                    <MaterialCommunityIcons name="check" size={13} color="#d9a75f" />
-                    <Text style={styles.pillarChipText}>{bullet}</Text>
+              <View style={styles.insightChecklist}>
+                {insightCard.bullets.map((bullet, i) => (
+                  <View
+                    key={bullet}
+                    style={[styles.insightCheckRow, i > 0 && styles.insightCheckDivider]}
+                  >
+                    <View style={styles.insightCheckBadge}>
+                      <MaterialCommunityIcons name="check" size={13} color="#1a0f00" />
+                    </View>
+                    <Text style={styles.insightCheckText}>{bullet}</Text>
                   </View>
                 ))}
               </View>
@@ -751,6 +992,56 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
 
     if (currentStep.kind === 'singleSelect' || currentStep.kind === 'multiSelect') {
       return renderSelectCard(currentStep.kind);
+    }
+
+    // ── Redesigned privacy pillar (card 11) ───────────────────────────────────
+    // Only the "Your spiritual life is private." pillar is redesigned; any other
+    // pillar falls through to the shared renderer below. Flip REDESIGN_PILLAR_PRIVACY
+    // to false to restore the original look.
+    if (
+      currentStep.kind === 'pillar' &&
+      REDESIGN_PILLAR_PRIVACY &&
+      currentStep.title === 'Your spiritual life is private.'
+    ) {
+      const features: { icon: IconName; label: string; sub: string }[] = [
+        { icon: 'cellphone-lock', label: 'On-device only', sub: 'Your data lives on this phone, nowhere else.' },
+        { icon: 'account-off-outline', label: 'No login required', sub: 'No account, no email, no password.' },
+        { icon: 'cloud-off-outline', label: 'Zero data sharing', sub: 'Nothing is sent to us or any third party.' },
+      ];
+      return (
+        <View style={styles.insightCardNew}>
+          <View style={styles.insightHero}>
+            <View style={styles.insightGlowOuter} />
+            <View style={styles.insightGlowInner} />
+            <StarRow />
+            <View style={styles.privacyVault}>
+              <View style={styles.privacyVaultRing} />
+              <View style={styles.privacyVaultRingInner} />
+              <MaterialCommunityIcons name="shield-lock" size={42} color="#f0c27a" />
+            </View>
+          </View>
+          <View style={styles.insightBody}>
+            <Text style={styles.insightTitle}>{currentStep.title}</Text>
+            <Text style={styles.insightBodyText}>{currentStep.body}</Text>
+            <View style={styles.insightChecklist}>
+              {features.map((f, i) => (
+                <View key={f.label} style={[styles.privacyFeatureRow, i > 0 && styles.insightCheckDivider]}>
+                  <View style={styles.privacyFeatureIcon}>
+                    <MaterialCommunityIcons name={f.icon} size={18} color="#f0c27a" />
+                  </View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.privacyFeatureLabel}>{f.label}</Text>
+                    <Text style={styles.privacyFeatureSub}>{f.sub}</Text>
+                  </View>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      );
     }
 
     if (currentStep.kind === 'pillar') {
@@ -993,11 +1284,13 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
         <>
           {/* Premium hero — golden tree on starry night */}
           <View style={styles.paywallHero}>
-            <Image source={OB_PAYWALL} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
-            {/* Bottom gradient fade into panel */}
+            <Image source={OB_PAYWALL} style={styles.paywallHeroImg} resizeMode="contain" />
+            {/* Bottom gradient fade into panel — only the lowest sliver fades, so the
+                full artwork stays visible. */}
             <LinearGradient
-              colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0.6)', 'rgba(9,14,22,0.98)']}
-              style={StyleSheet.absoluteFillObject}
+              colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0)', 'rgba(9,14,22,0.85)']}
+              locations={[0, 0.7, 1]}
+              style={styles.paywallHeroFade}
             />
             {/* PREMIUM badge */}
             <View style={styles.paywallHeroBadge}>
@@ -1099,6 +1392,63 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     }
 
     if (currentStep.kind === 'freeWarning') {
+      if (REDESIGN_FREE_WARNING) {
+        // ── Redesigned free-version warning (card 21) ───────────────────────────
+        // An animated free→premium transformation: one garden plot blooms from a
+        // barren free state into a flourishing premium one on a loop. The loss is
+        // then named in plain language. Same CTAs / pricing as before.
+        const losses = [
+          { icon: 'grid-off' as const, text: 'Your garden stays capped at 7×7' },
+          { icon: 'snowflake-off' as const, text: 'No streak freezes when life gets hard' },
+          { icon: 'tree-outline' as const, text: 'Premium trees stay locked away' },
+          { icon: 'speedometer-slow' as const, text: 'Coins and XP grow at half speed' },
+        ];
+        return (
+          <View style={styles.freeWarnNew}>
+            {/* Animated transformation hero */}
+            <View style={styles.freeWarnHero}>
+              <StarRow />
+              <FreePremiumTransform size={170} />
+            </View>
+
+            <View style={styles.freeWarnBody}>
+              <Text style={styles.insightTitle}>Your garden could flourish.</Text>
+              <Text style={styles.insightBodyText}>
+                Continuing free is completely okay — but here's what stays out of reach:
+              </Text>
+
+              <View style={styles.insightChecklist}>
+                {losses.map((l, i) => (
+                  <View key={l.text} style={[styles.freeWarnLossRow, i > 0 && styles.insightCheckDivider]}>
+                    <MaterialCommunityIcons name={l.icon} size={18} color="rgba(239,68,68,0.85)" />
+                    <Text style={styles.freeWarnLossText}>{l.text}</Text>
+                  </View>
+                ))}
+              </View>
+
+              <TouchableOpacity
+                onPress={handlePremiumPurchase}
+                disabled={purchasing}
+                style={styles.premiumButton}
+                activeOpacity={0.8}
+              >
+                <MaterialCommunityIcons name="star-four-points" size={18} color="#1a0f00" style={{ marginRight: 6 }} />
+                <Text style={styles.premiumButtonText}>
+                  {purchasing ? 'Processing…' : 'Unlock Premium'}
+                </Text>
+              </TouchableOpacity>
+              <Text style={styles.trialNote}>
+                7 days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · Cancel anytime
+              </Text>
+
+              <TouchableOpacity onPress={finishOnboarding} style={styles.freeLink}>
+                <Text style={styles.freeLinkText}>No thanks, continue for free</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        );
+      }
+      // ── Legacy free-warning comparison table (flip REDESIGN_FREE_WARNING off) ──
       const rows = [
         { label: 'Garden size',    free: '7×7 max',       premium: 'Unlimited',      freeOk: false },
         { label: 'Coin earning',   free: '1×',            premium: '2×',             freeOk: true },
@@ -1191,7 +1541,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <View style={styles.ayahContent}>
             <Text style={styles.ayahQuote}>❝{currentStep.quote}❞</Text>
             <Text style={styles.ayahSource}>{currentStep.source}</Text>
-            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+            <TouchableOpacity onPress={goNext} style={[styles.primaryButton, styles.ayahButton]}>
               <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
             </TouchableOpacity>
           </View>
@@ -1290,11 +1640,12 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       };
       return (
         <>
-          <View style={styles.paywallHero}>
-            <Image source={OB_PAYWALL} style={StyleSheet.absoluteFillObject} resizeMode="cover" />
+          <View style={[styles.paywallHero, styles.premiumHero]}>
+            <Image source={OB_PREMIUM} style={styles.paywallHeroImg} resizeMode="contain" />
             <LinearGradient
-              colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0.6)', 'rgba(9,14,22,0.98)']}
-              style={StyleSheet.absoluteFillObject}
+              colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0)', 'rgba(9,14,22,0.85)']}
+              locations={[0, 0.7, 1]}
+              style={styles.paywallHeroFade}
             />
             <View style={styles.paywallHeroBadge}>
               <Image source={ICON_SPARKLE} style={{ width: 14, height: 14 }} resizeMode="contain" />
@@ -1683,6 +2034,199 @@ const styles = StyleSheet.create({
   insightBulletsWrap: { gap: 9, marginBottom: 18 },
   insightBulletRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   insightBulletText: { flex: 1, color: 'rgba(247,241,232,0.78)', fontSize: 14, lineHeight: 20 },
+
+  // ── Redesigned insight card (cards 4 & 8) ───────────────────────────────────
+  insightCardNew: {
+    backgroundColor: 'rgba(7,13,22,0.88)',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(217,167,95,0.18)',
+    overflow: 'hidden',
+  },
+  insightHero: {
+    height: 168,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(217,167,95,0.14)',
+    backgroundColor: 'rgba(217,167,95,0.05)',
+    overflow: 'hidden',
+  },
+  insightGlowOuter: {
+    position: 'absolute',
+    width: 240,
+    height: 240,
+    borderRadius: 120,
+    backgroundColor: 'rgba(217,167,95,0.07)',
+  },
+  insightGlowInner: {
+    position: 'absolute',
+    width: 140,
+    height: 140,
+    borderRadius: 70,
+    backgroundColor: 'rgba(217,167,95,0.12)',
+  },
+  insightMedallion: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(13,26,43,0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(240,194,122,0.45)',
+  },
+  insightMedallionRing: {
+    position: 'absolute',
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    borderWidth: 1,
+    borderColor: 'rgba(240,194,122,0.22)',
+  },
+  insightBody: {
+    paddingHorizontal: 22,
+    paddingTop: 22,
+    paddingBottom: 24,
+  },
+  insightTitle: {
+    color: '#ffffff',
+    fontSize: 25,
+    lineHeight: 31,
+    fontWeight: '800',
+    marginBottom: 10,
+    fontFamily: FONTS.display,
+  },
+  insightBodyText: {
+    color: 'rgba(247,241,232,0.74)',
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 18,
+  },
+  insightChecklist: {
+    backgroundColor: 'rgba(13,26,43,0.55)',
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 14,
+    marginBottom: 22,
+  },
+  insightCheckRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 13,
+  },
+  insightCheckDivider: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.06)',
+  },
+  insightCheckBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#d9a75f',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  insightCheckText: {
+    flex: 1,
+    color: 'rgba(247,241,232,0.86)',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
+
+  // ── Redesigned privacy pillar (card 11) ─────────────────────────────────────
+  privacyVault: {
+    width: 96,
+    height: 96,
+    borderRadius: 30,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(13,26,43,0.85)',
+    borderWidth: 1,
+    borderColor: 'rgba(240,194,122,0.45)',
+  },
+  privacyVaultRing: {
+    position: 'absolute',
+    width: 118,
+    height: 118,
+    borderRadius: 36,
+    borderWidth: 1,
+    borderColor: 'rgba(240,194,122,0.22)',
+  },
+  privacyVaultRingInner: {
+    position: 'absolute',
+    width: 138,
+    height: 138,
+    borderRadius: 42,
+    borderWidth: 1,
+    borderColor: 'rgba(240,194,122,0.10)',
+  },
+  privacyFeatureRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 13,
+  },
+  privacyFeatureIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(217,167,95,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(217,167,95,0.20)',
+  },
+  privacyFeatureLabel: {
+    color: '#f4efe6',
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 1,
+  },
+  privacyFeatureSub: {
+    color: 'rgba(247,241,232,0.55)',
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+
+  // ── Redesigned free-version warning (card 21) ───────────────────────────────
+  freeWarnNew: {
+    backgroundColor: 'rgba(7,13,22,0.90)',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(217,167,95,0.16)',
+    overflow: 'hidden',
+  },
+  freeWarnHero: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 18,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(217,167,95,0.12)',
+    backgroundColor: 'rgba(217,167,95,0.04)',
+    overflow: 'hidden',
+  },
+  freeWarnBody: {
+    paddingHorizontal: 22,
+    paddingTop: 20,
+    paddingBottom: 22,
+  },
+  freeWarnLossRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 13,
+  },
+  freeWarnLossText: {
+    flex: 1,
+    color: 'rgba(247,241,232,0.82)',
+    fontSize: 14,
+    lineHeight: 20,
+    fontWeight: '600',
+  },
   helperRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1703,12 +2247,34 @@ const styles = StyleSheet.create({
   secondaryText: { color: 'rgba(247,241,232,0.66)', fontSize: 15, fontWeight: '600' },
   // ─── Paywall ──────────────────────────────────────────────────────────────────
   paywallHero: {
-    height: SCREEN_HEIGHT * 0.24,
+    // Box matches the 1659×948 landscape art (~1.75:1). The image uses resizeMode
+    // "contain" so the WHOLE picture is always visible — nothing is ever cropped,
+    // regardless of device width.
+    width: '100%',
+    aspectRatio: 1659 / 948,
     borderRadius: 24,
     overflow: 'hidden',
     marginBottom: 14,
     alignItems: 'center',
     justifyContent: 'flex-end',
+    backgroundColor: '#0a111c',
+  },
+  paywallHeroImg: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  paywallHeroFade: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '55%',
+  },
+  // Card 19 (premiumIntro) carries more body content than the paywall, so its hero is
+  // height-capped to keep the whole card on a single non-scrolling screen.
+  premiumHero: {
+    maxHeight: SCREEN_HEIGHT * 0.2,
   },
   paywallHeroGlow: {
     position: 'absolute' as const,
@@ -2025,6 +2591,11 @@ const styles = StyleSheet.create({
     paddingBottom: 28,
     paddingTop: 80,
     alignItems: 'center',
+  },
+  // The ayah content is center-aligned, which would otherwise shrink the button
+  // to its text width. Stretch it full-width so it matches every other card.
+  ayahButton: {
+    alignSelf: 'stretch',
   },
   ayahQuote: {
     color: '#f5ebd8',

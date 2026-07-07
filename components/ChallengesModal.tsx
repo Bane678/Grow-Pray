@@ -164,7 +164,7 @@ export const ChallengesModal = memo(function ChallengesModal({ visible, onClose,
 
   if (asPage) {
     return (
-      <View style={[styles.container, { flex: 1, borderTopLeftRadius: 0, borderTopRightRadius: 0, maxHeight: '100%' as any, backgroundColor: 'rgba(15,21,38,0.65)' }]}>
+      <View style={[styles.container, { flex: 1, borderTopLeftRadius: 0, borderTopRightRadius: 0, maxHeight: '100%' as any, backgroundColor: 'transparent' }]}>
         {innerContent}
       </View>
     );

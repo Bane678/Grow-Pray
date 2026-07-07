@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { AppState } from 'react-native';
 import * as Location from 'expo-location';
 import {
     Coordinates,
@@ -330,6 +331,25 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
         }
         setNextPrayer('Fajr');
     };
+
+    // Keep `nextPrayer` fresh as time passes. calculateNextPrayer only ran when the
+    // times were (re)computed, so once a prayer's window opened (e.g. Maghrib) the
+    // value went stale and the countdown rolled to tomorrow's copy of that prayer
+    // instead of advancing to the next one (Isha). Re-evaluate every minute and
+    // whenever the app returns to the foreground (e.g. after tapping a notification).
+    useEffect(() => {
+        if (!timings) return;
+        const recompute = () => calculateNextPrayer(timings);
+        recompute();
+        const interval = setInterval(recompute, 60 * 1000);
+        const sub = AppState.addEventListener('change', (s) => {
+            if (s === 'active') recompute();
+        });
+        return () => {
+            clearInterval(interval);
+            sub.remove();
+        };
+    }, [timings]);
 
     return { timings, deadlines, nextPrayer, loading, locationError, detectedMethodKey };
 }

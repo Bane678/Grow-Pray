@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Line } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -27,8 +27,51 @@ export const QiblaScreen = React.memo(function QiblaScreen({
   active = true,
   onClose,
 }: QiblaScreenProps) {
-  const { bearing, heading, aligned, status } = useQibla({ manualCoords, active });
+  const { bearing, heading, aligned, status, accuracy } = useQibla({ manualCoords, active });
   const wasAligned = useRef(false);
+
+  // Smoothly animate the rose to the latest heading rather than snapping. We track an
+  // unwrapped (continuous) rotation so the dial always turns the short way and never
+  // spins a full circle when the heading crosses the 0°/360° seam.
+  const rotation = useRef(new Animated.Value(-heading)).current;
+  const unwrappedRef = useRef(-heading);
+  // Live heading shown in the centre — driven off the animated rotation so it counts
+  // up/down smoothly every frame as the dial turns (like Apple's Compass), instead of
+  // snapping between throttled sensor samples.
+  const [displayHeading, setDisplayHeading] = useState(Math.round(heading));
+
+  useEffect(() => {
+    const target = -heading;
+    // Move unwrappedRef by the shortest signed delta to the new target.
+    let delta = ((target - unwrappedRef.current) % 360 + 540) % 360 - 180;
+    unwrappedRef.current += delta;
+    Animated.timing(rotation, {
+      toValue: unwrappedRef.current,
+      duration: 90,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [heading, rotation]);
+
+  // Track the animated rotation and derive the current heading each frame. rotation
+  // holds the (unwrapped) -heading, so heading = (-rotation) normalised to 0..359.
+  useEffect(() => {
+    const id = rotation.addListener(({ value }) => {
+      const deg = ((Math.round(-value) % 360) + 360) % 360;
+      setDisplayHeading((prev) => (prev === deg ? prev : deg));
+    });
+    return () => rotation.removeListener(id);
+  }, [rotation]);
+
+  const roseRotate = rotation.interpolate({
+    inputRange: [-360, 360],
+    outputRange: ['-360deg', '360deg'],
+  });
+
+  // iOS reports heading accuracy in degrees of error; Android reports 0..3 (3=high).
+  // Flag poor accuracy so we can prompt the figure-8 calibration wiggle.
+  const lowAccuracy =
+    accuracy >= 0 && ((accuracy > 20 && accuracy <= 360) || accuracy === 1 || accuracy === 0);
 
   // Light haptic when the device first lines up with the Qibla.
   useEffect(() => {
@@ -89,8 +132,8 @@ export const QiblaScreen = React.memo(function QiblaScreen({
               />
             </View>
 
-            {/* Rotating rose */}
-            <View style={[styles.rose, { transform: [{ rotate: `${-heading}deg` }] }]}>
+            {/* Rotating rose — smoothly animated toward the latest heading */}
+            <Animated.View style={[styles.rose, { transform: [{ rotate: roseRotate }] }]}>
               <Svg width={DIAL} height={DIAL}>
                 <Circle
                   cx={DIAL / 2}
@@ -153,16 +196,31 @@ export const QiblaScreen = React.memo(function QiblaScreen({
                   </View>
                 </View>
               )}
-            </View>
+            </Animated.View>
 
-            {/* Center readout */}
+            {/* Center readout — live heading, green when on the Qibla */}
             <View style={styles.center} pointerEvents="none">
-              <Text style={styles.centerValue}>{bearing != null ? `${Math.round(bearing)}°` : '--'}</Text>
-              <Text style={styles.centerLabel}>Qibla</Text>
+              <Text style={[styles.centerValue, aligned && styles.centerValueAligned]}>
+                {`${displayHeading}°`}
+              </Text>
+              <Text style={[styles.centerLabel, aligned && styles.centerLabelAligned]}>
+                {aligned ? 'On Qibla' : 'Heading'}
+              </Text>
             </View>
           </View>
 
-          <Text style={styles.headingText}>Heading {Math.round(heading)}°</Text>
+          <Text style={styles.headingText}>
+            Qibla {bearing != null ? `${Math.round(bearing)}°` : '--'} from North
+          </Text>
+
+          {lowAccuracy && (
+            <View style={styles.calibrateRow}>
+              <MaterialCommunityIcons name="compass-outline" size={15} color={ACCENT} />
+              <Text style={styles.calibrateText}>
+                Low compass accuracy — wave your phone in a figure-8 to calibrate.
+              </Text>
+            </View>
+          )}
         </View>
       )}
     </View>
@@ -214,8 +272,23 @@ const styles = StyleSheet.create({
   kaabaMarkerActive: { backgroundColor: '#4ade80', borderColor: '#4ade80' },
 
   center: { position: 'absolute', alignItems: 'center', justifyContent: 'center' },
-  centerValue: { fontSize: 34, fontWeight: '800', color: '#e8e0d6', fontFamily: FONTS.display },
+  centerValue: { fontSize: 40, fontWeight: '800', color: '#e8e0d6', fontFamily: FONTS.display },
+  centerValueAligned: { color: '#4ade80' },
   centerLabel: { fontSize: 12, color: 'rgba(232,224,214,0.45)', letterSpacing: 1, textTransform: 'uppercase' },
+  centerLabelAligned: { color: '#4ade80', fontWeight: '800' },
 
   headingText: { fontSize: 13, color: 'rgba(232,224,214,0.5)', marginTop: 26, fontWeight: '600' },
+  calibrateRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: 14,
+    paddingHorizontal: 24,
+  },
+  calibrateText: {
+    flex: 1,
+    fontSize: 12,
+    color: 'rgba(232,224,214,0.55)',
+    lineHeight: 17,
+  },
 });

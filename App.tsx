@@ -48,15 +48,9 @@ const SINGLE_FREEZE_ICON = require('./assets/Garden Assets/Icons/Streak_Freeze.p
 const DAY_SKY = require('./assets/Garden Assets/Icons/Daytime_Sky.png');
 const NIGHT_SKY = require('./assets/Garden Assets/Icons/Starry_Night_Sky.png');
 
-function SkyBackground({
-  sunrise,
-  sunset,
-  children,
-}: {
-  sunrise?: string;
-  sunset?: string;
-  children?: React.ReactNode;
-}) {
+// Shared day/night computation so any component (SkyBackground, tab page overlays)
+// can react to the same real sunrise/sunset window without duplicating the logic.
+function useIsDay(sunrise?: string, sunset?: string): boolean {
   const computeIsDay = useCallback(() => {
     const now = new Date();
     const mins = now.getHours() * 60 + now.getMinutes();
@@ -71,14 +65,38 @@ function SkyBackground({
   }, [sunrise, sunset]);
 
   const [isDay, setIsDay] = useState(computeIsDay);
-  // night layer: 1 = night visible, 0 = day visible
-  const nightOpacity = useRef(new Animated.Value(computeIsDay() ? 0 : 1)).current;
-  const hasMounted = useRef(false);
 
   // Recompute whenever sunrise/sunset become available or the function changes
   useEffect(() => {
     setIsDay(computeIsDay());
   }, [computeIsDay]);
+
+  // Keep it accurate over time and when returning to the foreground
+  useEffect(() => {
+    const tick = () => setIsDay(computeIsDay());
+    const id = setInterval(tick, 60 * 1000);
+    const sub = AppState.addEventListener('change', (s) => {
+      if (s === 'active') tick();
+    });
+    return () => {
+      clearInterval(id);
+      sub.remove();
+    };
+  }, [computeIsDay]);
+
+  return isDay;
+}
+
+function SkyBackground({
+  isDay,
+  children,
+}: {
+  isDay: boolean;
+  children?: React.ReactNode;
+}) {
+  // night layer: 1 = night visible, 0 = day visible
+  const nightOpacity = useRef(new Animated.Value(isDay ? 0 : 1)).current;
+  const hasMounted = useRef(false);
 
   // Drive the crossfade. First run snaps instantly (no animation) for a seamless open.
   useEffect(() => {
@@ -93,19 +111,6 @@ function SkyBackground({
       useNativeDriver: true,
     }).start();
   }, [isDay, nightOpacity]);
-
-  // Keep it accurate over time and when returning to the foreground
-  useEffect(() => {
-    const tick = () => setIsDay(computeIsDay());
-    const id = setInterval(tick, 60 * 1000);
-    const sub = AppState.addEventListener('change', (s) => {
-      if (s === 'active') tick();
-    });
-    return () => {
-      clearInterval(id);
-      sub.remove();
-    };
-  }, [computeIsDay]);
 
   return (
     <View style={{ flex: 1, backgroundColor: THEME.bg }}>
@@ -3382,6 +3387,10 @@ function AppInner() {
     loadAssets();
   }, []);
 
+  // Day/night state — must be called unconditionally before any early return below,
+  // otherwise hook order changes across renders (onboarding -> app) and React throws.
+  const isDay = useIsDay(prayerState.timings?.Sunrise, prayerState.timings?.Sunset);
+
   // Show onboarding for first-time users
   if (showOnboarding === null) {
     return (
@@ -3419,10 +3428,7 @@ function AppInner() {
 
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
-    <SkyBackground
-        sunrise={prayerState.timings?.Sunrise}
-        sunset={prayerState.timings?.Sunset}
-      >
+    <SkyBackground isDay={isDay}>
       <StatusBar style="light" />
       {/* Decode prayer icons off-screen before FloatingPrayerBar first mounts */}
       <PrayerIconsPrerender />
@@ -4398,7 +4404,10 @@ function AppInner() {
       {visitedTabs.has('history') && (
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'history' ? 1 : 0 }} pointerEvents={activeTab === 'history' ? 'auto' : 'none'}>
         <FreezeWhenHidden visible={activeTab === 'history'}>
-          <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: 'rgba(10,14,28,0.75)' }}>
+          {/* History's scrim is darker than the other tabs (0.88 vs 0.75) so its faint
+              grid/grey text stays legible over the bright daytime sky. Applied to this
+              single full-screen layer only, so the notch strip and body match (no seam). */}
+          <SafeAreaView edges={['top']} style={{ flex: 1, backgroundColor: 'rgba(10,14,28,0.88)' }}>
             <PrayerHistoryModal
               asPage
               visible={activeTab === 'history'}

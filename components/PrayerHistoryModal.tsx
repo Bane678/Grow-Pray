@@ -494,8 +494,11 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
   );
 
   if (asPage) {
+    // Transparent body: the single tint lives on the SafeAreaView scrim in App.tsx
+    // so the notch strip and the page body are one uniform shade (no seam). History's
+    // scrim is set darker than the other tabs there, to keep its faint grid/text legible.
     return (
-      <View style={[styles.container, { flex: 1, borderTopLeftRadius: 0, borderTopRightRadius: 0, maxHeight: '100%' as any, backgroundColor: 'rgba(15,21,38,0.65)' }]}>
+      <View style={[styles.container, { flex: 1, borderTopLeftRadius: 0, borderTopRightRadius: 0, maxHeight: '100%' as any, backgroundColor: 'transparent' }]}>
         {innerContent}
       </View>
     );

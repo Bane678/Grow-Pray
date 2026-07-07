@@ -1,9 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import * as Location from 'expo-location';
 
-// expo-sensors is a native module. On a dev build that predates this dependency,
-// importing it throws at load time, so we require it lazily inside a guard and fall
-// back to the 'no-sensor' state rather than crashing the screen.
+// expo-sensors is a native module used only as a fallback if the OS heading API is
+// unavailable. On a dev build that predates this dependency, importing it throws at
+// load time, so we require it lazily inside a guard and fall back gracefully.
 let MagnetometerModule: any = null;
 function getMagnetometer(): any | null {
   if (MagnetometerModule) return MagnetometerModule;
@@ -22,14 +22,25 @@ const KAABA = { lat: 21.4225, lng: 39.8262 };
 // Alignment tolerance in degrees.
 const ALIGN_TOLERANCE = 6;
 
+// Low-pass smoothing factor for the heading (0..1). Higher = snappier but noisier,
+// lower = smoother but laggier. 0.35 tracks the hand closely while still killing
+// most sensor jitter; the UI adds a short animation on top for the final glide.
+const SMOOTHING = 0.35;
+
+// Only push a new heading to React when it moved at least this many degrees. Keeps
+// the SVG dial from re-rendering on every one of the ~10-60 samples/sec, but small
+// enough that motion stays continuous (the animated rose interpolates between them).
+const MIN_RENDER_DELTA = 0.4;
+
 export type QiblaStatus = 'loading' | 'ok' | 'no-location' | 'no-sensor';
 
 export interface QiblaState {
   bearing: number | null; // great-circle bearing to Kaaba, 0..360
-  heading: number;        // device heading from magnetometer, 0..360
+  heading: number;        // device heading (true north), 0..360
   aligned: boolean;       // device currently points within tolerance of Qibla
   status: QiblaStatus;
   coords: { lat: number; lng: number } | null;
+  accuracy: number;       // heading accuracy in degrees (lower = better); -1 = unknown
 }
 
 const toRad = (d: number) => (d * Math.PI) / 180;
@@ -58,9 +69,19 @@ export function angleDiff(a: number, b: number): number {
   return d;
 }
 
+/**
+ * Circular low-pass filter. Averaging bearings naively breaks across the 0°/360°
+ * seam (e.g. 359° and 1° average to 180° instead of 0°), which makes the needle
+ * spin. Interpolating along the shortest arc avoids that.
+ */
+function smoothHeading(prev: number, next: number, factor: number): number {
+  let delta = ((next - prev + 540) % 360) - 180; // shortest signed delta, -180..180
+  return (prev + delta * factor + 360) % 360;
+}
+
 interface UseQiblaArgs {
   manualCoords?: { lat: number; lng: number } | null;
-  active?: boolean; // only subscribe to the magnetometer while the view is shown
+  active?: boolean; // only subscribe to the compass while the view is shown
 }
 
 export function useQibla({ manualCoords, active = true }: UseQiblaArgs) {
@@ -71,8 +92,29 @@ export function useQibla({ manualCoords, active = true }: UseQiblaArgs) {
     manualCoords ? qiblaBearing(manualCoords.lat, manualCoords.lng) : null,
   );
   const [heading, setHeading] = useState(0);
+  const [accuracy, setAccuracy] = useState(-1);
   const [status, setStatus] = useState<QiblaStatus>('loading');
-  const subRef = useRef<{ remove: () => void } | null>(null);
+
+  const headingSubRef = useRef<{ remove: () => void } | null>(null);
+  const magSubRef = useRef<{ remove: () => void } | null>(null);
+  // Smoothed heading kept in a ref so the filter is continuous across sensor samples
+  // without forcing a re-render on every one.
+  const smoothedRef = useRef<number | null>(null);
+  const lastRenderedRef = useRef(0);
+
+  // Push a raw sensor/OS heading through the smoother, and only re-render when it has
+  // moved enough to be visible. This throttles React updates hard (the lag fix).
+  const pushHeading = useCallback((raw: number, acc: number) => {
+    if (!isFinite(raw)) return;
+    const prev = smoothedRef.current;
+    const next = prev == null ? raw : smoothHeading(prev, raw, SMOOTHING);
+    smoothedRef.current = next;
+    if (angleDiff(next, lastRenderedRef.current) >= MIN_RENDER_DELTA) {
+      lastRenderedRef.current = next;
+      setHeading(next);
+    }
+    if (acc >= 0) setAccuracy(acc);
+  }, []);
 
   // Resolve coordinates: prefer manual city, else GPS (already permitted for prayers).
   useEffect(() => {
@@ -106,45 +148,78 @@ export function useQibla({ manualCoords, active = true }: UseQiblaArgs) {
     };
   }, [manualCoords]);
 
-  // Subscribe to the magnetometer while active.
+  // Subscribe to the compass while active. Prefer the OS heading API (returns TRUE
+  // north — already corrected for magnetic declination and device orientation, which
+  // the raw magnetometer is not). Fall back to the raw magnetometer only if it fails.
   useEffect(() => {
     if (!active) return;
     let alive = true;
+    // Reset the smoother so a stale value from a previous session doesn't leak in.
+    smoothedRef.current = null;
 
-    (async () => {
+    const startMagnetometerFallback = () => {
       try {
         const Magnetometer = getMagnetometer();
         if (!Magnetometer) {
           if (alive) setStatus((s) => (s === 'no-location' ? s : 'no-sensor'));
           return;
         }
-        const available = await Magnetometer.isAvailableAsync();
-        if (!available) {
+        Magnetometer.isAvailableAsync().then((available: boolean) => {
+          if (!alive) return;
+          if (!available) {
+            setStatus((s) => (s === 'no-location' ? s : 'no-sensor'));
+            return;
+          }
+          Magnetometer.setUpdateInterval(50);
+          magSubRef.current = Magnetometer.addListener(({ x, y }: { x: number; y: number }) => {
+            // NOTE: raw magnetic heading (no declination correction) — only reached
+            // when the OS heading API is unavailable.
+            let angle = Math.atan2(y, x) * (180 / Math.PI);
+            angle = (angle + 360) % 360;
+            if (alive) pushHeading(angle, -1);
+          });
+          setStatus((s) => (s === 'no-location' ? s : 'ok'));
+        }).catch(() => {
           if (alive) setStatus((s) => (s === 'no-location' ? s : 'no-sensor'));
-          return;
-        }
-        Magnetometer.setUpdateInterval(100);
-        subRef.current = Magnetometer.addListener(({ x, y }: { x: number; y: number }) => {
-          let angle = Math.atan2(y, x) * (180 / Math.PI);
-          angle = (angle + 360) % 360;
-          if (alive) setHeading(angle);
         });
-        if (alive) setStatus((s) => (s === 'no-location' ? s : 'ok'));
       } catch {
         if (alive) setStatus((s) => (s === 'no-location' ? s : 'no-sensor'));
+      }
+    };
+
+    (async () => {
+      try {
+        // watchHeadingAsync gives { trueHeading, magHeading, accuracy }. trueHeading
+        // is -1 when the OS can't compute it (no location fix yet); fall back to
+        // magHeading in that case so the needle still moves.
+        headingSubRef.current = await Location.watchHeadingAsync((h) => {
+          if (!alive) return;
+          const deg = h.trueHeading != null && h.trueHeading >= 0 ? h.trueHeading : h.magHeading;
+          // iOS accuracy is degrees of error; Android reports an enum 0..3. Treat
+          // anything non-negative as a usable accuracy hint.
+          pushHeading(deg, typeof h.accuracy === 'number' ? h.accuracy : -1);
+          setStatus((s) => (s === 'no-location' ? s : 'ok'));
+        });
+      } catch {
+        // OS heading API unavailable on this device — fall back to the magnetometer.
+        if (alive) startMagnetometerFallback();
       }
     })();
 
     return () => {
       alive = false;
-      if (subRef.current) {
-        subRef.current.remove();
-        subRef.current = null;
+      if (headingSubRef.current) {
+        headingSubRef.current.remove();
+        headingSubRef.current = null;
+      }
+      if (magSubRef.current) {
+        magSubRef.current.remove();
+        magSubRef.current = null;
       }
     };
-  }, [active]);
+  }, [active, pushHeading]);
 
-  // Promote to 'ok' once we have both a bearing and (implicitly) a heading source.
+  // Promote to 'ok' once we have a bearing (heading source is handled above).
   useEffect(() => {
     if (bearing != null) {
       setStatus((s) => (s === 'no-sensor' || s === 'no-location' ? s : 'ok'));
@@ -155,12 +230,16 @@ export function useQibla({ manualCoords, active = true }: UseQiblaArgs) {
     bearing != null && angleDiff(heading, bearing) <= ALIGN_TOLERANCE;
 
   const stop = useCallback(() => {
-    if (subRef.current) {
-      subRef.current.remove();
-      subRef.current = null;
+    if (headingSubRef.current) {
+      headingSubRef.current.remove();
+      headingSubRef.current = null;
+    }
+    if (magSubRef.current) {
+      magSubRef.current.remove();
+      magSubRef.current = null;
     }
   }, []);
 
-  const state: QiblaState = { bearing, heading, aligned, status, coords };
+  const state: QiblaState = { bearing, heading, aligned, status, coords, accuracy };
   return { ...state, stop };
 }

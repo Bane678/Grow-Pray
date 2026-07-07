@@ -937,7 +937,7 @@ export function ShopModal({
   if (asPage) {
     return (
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-        <View style={[styles.container, { flex: 1, borderRadius: 0, maxHeight: '100%', maxWidth: '100%' as any, borderWidth: 0, backgroundColor: 'rgba(15,21,38,0.65)' }]}>
+        <View style={[styles.container, { flex: 1, borderRadius: 0, maxHeight: '100%', maxWidth: '100%' as any, borderWidth: 0, backgroundColor: 'transparent' }]}>
           {content}
         </View>
       </View>
