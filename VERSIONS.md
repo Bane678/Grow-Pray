@@ -10,7 +10,7 @@ self-contained and can also be opened directly in a browser.
 | **v2 — Night Conversion** | `index-v2-night-conversion.html` | Same night-sky identity as v1, restructured as a conversion funnel: trust strip, testimonials, 3-step "how it works", prayer timeline, feature grid, pricing cards, FAQ, sticky mobile CTA. |
 | **v3 — Day Journey** | `index-v3-day-journey.html` | Full redesign. The page travels through one prayer day: dawn (Fajr) hero at the top → midday features → golden-hour (Maghrib) pricing → starry night (Isha) FAQ and final CTA. Chapter medallions made from the prayer-scene art mark each stop. |
 
-**Currently active: v3 — Day Journey**
+**Currently active: v2 — Night Conversion**
 
 ## How to switch
 
