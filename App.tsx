@@ -3050,6 +3050,13 @@ function AppInner() {
     }, 75);
   }, []);
 
+  // Handle hold-to-move drag drop → relocate/swap the planted tree.
+  // Pickup + success/error haptics are fired inside GardenScene; this just
+  // commits the move to garden state. Uses the ref so the callback stays stable.
+  const handleMoveTree = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number) => {
+    gardenStateRef.current.movePlantedTree(fromRow, fromCol, toRow, toCol);
+  }, []);
+
   // Refs for stable callbacks (avoid re-creating on every state change)
   const plantTargetRef = useRef(plantTarget);
   plantTargetRef.current = plantTarget;
@@ -3451,6 +3458,7 @@ function AppInner() {
         onDeadTreePress={handleDeadTreePress}
         onPlantPress={handlePlantPress}
         onPlantedTreePress={handlePlantedTreePress}
+        onMoveTree={handleMoveTree}
         onChoppingComplete={handleChoppingComplete}
         frozen={isAnyModalOpen}
         onRenderReady={handleGardenRenderReady}

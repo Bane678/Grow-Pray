@@ -47,6 +47,7 @@ export interface GardenStateResult {
   removeDeadTree: (row: number, col: number) => Promise<number>; // returns coin reward
   plantTree: (row: number, col: number, treeType: string, currentXP: number) => Promise<boolean>;
   removePlantedTree: (row: number, col: number) => Promise<boolean>;
+  movePlantedTree: (fromRow: number, fromCol: number, toRow: number, toCol: number) => Promise<boolean>;
   isDeadTreeRemoved: (row: number, col: number) => boolean;
   getPlantedTree: (row: number, col: number) => PlantedTree | null;
   // Tree inventory
@@ -667,6 +668,44 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     return true;
   }, [gardenData, saveGarden]);
 
+  // ─── Move / swap a planted tree ─────────────────────────────────────────────
+  // Relocates the tree at (from) to (to). If (to) already holds a tree the two
+  // swap positions. Target must be a fully recovered tile and never the center
+  // (main tree) tile. Dead-tree occupancy of the target is validated in the UI
+  // layer (GardenScene knows the dead-tree positions), so it isn't rechecked here.
+  const movePlantedTree = useCallback(async (
+    fromRow: number, fromCol: number, toRow: number, toCol: number,
+  ): Promise<boolean> => {
+    const fromKey = `${fromRow},${fromCol}`;
+    const toKey = `${toRow},${toCol}`;
+    if (fromKey === toKey) return false;
+
+    const moving = gardenData.plantedTrees[fromKey];
+    if (!moving) return false;
+
+    // Target must be fully recovered and not the center (main tree) tile.
+    if (getTileState(toRow, toCol) !== 'recovered') return false;
+    const center = Math.floor(MAX_GRID_SIZE / 2);
+    if (toRow === center && toCol === center) return false;
+
+    const target = gardenData.plantedTrees[toKey];
+    const nextPlanted = { ...gardenData.plantedTrees };
+    if (target) {
+      // Swap the two trees.
+      nextPlanted[toKey] = moving;
+      nextPlanted[fromKey] = target;
+    } else {
+      // Move into the empty tile.
+      nextPlanted[toKey] = moving;
+      delete nextPlanted[fromKey];
+    }
+
+    const updated = { ...gardenData, plantedTrees: nextPlanted };
+    setGardenData(updated);
+    await saveGarden(updated);
+    return true;
+  }, [gardenData, getTileState, saveGarden]);
+
   // ─── Tree inventory ────────────────────────────────────────────────────────
   const saveInventory = useCallback(async (inv: Record<string, number>) => {
     try {
@@ -749,6 +788,7 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     getPlantedTree,
     plantTree,
     removePlantedTree,
+    movePlantedTree,
     treeInventory,
     purchaseTree,
     useTreeFromInventory,

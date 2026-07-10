@@ -1,9 +1,10 @@
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, Animated, Easing, Dimensions } from 'react-native';
-import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler, TapGestureHandler, TapGestureHandlerStateChangeEvent, State } from 'react-native-gesture-handler';
+import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler, State, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { TileState, PlantedTree, TileTransition } from '../hooks/useGardenState';
 import { TREE_CATALOG } from './ShopModal';
 import { Audio } from 'expo-av';
+import * as Haptics from 'expo-haptics';
 
 const PARTICLE_IMAGES = [
     require('../assets/Garden Assets/Icons/particles/p0.png'),
@@ -647,27 +648,16 @@ const LevelUpFX = React.memo(function LevelUpFX({
     );
 });
 
-// ─── AnimatedPlantedTree ───────────────────────────────────────────────────────
-// Renders a single planted tree with level-up FX on stage advance.
-// tileCenterX/Y is the center of the tile in screen space.
-const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
-    tileCenterX,
-    tileCenterY,
-    zIndexBase,
-    planted,
-    xp,
-    tileState,
-    daysSinceLastXP,
-}: {
-    tileCenterX: number;
-    tileCenterY: number;
-    zIndexBase: number;
-    planted: PlantedTree;
-    xp: number;
-    tileState: TileState;
-    daysSinceLastXP: number;
-}) {
-    // Compute effective stage index (with withering penalty)
+// ─── Planted-tree sprite resolver ──────────────────────────────────────────────
+// Pure helper (no hooks) that resolves which sprite / size / tint a planted tree
+// should render at, accounting for growth stage and withering. Shared by the
+// rendered tree (AnimatedPlantedTree) and the drag "ghost" shown while moving one.
+function getPlantedTreeSprite(
+    planted: PlantedTree,
+    xp: number,
+    tileState: TileState,
+    daysSinceLastXP: number,
+) {
     const { index: stageIndex } = getPlantedTreeStageWithIndex(xp, planted.plantedAtXP);
     let effectiveStageIndex = stageIndex;
     if (tileState !== 'recovered') {
@@ -680,12 +670,11 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     }
 
     const isDead = effectiveStageIndex < 0;
-    // Clamp upper bound defensively
     if (!isDead && effectiveStageIndex >= TREE_STAGES.length) {
         effectiveStageIndex = TREE_STAGES.length - 1;
     }
-    let ptWidth: number, ptHeight: number, ptAsset: any;
 
+    let ptWidth: number, ptHeight: number, ptAsset: any;
     if (isDead) {
         ptWidth = SCALED_DEAD_TREE_WIDTH * 0.9;
         ptHeight = SCALED_DEAD_TREE_HEIGHT * 0.9;
@@ -720,6 +709,33 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     const offsetY = (!isDead && stageName && catalogItem?.offsetY)
         ? (catalogItem.offsetY[stageName as keyof NonNullable<typeof catalogItem>['offsetY']] ?? 0)
         : 0;
+
+    return { effectiveStageIndex, isDead, ptWidth, ptHeight, ptAsset, tintStyle, offsetX, offsetY };
+}
+
+// ─── AnimatedPlantedTree ───────────────────────────────────────────────────────
+// Renders a single planted tree with level-up FX on stage advance.
+// tileCenterX/Y is the center of the tile in screen space.
+const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
+    tileCenterX,
+    tileCenterY,
+    zIndexBase,
+    planted,
+    xp,
+    tileState,
+    daysSinceLastXP,
+}: {
+    tileCenterX: number;
+    tileCenterY: number;
+    zIndexBase: number;
+    planted: PlantedTree;
+    xp: number;
+    tileState: TileState;
+    daysSinceLastXP: number;
+}) {
+    // Resolve sprite / size / tint (with withering penalty) via shared helper.
+    const { effectiveStageIndex, ptWidth, ptHeight, ptAsset, tintStyle, offsetX, offsetY } =
+        getPlantedTreeSprite(planted, xp, tileState, daysSinceLastXP);
 
     // Detect stage advances and fire level-up FX + scale bounce
     const prevStageIndexRef = useRef(effectiveStageIndex);
@@ -1387,10 +1403,15 @@ interface IsometricGridProps {
     onDeadTreePress?: (row: number, col: number) => void;
     onPlantPress?: (row: number, col: number) => void;
     onPlantedTreePress?: (row: number, col: number) => void;
+    onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
     onChoppingComplete?: (row: number, col: number) => void;
     onStageChange?: (stage: string) => void;
     isZoomedOut?: boolean;
     onCenterTreeLoaded?: () => void;
+    // Refs to the outer scroll/zoom handlers so the tree-move gesture can block
+    // them while a tree is being dragged.
+    panRef?: React.Ref<any>;
+    pinchRef?: React.Ref<any>;
 }
 
 function IsometricGrid({
@@ -1407,10 +1428,13 @@ function IsometricGrid({
     onDeadTreePress,
     onPlantPress,
     onPlantedTreePress,
+    onMoveTree,
     onChoppingComplete,
     onStageChange,
     isZoomedOut = false,
     onCenterTreeLoaded,
+    panRef,
+    pinchRef,
 }: IsometricGridProps) {
     const [currentStage, setCurrentStage] = useState(getTreeStage(xp));
     const glowAnim  = useRef(new Animated.Value(0)).current;
@@ -1661,12 +1685,175 @@ function IsometricGrid({
         getTileState, visibleDeadTrees, choppingTrees,
         onDeadTreePress, onTilePress, onPlantPress, onPlantedTreePress, getPlantedTree, xp, showTapHighlight]);
 
-    // TapGestureHandler state change — fires with coordinates relative to the grid container
-    const onTapStateChange = useCallback((event: TapGestureHandlerStateChangeEvent) => {
-        if (event.nativeEvent.state === State.ACTIVE) {
-            handleGridTap(event.nativeEvent.x, event.nativeEvent.y);
+    // ─── Hold-to-move (drag a planted tree like an iOS home-screen icon) ──────
+    // A long-press (~500ms) on a planted tree lifts it; it then follows the finger
+    // and, on release, moves to the target tile (swapping if occupied) or springs
+    // back with a red error flash if the target is invalid.
+    const [draggingTree, setDraggingTree] = useState<{
+        fromRow: number; fromCol: number; planted: PlantedTree;
+        tileCenterX: number; tileCenterY: number;
+    } | null>(null);
+    const draggingRef = useRef<typeof draggingTree>(null);
+    draggingRef.current = draggingTree;
+
+    const dragTranslate = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+    const dragWiggle = useRef(new Animated.Value(0)).current;
+    const wiggleLoopRef = useRef<Animated.CompositeAnimation | null>(null);
+    const settledRef = useRef(true); // guards against onEnd + onFinalize double-firing
+
+    const [hoverTile, setHoverTile] = useState<{ row: number; col: number; valid: boolean } | null>(null);
+    const lastHoverKeyRef = useRef<string | null>(null);
+
+    const [errorFlash, setErrorFlash] = useState<{ x: number; y: number; zIndex: number } | null>(null);
+    const errorFlashOpacity = useRef(new Animated.Value(0)).current;
+
+    // Screen-space top-left of a tile (grid container coords).
+    const tileScreenXY = useCallback((row: number, col: number) => {
+        const [rRow, rCol] = rotateLocal(row - startRow, col - startCol, rotation, maxLocal);
+        return {
+            x: (rCol - rRow) * STEP_X + centerOffsetX,
+            y: (rCol + rRow) * STEP_Y,
+            zIndex: rRow + rCol,
+        };
+    }, [startRow, startCol, rotation, maxLocal, centerOffsetX]);
+
+    // Whether a tile can receive a dragged tree. Occupied tiles are valid (swap);
+    // the center (main tree), non-recovered tiles, standing dead trees and the
+    // tree's own origin tile are not.
+    const isValidDropTarget = useCallback((row: number, col: number): boolean => {
+        const d = draggingRef.current;
+        if (!d) return false;
+        if (row === d.fromRow && col === d.fromCol) return false;
+        if (row === maxCenter && col === maxCenter) return false;
+        if (getTileState(row, col) !== 'recovered') return false;
+        if (deadTreeSet.has(`${row},${col}`)) return false;
+        return true;
+    }, [maxCenter, getTileState, deadTreeSet]);
+
+    const startWiggle = useCallback(() => {
+        dragWiggle.setValue(0);
+        wiggleLoopRef.current = Animated.loop(Animated.sequence([
+            Animated.timing(dragWiggle, { toValue:  1, duration: 110, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+            Animated.timing(dragWiggle, { toValue: -1, duration: 220, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+            Animated.timing(dragWiggle, { toValue:  0, duration: 110, easing: Easing.inOut(Easing.sin), useNativeDriver: false }),
+        ]));
+        wiggleLoopRef.current.start();
+    }, []);
+
+    const stopWiggle = useCallback(() => {
+        wiggleLoopRef.current?.stop();
+        wiggleLoopRef.current = null;
+        dragWiggle.setValue(0);
+    }, []);
+
+    const flashError = useCallback((row: number, col: number) => {
+        const { x, y, zIndex } = tileScreenXY(row, col);
+        setErrorFlash({ x, y, zIndex: zIndex + 200 });
+        errorFlashOpacity.setValue(0.75);
+        Animated.timing(errorFlashOpacity, {
+            toValue: 0,
+            duration: 520,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+        }).start(() => setErrorFlash(null));
+    }, [tileScreenXY]);
+
+    // Begin a drag: identify the tree under the finger, lift it, fire haptic.
+    const beginDrag = useCallback((px: number, py: number) => {
+        const hit = screenToTile(px, py, gridSize, rotation, startRow, startCol);
+        if (!hit) return;
+        if (hit.row === maxCenter && hit.col === maxCenter) return; // main tree can't move
+        const planted = getPlantedTree(hit.row, hit.col);
+        if (!planted) return;
+        // Don't pick up a fully-withered (dead) planted tree — matches the tap gate.
+        const { index: stageIdx } = getPlantedTreeStageWithIndex(xp, planted.plantedAtXP);
+        if (stageIdx < 0) return;
+
+        const { x, y } = tileScreenXY(hit.row, hit.col);
+        dragTranslate.setValue({ x: 0, y: 0 });
+        lastHoverKeyRef.current = null;
+        setHoverTile(null);
+        setDraggingTree({
+            fromRow: hit.row, fromCol: hit.col, planted,
+            tileCenterX: x + SCALED_WIDTH / 2,
+            tileCenterY: y + SCALED_HEIGHT / 2,
+        });
+        Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+        startWiggle();
+    }, [gridSize, rotation, startRow, startCol, maxCenter, getPlantedTree, xp, tileScreenXY, startWiggle]);
+
+    // Update the hover highlight as the finger crosses tiles.
+    const updateDragHover = useCallback((px: number, py: number) => {
+        if (!draggingRef.current) return;
+        const hit = screenToTile(px, py, gridSize, rotation, startRow, startCol);
+        const key = hit ? `${hit.row},${hit.col}` : null;
+        if (key === lastHoverKeyRef.current) return;
+        lastHoverKeyRef.current = key;
+        if (!hit) { setHoverTile(null); return; }
+        setHoverTile({ row: hit.row, col: hit.col, valid: isValidDropTarget(hit.row, hit.col) });
+    }, [gridSize, rotation, startRow, startCol, isValidDropTarget]);
+
+    // Finish a drag: commit the move/swap or snap back with an error flash.
+    const endDrag = useCallback((px: number, py: number) => {
+        const d = draggingRef.current;
+        stopWiggle();
+        setHoverTile(null);
+        lastHoverKeyRef.current = null;
+        if (!d) return;
+
+        const hit = Number.isNaN(px) ? null : screenToTile(px, py, gridSize, rotation, startRow, startCol);
+        if (hit && isValidDropTarget(hit.row, hit.col)) {
+            onMoveTree?.(d.fromRow, d.fromCol, hit.row, hit.col);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+            setDraggingTree(null);
+        } else {
+            if (hit) flashError(hit.row, hit.col);
+            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+            Animated.spring(dragTranslate, {
+                toValue: { x: 0, y: 0 },
+                tension: 130, friction: 9,
+                useNativeDriver: false,
+            }).start(() => setDraggingTree(null));
         }
-    }, [handleGridTap]);
+    }, [gridSize, rotation, startRow, startCol, isValidDropTarget, onMoveTree, flashError, stopWiggle]);
+
+    // Clean up any running wiggle loop on unmount.
+    useEffect(() => () => { wiggleLoopRef.current?.stop(); }, []);
+
+    // ── Gestures: quick tap (plant/remove/skip/chop) vs long-press drag (move) ──
+    const tapGesture = useMemo(() => Gesture.Tap()
+        .maxDuration(400)
+        .onEnd((e, success) => { if (success) handleGridTap(e.x, e.y); })
+        .runOnJS(true), [handleGridTap]);
+
+    const moveGesture = useMemo(() => {
+        let g = Gesture.Pan()
+            .activateAfterLongPress(500)
+            .maxPointers(1)
+            .onStart((e) => { settledRef.current = false; beginDrag(e.x, e.y); })
+            .onUpdate((e) => {
+                if (!draggingRef.current) return;
+                dragTranslate.setValue({ x: e.translationX, y: e.translationY });
+                updateDragHover(e.x, e.y);
+            })
+            .onEnd((e) => {
+                if (settledRef.current) return;
+                settledRef.current = true;
+                endDrag(e.x, e.y);
+            })
+            .onFinalize(() => {
+                if (settledRef.current) return;
+                settledRef.current = true;
+                endDrag(NaN, NaN); // gesture cancelled → snap back
+            })
+            .runOnJS(true);
+        // Block the outer scroll/zoom handlers while a tree is being dragged.
+        const blockRefs = [panRef, pinchRef].filter(Boolean) as any[];
+        if (blockRefs.length) g = g.blocksExternalGesture(...blockRefs);
+        return g;
+    }, [beginDrag, updateDragHover, endDrag, panRef, pinchRef]);
+
+    const composedGesture = useMemo(() => Gesture.Exclusive(moveGesture, tapGesture), [moveGesture, tapGesture]);
 
     // Memoize the tile elements — only rebuilt when grid state actually changes
     const tiles = useMemo(() => {
@@ -1842,12 +2029,15 @@ function IsometricGrid({
     }, [visibleDeadTrees, gridSize, rotation, getTileState, choppingTrees, onDeadTreePress, onChoppingComplete]);
 
     // Memoize planted tree elements — each renders as an AnimatedPlantedTree component
-    // which owns its own stage-tracking state and level-up FX
+    // which owns its own stage-tracking state and level-up FX. The tile currently
+    // being dragged is skipped here; its lifted "ghost" is rendered separately.
+    const draggingKey = draggingTree ? `${draggingTree.fromRow},${draggingTree.fromCol}` : null;
     const plantedTreeElements = useMemo(() => {
         const elements: React.ReactElement[] = [];
         for (let row = startRow; row <= endRow; row++) {
             for (let col = startCol; col <= endCol; col++) {
                 if (row === maxCenter && col === maxCenter) continue;
+                if (draggingKey === `${row},${col}`) continue; // hidden while dragging
                 const planted = getPlantedTree(row, col);
                 if (!planted) continue;
 
@@ -1875,7 +2065,7 @@ function IsometricGrid({
             }
         }
         return elements;
-    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP]);
+    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey]);
 
     // Center tile position for main tree
     const centerLocalRow = maxCenter - startRow;
@@ -1894,9 +2084,7 @@ function IsometricGrid({
 
     // Touch-blocking is handled externally via pointerEvents on the wrapper.
     return (
-        <TapGestureHandler
-            onHandlerStateChange={onTapStateChange}
-        >
+        <GestureDetector gesture={composedGesture}>
             <View
                 style={{
                     position: 'relative',
@@ -1989,8 +2177,93 @@ function IsometricGrid({
                 zIndex={rCenterRow + rCenterCol}
                 triggerKey={centerFxTrigger}
             />
+
+            {/* ── Hold-to-move overlays ─────────────────────────────────────── */}
+            {/* Hover highlight on the tile under the finger while dragging */}
+            {draggingTree && hoverTile && (() => {
+                const { x, y, zIndex } = tileScreenXY(hoverTile.row, hoverTile.col);
+                return (
+                    <View
+                        pointerEvents="none"
+                        style={{
+                            position: 'absolute',
+                            left: x,
+                            top: y,
+                            width: SCALED_WIDTH,
+                            height: SCALED_HEIGHT,
+                            zIndex: zIndex + 150,
+                            opacity: hoverTile.valid ? 0.6 : 0.25,
+                        }}
+                    >
+                        <Image
+                            source={TILE_ASSETS.recovered}
+                            style={{ width: SCALED_WIDTH, height: SCALED_HEIGHT, tintColor: hoverTile.valid ? '#4ade80' : '#94a3b8' }}
+                            resizeMode="contain"
+                        />
+                    </View>
+                );
+            })()}
+
+            {/* Red error flash on an invalid drop target */}
+            {errorFlash && (
+                <Animated.View
+                    pointerEvents="none"
+                    style={{
+                        position: 'absolute',
+                        left: errorFlash.x,
+                        top: errorFlash.y,
+                        width: SCALED_WIDTH,
+                        height: SCALED_HEIGHT,
+                        zIndex: errorFlash.zIndex,
+                        opacity: errorFlashOpacity,
+                    }}
+                >
+                    <Image
+                        source={TILE_ASSETS.recovered}
+                        style={{ width: SCALED_WIDTH, height: SCALED_HEIGHT, tintColor: '#ef4444' }}
+                        resizeMode="contain"
+                    />
+                </Animated.View>
+            )}
+
+            {/* Lifted "ghost" of the tree being dragged — follows the finger */}
+            {draggingTree && (() => {
+                const sprite = getPlantedTreeSprite(draggingTree.planted, xp, 'recovered', daysSinceLastXP);
+                const posX = draggingTree.tileCenterX - sprite.ptWidth / 2 + sprite.offsetX;
+                const posY = draggingTree.tileCenterY - sprite.ptHeight * 0.75 + sprite.offsetY;
+                return (
+                    <Animated.View
+                        pointerEvents="none"
+                        style={{
+                            position: 'absolute',
+                            left: posX,
+                            top: posY,
+                            width: sprite.ptWidth,
+                            height: sprite.ptHeight,
+                            zIndex: 100000,
+                            transformOrigin: 'center bottom',
+                            shadowColor: '#000000',
+                            shadowOffset: { width: 0, height: 6 },
+                            shadowOpacity: 0.35,
+                            shadowRadius: 8,
+                            transform: [
+                                { translateX: dragTranslate.x },
+                                { translateY: dragTranslate.y },
+                                { scale: 1.15 },
+                                { rotate: dragWiggle.interpolate({ inputRange: [-1, 1], outputRange: ['-3deg', '3deg'] }) },
+                            ],
+                        }}
+                    >
+                        <Image
+                            source={sprite.ptAsset}
+                            style={{ width: sprite.ptWidth, height: sprite.ptHeight, ...sprite.tintStyle }}
+                            resizeMode="contain"
+                        />
+                    </Animated.View>
+                );
+            })()}
             </View>
-        </TapGestureHandler>
+        </GestureDetector>
     );
 }
 
@@ -2009,6 +2282,7 @@ interface GardenSceneProps {
     onDeadTreePress?: (row: number, col: number) => void;
     onPlantPress?: (row: number, col: number) => void;
     onPlantedTreePress?: (row: number, col: number) => void;
+    onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
     onChoppingComplete?: (row: number, col: number) => void;
     frozen?: boolean;
     onRenderReady?: () => void;
@@ -2027,6 +2301,7 @@ export const GardenScene = React.memo(function GardenScene({
     onDeadTreePress,
     onPlantPress,
     onPlantedTreePress,
+    onMoveTree,
     onChoppingComplete,
     frozen = false,
     onRenderReady,
@@ -2259,9 +2534,12 @@ export const GardenScene = React.memo(function GardenScene({
                                     onDeadTreePress={onDeadTreePress}
                                     onPlantPress={onPlantPress}
                                     onPlantedTreePress={onPlantedTreePress}
+                                    onMoveTree={onMoveTree}
                                     onChoppingComplete={onChoppingComplete}
                                     isZoomedOut={isZoomedOut}
                                     onCenterTreeLoaded={handleCenterTreeLoaded}
+                                    panRef={panRef}
+                                    pinchRef={pinchRef}
                                 />
                                 {/* Pollen motes — always mounted so we never pay the cost of
                                     stopping/starting all animation loops on every modal open */}
