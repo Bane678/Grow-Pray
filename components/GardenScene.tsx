@@ -724,6 +724,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     xp,
     tileState,
     daysSinceLastXP,
+    editMode,
 }: {
     tileCenterX: number;
     tileCenterY: number;
@@ -732,6 +733,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     xp: number;
     tileState: TileState;
     daysSinceLastXP: number;
+    editMode: boolean;
 }) {
     // Resolve sprite / size / tint (with withering penalty) via shared helper.
     const { effectiveStageIndex, ptWidth, ptHeight, ptAsset, tintStyle, offsetX, offsetY } =
@@ -742,6 +744,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     const [fxTrigger, setFxTrigger] = useState(0);
     const treeSizeAnim = useRef(new Animated.Value(1)).current;
     const swayAnim     = useRef(new Animated.Value(0)).current;
+    const jiggleAnim   = useRef(new Animated.Value(0)).current;
     const swayDur      = 3200 + (Math.abs(tileCenterX * 7 + tileCenterY * 13) % 900);
 
     useEffect(() => {
@@ -755,6 +758,22 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
         loop.start();
         return () => loop.stop();
     }, []);
+
+    // iOS home-screen style jiggle while the garden is in edit mode.
+    useEffect(() => {
+        if (!editMode) {
+            jiggleAnim.stopAnimation();
+            jiggleAnim.setValue(0);
+            return;
+        }
+        const loop = Animated.loop(Animated.sequence([
+            Animated.timing(jiggleAnim, { toValue:  1, duration: 110, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(jiggleAnim, { toValue: -1, duration: 220, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(jiggleAnim, { toValue:  0, duration: 110, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        ]));
+        loop.start();
+        return () => loop.stop();
+    }, [editMode]);
 
     useEffect(() => {
         if (effectiveStageIndex > prevStageIndexRef.current) {
@@ -785,6 +804,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
                     transformOrigin: 'center bottom',
                     transform: [
                         { rotate: swayAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-0.03rad', '0.03rad'] }) },
+                        { rotate: jiggleAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-0.05rad', '0.05rad'] }) },
                     ],
                 }}
             >
@@ -1403,7 +1423,9 @@ interface IsometricGridProps {
     onDeadTreePress?: (row: number, col: number) => void;
     onPlantPress?: (row: number, col: number) => void;
     onPlantedTreePress?: (row: number, col: number) => void;
-    onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
+    onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
+    editMode?: boolean;
+    onExitEditMode?: () => void;
     onChoppingComplete?: (row: number, col: number) => void;
     onStageChange?: (stage: string) => void;
     isZoomedOut?: boolean;
@@ -1429,6 +1451,8 @@ function IsometricGrid({
     onPlantPress,
     onPlantedTreePress,
     onMoveTree,
+    editMode = false,
+    onExitEditMode,
     onChoppingComplete,
     onStageChange,
     isZoomedOut = false,
@@ -1628,6 +1652,10 @@ function IsometricGrid({
 
     // ─── Grid-level tap handler with isometric diamond hit-testing ────────────
     const handleGridTap = useCallback((x: number, y: number) => {
+        // In edit mode a plain tap (not a drag) leaves the rearrange mode —
+        // trees are moved by dragging, so any tap here means "I'm done".
+        if (editMode) { onExitEditMode?.(); return; }
+
         // ── Priority: dead-tree sprite bounding-box check ──────────────────────
         // Dead trees are much taller than their tile's diamond (trunk extends well
         // above the tile). screenToTile maps taps on the trunk to the wrong tile,
@@ -1683,7 +1711,8 @@ function IsometricGrid({
         }
     }, [gridSize, rotation, startRow, startCol, maxLocal, centerOffsetX,
         getTileState, visibleDeadTrees, choppingTrees,
-        onDeadTreePress, onTilePress, onPlantPress, onPlantedTreePress, getPlantedTree, xp, showTapHighlight]);
+        onDeadTreePress, onTilePress, onPlantPress, onPlantedTreePress, getPlantedTree, xp, showTapHighlight,
+        editMode, onExitEditMode]);
 
     // ─── Hold-to-move (drag a planted tree like an iOS home-screen icon) ──────
     // A long-press (~500ms) on a planted tree lifts it; it then follows the finger
@@ -1793,8 +1822,19 @@ function IsometricGrid({
         setHoverTile({ row: hit.row, col: hit.col, valid: isValidDropTarget(hit.row, hit.col) });
     }, [gridSize, rotation, startRow, startCol, isValidDropTarget]);
 
+    // Snap the lifted tree back to its origin, then drop the ghost.
+    const snapBack = useCallback(() => {
+        Animated.spring(dragTranslate, {
+            toValue: { x: 0, y: 0 },
+            tension: 130, friction: 9,
+            useNativeDriver: false,
+        }).start(() => setDraggingTree(null));
+    }, []);
+
     // Finish a drag: commit the move/swap or snap back with an error flash.
-    const endDrag = useCallback((px: number, py: number) => {
+    // The ghost is kept on screen until the move is confirmed committed, so the
+    // tree can never disappear — it either lands on the target or springs back.
+    const endDrag = useCallback(async (px: number, py: number) => {
         const d = draggingRef.current;
         stopWiggle();
         setHoverTile(null);
@@ -1803,19 +1843,23 @@ function IsometricGrid({
 
         const hit = Number.isNaN(px) ? null : screenToTile(px, py, gridSize, rotation, startRow, startCol);
         if (hit && isValidDropTarget(hit.row, hit.col)) {
-            onMoveTree?.(d.fromRow, d.fromCol, hit.row, hit.col);
-            Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-            setDraggingTree(null);
+            // Wait for the move to actually persist before removing the ghost.
+            const committed = await onMoveTree?.(d.fromRow, d.fromCol, hit.row, hit.col);
+            if (committed) {
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                setDraggingTree(null);
+            } else {
+                // Rejected unexpectedly — snap back rather than leave it stranded.
+                flashError(hit.row, hit.col);
+                Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+                snapBack();
+            }
         } else {
             if (hit) flashError(hit.row, hit.col);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-            Animated.spring(dragTranslate, {
-                toValue: { x: 0, y: 0 },
-                tension: 130, friction: 9,
-                useNativeDriver: false,
-            }).start(() => setDraggingTree(null));
+            snapBack();
         }
-    }, [gridSize, rotation, startRow, startCol, isValidDropTarget, onMoveTree, flashError, stopWiggle]);
+    }, [gridSize, rotation, startRow, startCol, isValidDropTarget, onMoveTree, flashError, stopWiggle, snapBack]);
 
     // Clean up any running wiggle loop on unmount.
     useEffect(() => () => { wiggleLoopRef.current?.stop(); }, []);
@@ -1827,8 +1871,10 @@ function IsometricGrid({
         .runOnJS(true), [handleGridTap]);
 
     const moveGesture = useMemo(() => {
+        // In edit mode trees lift immediately; otherwise a ~500ms long-press
+        // (matching iOS icon-move) is required so normal taps still work.
         let g = Gesture.Pan()
-            .activateAfterLongPress(500)
+            .activateAfterLongPress(editMode ? 0 : 500)
             .maxPointers(1)
             .onStart((e) => { settledRef.current = false; beginDrag(e.x, e.y); })
             .onUpdate((e) => {
@@ -1851,7 +1897,7 @@ function IsometricGrid({
         const blockRefs = [panRef, pinchRef].filter(Boolean) as any[];
         if (blockRefs.length) g = g.blocksExternalGesture(...blockRefs);
         return g;
-    }, [beginDrag, updateDragHover, endDrag, panRef, pinchRef]);
+    }, [beginDrag, updateDragHover, endDrag, panRef, pinchRef, editMode]);
 
     const composedGesture = useMemo(() => Gesture.Exclusive(moveGesture, tapGesture), [moveGesture, tapGesture]);
 
@@ -2060,12 +2106,13 @@ function IsometricGrid({
                         xp={xp}
                         tileState={tileState}
                         daysSinceLastXP={daysSinceLastXP}
+                        editMode={editMode}
                     />
                 );
             }
         }
         return elements;
-    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey]);
+    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode]);
 
     // Center tile position for main tree
     const centerLocalRow = maxCenter - startRow;
@@ -2282,7 +2329,9 @@ interface GardenSceneProps {
     onDeadTreePress?: (row: number, col: number) => void;
     onPlantPress?: (row: number, col: number) => void;
     onPlantedTreePress?: (row: number, col: number) => void;
-    onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void;
+    onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
+    editMode?: boolean;
+    onExitEditMode?: () => void;
     onChoppingComplete?: (row: number, col: number) => void;
     frozen?: boolean;
     onRenderReady?: () => void;
@@ -2302,6 +2351,8 @@ export const GardenScene = React.memo(function GardenScene({
     onPlantPress,
     onPlantedTreePress,
     onMoveTree,
+    editMode = false,
+    onExitEditMode,
     onChoppingComplete,
     frozen = false,
     onRenderReady,
@@ -2535,6 +2586,8 @@ export const GardenScene = React.memo(function GardenScene({
                                     onPlantPress={onPlantPress}
                                     onPlantedTreePress={onPlantedTreePress}
                                     onMoveTree={onMoveTree}
+                                    editMode={editMode}
+                                    onExitEditMode={onExitEditMode}
                                     onChoppingComplete={onChoppingComplete}
                                     isZoomedOut={isZoomedOut}
                                     onCenterTreeLoaded={handleCenterTreeLoaded}

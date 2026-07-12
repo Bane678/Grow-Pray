@@ -2763,7 +2763,10 @@ function AppInner() {
   const [plantTarget, setPlantTarget] = useState<{ row: number; col: number } | null>(null);
   const [choppingTrees, setChoppingTrees] = useState<Set<string>>(new Set());
   const [removeTreeTarget, setRemoveTreeTarget] = useState<{ row: number; col: number } | null>(null);
-  
+  // Garden "edit mode" — entered from a tree's Move action. All planted trees
+  // jiggle and can be dragged immediately (no long-press), iOS home-screen style.
+  const [editMode, setEditMode] = useState(false);
+
   // Modal animations
   const plantModalScale = useRef(new Animated.Value(0.85)).current;
   const plantModalOpacity = useRef(new Animated.Value(0)).current;
@@ -3051,10 +3054,12 @@ function AppInner() {
   }, []);
 
   // Handle hold-to-move drag drop → relocate/swap the planted tree.
-  // Pickup + success/error haptics are fired inside GardenScene; this just
-  // commits the move to garden state. Uses the ref so the callback stays stable.
-  const handleMoveTree = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number) => {
-    gardenStateRef.current.movePlantedTree(fromRow, fromCol, toRow, toCol);
+  // Pickup + success/error haptics are fired inside GardenScene. Returns the
+  // commit result so the caller can keep the lifted "ghost" on screen until the
+  // move is actually persisted (the tree either lands on the new tile or snaps
+  // back — it can never vanish). Uses the ref so the callback stays stable.
+  const handleMoveTree = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number): Promise<boolean> => {
+    return gardenStateRef.current.movePlantedTree(fromRow, fromCol, toRow, toCol);
   }, []);
 
   // Refs for stable callbacks (avoid re-creating on every state change)
@@ -3459,6 +3464,8 @@ function AppInner() {
         onPlantPress={handlePlantPress}
         onPlantedTreePress={handlePlantedTreePress}
         onMoveTree={handleMoveTree}
+        editMode={editMode}
+        onExitEditMode={() => setEditMode(false)}
         onChoppingComplete={handleChoppingComplete}
         frozen={isAnyModalOpen}
         onRenderReady={handleGardenRenderReady}
@@ -3489,6 +3496,34 @@ function AppInner() {
         >
           <Image source={ICON_SEEDLING} style={{ width: 12, height: 12 }} resizeMode="contain" />
           <Text style={{ fontSize: 11, fontWeight: '600', color: 'rgba(34, 197, 94, 0.8)' }}>Expand</Text>
+        </TouchableOpacity>
+      )}
+
+      {/* Edit-mode "Done" button — exits the tree rearrange (jiggle) mode */}
+      {editMode && activeTab === 'garden' && (
+        <TouchableOpacity
+          onPress={() => {
+            setEditMode(false);
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+          }}
+          activeOpacity={0.85}
+          style={{
+            position: 'absolute',
+            top: 12,
+            alignSelf: 'center',
+            backgroundColor: THEME.accent,
+            borderRadius: 20,
+            paddingVertical: 9,
+            paddingHorizontal: 24,
+            shadowColor: '#000',
+            shadowOpacity: 0.3,
+            shadowRadius: 8,
+            shadowOffset: { width: 0, height: 2 },
+            elevation: 6,
+            zIndex: 100,
+          }}
+        >
+          <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Done</Text>
         </TouchableOpacity>
       )}
 
@@ -3703,7 +3738,7 @@ function AppInner() {
         plantModalOpacity={plantModalOpacity}
       />
 
-      {/* Remove Planted Tree Modal */}
+      {/* Planted Tree Options Modal — Move (enter edit mode) / Remove / Cancel */}
       <Modal
         visible={removeTreeTarget !== null}
         transparent
@@ -3725,7 +3760,9 @@ function AppInner() {
             width: '100%',
             maxWidth: 300,
           }}>
-            <Image source={AXE_ICON} style={{ width: 64, height: 64, marginBottom: 8 }} resizeMode="contain" />
+            <Text style={{ fontSize: 18, fontWeight: '700', color: THEME.text, marginBottom: 14 }}>
+              Tree Options
+            </Text>
             {/* Growth progress — shown when tree is not yet flourishing */}
             {(() => {
               const planted = removeTreeTarget ? gardenState.getPlantedTree(removeTreeTarget.row, removeTreeTarget.col) : null;
@@ -3742,7 +3779,7 @@ function AppInner() {
               const progress = current.next ? Math.min((treeXP - current.min) / (current.next - current.min), 1) : 1;
               const xpLeft = current.next ? current.next - treeXP : 0;
               return (
-                <View style={{ width: '100%', marginBottom: 12 }}>
+                <View style={{ width: '100%', marginBottom: 18 }}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 5 }}>
                     <Text style={{ fontSize: 11, color: THEME.textSecondary, fontWeight: '600' }}>{current.label}</Text>
                     {current.next ? (
@@ -3757,43 +3794,57 @@ function AppInner() {
                 </View>
               );
             })()}
-            <Text style={{ fontSize: 18, fontWeight: '700', color: '#f87171', marginBottom: 8 }}>
-              Remove Tree?
+
+            {/* Move tree — closes the modal and enters garden edit mode */}
+            <TouchableOpacity
+              onPress={() => {
+                setRemoveTreeTarget(null);
+                setEditMode(true);
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+              }}
+              style={{
+                width: '100%',
+                backgroundColor: THEME.accent,
+                paddingVertical: 13,
+                borderRadius: 12,
+                alignItems: 'center',
+                marginBottom: 10,
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Move tree</Text>
+            </TouchableOpacity>
+
+            {/* Remove tree — permanent, no refund */}
+            <TouchableOpacity
+              onPress={async () => {
+                if (removeTreeTarget) {
+                  await gardenState.removePlantedTree(removeTreeTarget.row, removeTreeTarget.col);
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+                }
+                setRemoveTreeTarget(null);
+              }}
+              style={{
+                width: '100%',
+                backgroundColor: '#dc2626',
+                paddingVertical: 13,
+                borderRadius: 12,
+                alignItems: 'center',
+                marginBottom: 6,
+              }}
+            >
+              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Remove tree</Text>
+            </TouchableOpacity>
+            <Text style={{ fontSize: 11, color: 'rgba(232,224,214,0.4)', textAlign: 'center', marginBottom: 12 }}>
+              Removing won't refund the tree.
             </Text>
-            <Text style={{ fontSize: 14, color: THEME.text, textAlign: 'center', marginBottom: 20, lineHeight: 20 }}>
-              This tree will be removed and won't be refunded.
-            </Text>
-            <View style={{ flexDirection: 'row', gap: 12, width: '100%' }}>
-              <TouchableOpacity
-                onPress={() => setRemoveTreeTarget(null)}
-                style={{
-                  flex: 1,
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: THEME.textSecondary, fontSize: 14, fontWeight: '600' }}>Keep</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                onPress={async () => {
-                  if (removeTreeTarget) {
-                    await gardenState.removePlantedTree(removeTreeTarget.row, removeTreeTarget.col);
-                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-                  }
-                  setRemoveTreeTarget(null);
-                }}
-                style={{
-                  flex: 1,
-                  backgroundColor: '#dc2626',
-                  paddingVertical: 12,
-                  borderRadius: 12,
-                  alignItems: 'center',
-                }}
-              >
-                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700' }}>Remove</Text>
-              </TouchableOpacity>
-            </View>
+
+            {/* Cancel */}
+            <TouchableOpacity
+              onPress={() => setRemoveTreeTarget(null)}
+              style={{ width: '100%', paddingVertical: 10, alignItems: 'center' }}
+            >
+              <Text style={{ color: THEME.textSecondary, fontSize: 14, fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
           </View>
         </View>
       </Modal>
