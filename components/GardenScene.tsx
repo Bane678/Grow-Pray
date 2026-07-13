@@ -1229,17 +1229,17 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
             return Animated.parallel([
                 // Axe swing: lift back → strike down → rebound to center
                 Animated.sequence([
-                    Animated.timing(swingAnim, { toValue: liftBack,   duration: windUpDur, easing: Easing.out(Easing.quad),  useNativeDriver: false }),
-                    Animated.timing(swingAnim, { toValue: strikeDown, duration: strikeDur, easing: Easing.in(Easing.cubic),  useNativeDriver: false }),
-                    Animated.timing(swingAnim, { toValue: 0.5,        duration: reboundDur, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+                    Animated.timing(swingAnim, { toValue: liftBack,   duration: windUpDur, easing: Easing.out(Easing.quad),  useNativeDriver: true }),
+                    Animated.timing(swingAnim, { toValue: strikeDown, duration: strikeDur, easing: Easing.in(Easing.cubic),  useNativeDriver: true }),
+                    Animated.timing(swingAnim, { toValue: 0.5,        duration: reboundDur, easing: Easing.out(Easing.quad), useNativeDriver: true }),
                 ]),
                 // Tree shake fires at impact (after windUp + strikeDur)
                 Animated.sequence([
                     Animated.delay(windUpDur + strikeDur),
-                    Animated.timing(treeShake, { toValue:  shakeIntensity,       duration: shakeD, useNativeDriver: false }),
-                    Animated.timing(treeShake, { toValue: -shakeIntensity * 0.6, duration: shakeD, useNativeDriver: false }),
-                    Animated.timing(treeShake, { toValue:  shakeIntensity * 0.3, duration: shakeD, useNativeDriver: false }),
-                    Animated.timing(treeShake, { toValue:  0,                    duration: shakeD, useNativeDriver: false }),
+                    Animated.timing(treeShake, { toValue:  shakeIntensity,       duration: shakeD, useNativeDriver: true }),
+                    Animated.timing(treeShake, { toValue: -shakeIntensity * 0.6, duration: shakeD, useNativeDriver: true }),
+                    Animated.timing(treeShake, { toValue:  shakeIntensity * 0.3, duration: shakeD, useNativeDriver: true }),
+                    Animated.timing(treeShake, { toValue:  0,                    duration: shakeD, useNativeDriver: true }),
                 ]),
             ]);
         };
@@ -1269,24 +1269,24 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
                     toValue: 0,
                     duration: 600,
                     easing: Easing.out(Easing.quad),
-                    useNativeDriver: false,
+                    useNativeDriver: true,
                 }),
                 Animated.timing(dissolveScale, {
                     toValue: 0.3,
                     duration: 600,
                     easing: Easing.in(Easing.quad),
-                    useNativeDriver: false,
+                    useNativeDriver: true,
                 }),
                 Animated.sequence([
-                    Animated.timing(rewardOpacity, { toValue: 1, duration: 150, useNativeDriver: false }),
+                    Animated.timing(rewardOpacity, { toValue: 1, duration: 150, useNativeDriver: true }),
                     Animated.delay(450),
-                    Animated.timing(rewardOpacity, { toValue: 0, duration: 400, useNativeDriver: false }),
+                    Animated.timing(rewardOpacity, { toValue: 0, duration: 400, useNativeDriver: true }),
                 ]),
                 Animated.timing(rewardTranslateY, {
                     toValue: -40,
                     duration: 1000,
                     easing: Easing.out(Easing.quad),
-                    useNativeDriver: false,
+                    useNativeDriver: true,
                 }),
             ]).start(({ finished: dissolveFinished }) => {
                 if (dissolveFinished) {
@@ -2463,6 +2463,9 @@ export const GardenScene = React.memo(function GardenScene({
     const momentumRef = useRef<Animated.CompositeAnimation | null>(null);
 
     const [isZoomedOut, setIsZoomedOut] = useState(false);
+    // Committed zoom level — drives the pan clamp bounds and re-renders the
+    // clamped transform when zoom settles.
+    const [viewScale, setViewScale] = useState(1);
 
     const pinchRef = useRef(null);
     const panRef   = useRef(null);
@@ -2491,9 +2494,10 @@ export const GardenScene = React.memo(function GardenScene({
     const MIN_SCALE = Math.max(0.14, Math.min(0.9, fitScale * 0.9));
     const MAX_SCALE = 4;
 
-    // How far the garden may rest from centre at a given scale: enough to bring
-    // each edge to the viewport edge, plus a little play (REST_PAD) so short
-    // axes never feel rigidly pinned. Beyond this the garden springs back.
+    // How far the garden may travel from centre at a given scale: exactly far
+    // enough to bring each edge to the viewport edge (plus a little play on very
+    // short axes). The rendered transform is hard-clamped to this range, so the
+    // garden can never be swiped/flung out of view — not even mid-drag.
     const REST_PAD = 18;
     const restBounds = (scale: number) => ({
         x: Math.max(REST_PAD, (contentW * scale - SCREEN_W) / 2),
@@ -2504,16 +2508,6 @@ export const GardenScene = React.memo(function GardenScene({
         return { x: Math.max(-b.x, Math.min(b.x, x)), y: Math.max(-b.y, Math.min(b.y, y)) };
     };
 
-    // Smoothly ease the garden to a resting position (rubber-band snap-back).
-    const springTo = (vx: number, vy: number) => {
-        Animated.parallel([
-            Animated.spring(baseX, { toValue: vx, useNativeDriver: true, tension: 90, friction: 11 }),
-            Animated.spring(baseY, { toValue: vy, useNativeDriver: true, tension: 90, friction: 11 }),
-        ]).start(({ finished }) => {
-            if (finished) { lastBaseX.current = vx; lastBaseY.current = vy; }
-        });
-    };
-
     const onPinchStateChange = (event: any) => {
         if (event.nativeEvent.state === State.END || event.nativeEvent.state === State.CANCELLED) {
             const raw = baseScale.current * event.nativeEvent.scale;
@@ -2521,12 +2515,15 @@ export const GardenScene = React.memo(function GardenScene({
             baseScale.current = clamped;
             baseScaleAnim.setValue(clamped);
             pinchScaleAnim.setValue(1);
+            setViewScale(clamped); // re-render the clamp with the new bounds
             const nowZoomedOut = clamped <= MIN_SCALE * 1.05;
             setIsZoomedOut(prev => prev === nowZoomedOut ? prev : nowZoomedOut);
-            // Zooming changes the bounds — ease the garden back into view if the
-            // current offset is now out of range for the new scale.
+            // Zooming changes the bounds — pull the offset back into range.
             const c = clampToRest(lastBaseX.current, lastBaseY.current, clamped);
-            if (c.x !== lastBaseX.current || c.y !== lastBaseY.current) springTo(c.x, c.y);
+            baseX.setValue(c.x);
+            baseY.setValue(c.y);
+            lastBaseX.current = c.x;
+            lastBaseY.current = c.y;
         }
     };
 
@@ -2553,34 +2550,31 @@ export const GardenScene = React.memo(function GardenScene({
         }
 
         if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
-            // Commit the raw (possibly over-scrolled) position first so there's
-            // no visual jump, then decide: snap back, fling, or settle.
-            const rawX = lastBaseX.current + translationX;
-            const rawY = lastBaseY.current + translationY;
-            baseX.setValue(rawX);
-            baseY.setValue(rawY);
+            // Commit the clamped position. The rendered transform is hard-clamped
+            // to the same bounds, so the garden never visually left view during
+            // the drag — committing the clamp here just keeps the logical offset
+            // in sync (no jump).
+            const s = baseScale.current;
+            const clamped = clampToRest(lastBaseX.current + translationX, lastBaseY.current + translationY, s);
+            baseX.setValue(clamped.x);
+            baseY.setValue(clamped.y);
             dragX.setValue(0);
             dragY.setValue(0);
-            lastBaseX.current = rawX;
-            lastBaseY.current = rawY;
+            lastBaseX.current = clamped.x;
+            lastBaseY.current = clamped.y;
 
-            const s = baseScale.current;
-            const target = clampToRest(rawX, rawY, s);
-            const outOfBounds = target.x !== rawX || target.y !== rawY;
             const speed = Math.sqrt(velocityX ** 2 + velocityY ** 2);
-
-            if (outOfBounds) {
-                // Over-scrolled past the edge → rubber-band back into view.
-                springTo(target.x, target.y);
-            } else if (state === State.END && speed > 80) {
-                // In-bounds fling with a soft wall: spring to the edge on contact.
+            if (state === State.END && speed > 80) {
+                // Fling with a hard wall: pin the offset to the edge on contact so
+                // the logical base can't drift far past the (already clamped) view.
                 momentumClampIds.current.x = baseX.addListener(({ value }) => {
                     const b = restBounds(baseScale.current).x;
                     if (value > b || value < -b) {
                         baseX.stopAnimation();
                         if (momentumClampIds.current.x) { baseX.removeListener(momentumClampIds.current.x); momentumClampIds.current.x = undefined; }
                         const c = Math.max(-b, Math.min(b, value));
-                        Animated.spring(baseX, { toValue: c, useNativeDriver: true, tension: 90, friction: 11 }).start(() => { lastBaseX.current = c; });
+                        baseX.setValue(c);
+                        lastBaseX.current = c;
                     }
                 });
                 momentumClampIds.current.y = baseY.addListener(({ value }) => {
@@ -2589,7 +2583,8 @@ export const GardenScene = React.memo(function GardenScene({
                         baseY.stopAnimation();
                         if (momentumClampIds.current.y) { baseY.removeListener(momentumClampIds.current.y); momentumClampIds.current.y = undefined; }
                         const c = Math.max(-b, Math.min(b, value));
-                        Animated.spring(baseY, { toValue: c, useNativeDriver: true, tension: 90, friction: 11 }).start(() => { lastBaseY.current = c; });
+                        baseY.setValue(c);
+                        lastBaseY.current = c;
                     }
                 });
                 momentumRef.current = Animated.parallel([
@@ -2607,6 +2602,22 @@ export const GardenScene = React.memo(function GardenScene({
             }
         }
     };
+
+    // Hard-clamp the rendered pan so the garden can never be moved past its
+    // bounds — this is what stops a drag/fling from pushing it out of view. The
+    // bounds follow the committed zoom level (viewScale) and garden size.
+    const clampBoundX = restBounds(viewScale).x;
+    const clampBoundY = restBounds(viewScale).y;
+    const clampedPanX = panX.interpolate({
+        inputRange: [-clampBoundX, clampBoundX],
+        outputRange: [-clampBoundX, clampBoundX],
+        extrapolate: 'clamp',
+    });
+    const clampedPanY = panY.interpolate({
+        inputRange: [-clampBoundY, clampBoundY],
+        outputRange: [-clampBoundY, clampBoundY],
+        extrapolate: 'clamp',
+    });
 
     // Remove any lingering momentum-clamp listeners on unmount.
     useEffect(() => () => {
@@ -2640,7 +2651,7 @@ export const GardenScene = React.memo(function GardenScene({
                         onHandlerStateChange={onPinchStateChange}
                     >
                         <Animated.View style={styles.canvasContainer}>
-                            <Animated.View style={[styles.scaleWrapper, { transform: [{ translateX: panX }, { translateY: panY }, { scale: displayScale }] }]}>
+                            <Animated.View style={[styles.scaleWrapper, { transform: [{ translateX: clampedPanX }, { translateY: clampedPanY }, { scale: displayScale }] }]}>
                                 {/* gardenOpacity is an Animated.Value — changes via native driver, no React re-render */}
                                 <Animated.View style={{ opacity: gardenOpacity }} pointerEvents="box-none">
                                 <MemoIsometricGrid
@@ -2684,7 +2695,7 @@ export const GardenScene = React.memo(function GardenScene({
             {!frozen && !isZoomedOut && leafCount > 0 && (
             <Animated.View
                 pointerEvents="none"
-                style={[StyleSheet.absoluteFill, { zIndex: 199, transform: [{ translateX: panX }, { translateY: panY }, { scale: displayScale }] }]}
+                style={[StyleSheet.absoluteFill, { zIndex: 199, transform: [{ translateX: clampedPanX }, { translateY: clampedPanY }, { scale: displayScale }] }]}
             >
                 <FallingLeaves count={leafCount} />
             </Animated.View>
