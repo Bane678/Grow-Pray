@@ -2781,6 +2781,10 @@ function AppInner() {
   // Garden "edit mode" — entered from a tree's Move action. All planted trees
   // jiggle and can be dragged immediately (no long-press), iOS home-screen style.
   const [editMode, setEditMode] = useState(false);
+  // Temporary "just planted" spotlight so a freshly placed tree is easy to spot.
+  // seq increments on every plant so re-planting the same tile re-triggers it.
+  const [justPlantedTile, setJustPlantedTile] = useState<{ row: number; col: number; seq: number } | null>(null);
+  const plantSeqRef = useRef(0);
 
   // Modal animations
   const plantModalScale = useRef(new Animated.Value(0.85)).current;
@@ -3097,6 +3101,8 @@ function AppInner() {
         if (success) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
           challengesRef.current.recordTreePlanted();
+          plantSeqRef.current += 1;
+          setJustPlantedTile({ row: target.row, col: target.col, seq: plantSeqRef.current });
         }
       }
     }
@@ -3488,6 +3494,7 @@ function AppInner() {
         onMoveTree={handleMoveTree}
         editMode={editMode}
         onExitEditMode={() => setEditMode(false)}
+        justPlantedTile={justPlantedTile}
         onChoppingComplete={handleChoppingComplete}
         frozen={isAnyModalOpen}
         onRenderReady={handleGardenRenderReady}

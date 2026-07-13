@@ -837,6 +837,78 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     );
 });
 
+// Temporary "just planted" spotlight — a soft ground glow plus a few expanding
+// rings at a freshly placed tree so it's easy to spot. Fades itself out after
+// ~3s and calls onDone so the parent can drop it. Grounded (flattened) to sit
+// on the isometric floor rather than face the camera.
+const JUST_PLANTED_COLOR = '#f4c77b'; // warm gold highlight
+const JustPlantedPulse = React.memo(function JustPlantedPulse({
+    x, y, zIndex, onDone,
+}: { x: number; y: number; zIndex: number; onDone: () => void }) {
+    const glow = useRef(new Animated.Value(0)).current;
+    const r0 = useRef(new Animated.Value(0)).current;
+    const r1 = useRef(new Animated.Value(0)).current;
+    const r2 = useRef(new Animated.Value(0)).current;
+    const rings = [r0, r1, r2];
+
+    useEffect(() => {
+        Animated.sequence([
+            Animated.timing(glow, { toValue: 1, duration: 320, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            Animated.delay(2000),
+            Animated.timing(glow, { toValue: 0, duration: 680, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        ]).start();
+        const ringAnims = rings.map((a, i) => Animated.sequence([
+            Animated.delay(i * 420),
+            Animated.timing(a, { toValue: 1, duration: 1300, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        ]));
+        Animated.parallel(ringAnims).start();
+        const t = setTimeout(onDone, 3000);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    const RING_BASE = SCALED_WIDTH * 0.52;
+    return (
+        <View pointerEvents="none" style={{
+            position: 'absolute',
+            left: x,
+            top: y,
+            width: SCALED_WIDTH,
+            height: SCALED_HEIGHT,
+            zIndex,
+            alignItems: 'center',
+            justifyContent: 'center',
+        }}>
+            {/* Soft ground glow */}
+            <Animated.View style={{
+                position: 'absolute',
+                width: RING_BASE * 1.5,
+                height: RING_BASE * 1.5,
+                borderRadius: RING_BASE,
+                backgroundColor: JUST_PLANTED_COLOR,
+                opacity: glow.interpolate({ inputRange: [0, 1], outputRange: [0, 0.3] }),
+                transform: [{ scaleY: 0.5 }],
+            }} />
+            {/* Expanding rings */}
+            {rings.map((a, i) => (
+                <Animated.View key={i} style={{
+                    position: 'absolute',
+                    width: RING_BASE,
+                    height: RING_BASE,
+                    borderRadius: RING_BASE / 2,
+                    borderWidth: 2.5,
+                    borderColor: JUST_PLANTED_COLOR,
+                    opacity: a.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.75, 0] }),
+                    transform: [
+                        { scaleY: 0.5 },
+                        { scale: a.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.8] }) },
+                    ],
+                }} />
+            ))}
+        </View>
+    );
+});
+
 // AnimatedTile component — keeps previous tile underneath to prevent black flash during swap
 // Supports ripple animation: scale + opacity spring on state transition
 // ─── Tile decoration data ─────────────────────────────────────────────────────
@@ -1426,6 +1498,7 @@ interface IsometricGridProps {
     onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
     editMode?: boolean;
     onExitEditMode?: () => void;
+    justPlantedTile?: { row: number; col: number; seq: number } | null;
     onChoppingComplete?: (row: number, col: number) => void;
     onStageChange?: (stage: string) => void;
     isZoomedOut?: boolean;
@@ -1453,6 +1526,7 @@ function IsometricGrid({
     onMoveTree,
     editMode = false,
     onExitEditMode,
+    justPlantedTile,
     onChoppingComplete,
     onStageChange,
     isZoomedOut = false,
@@ -1905,6 +1979,17 @@ function IsometricGrid({
 
     const composedGesture = useMemo(() => Gesture.Exclusive(moveGesture, tapGesture), [moveGesture, tapGesture]);
 
+    // ── "Just planted" spotlight ─────────────────────────────────────────────
+    // When the parent reports a freshly planted tile (seq bumps each plant),
+    // drop a temporary pulse at that tile so the new tree is easy to find.
+    const [plantPulse, setPlantPulse] = useState<{ x: number; y: number; zIndex: number; seq: number } | null>(null);
+    useEffect(() => {
+        if (!justPlantedTile) return;
+        const { x, y, zIndex } = tileScreenXY(justPlantedTile.row, justPlantedTile.col);
+        setPlantPulse({ x, y, zIndex, seq: justPlantedTile.seq });
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [justPlantedTile?.seq]);
+
     // Memoize the tile elements — only rebuilt when grid state actually changes
     const tiles = useMemo(() => {
         const result: React.ReactElement[] = [];
@@ -2176,6 +2261,17 @@ function IsometricGrid({
             {/* Planted trees on recovered tiles (memoized) */}
             {plantedTreeElements}
 
+            {/* Temporary spotlight on a freshly planted tree */}
+            {plantPulse && (
+                <JustPlantedPulse
+                    key={plantPulse.seq}
+                    x={plantPulse.x}
+                    y={plantPulse.y}
+                    zIndex={plantPulse.zIndex}
+                    onDone={() => setPlantPulse(p => (p && p.seq === plantPulse.seq ? null : p))}
+                />
+            )}
+
             {/* Main tree on center tile - changes based on XP */}
             <Animated.View
                 pointerEvents="none"
@@ -2336,6 +2432,7 @@ interface GardenSceneProps {
     onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
     editMode?: boolean;
     onExitEditMode?: () => void;
+    justPlantedTile?: { row: number; col: number; seq: number } | null;
     onChoppingComplete?: (row: number, col: number) => void;
     frozen?: boolean;
     onRenderReady?: () => void;
@@ -2357,6 +2454,7 @@ export const GardenScene = React.memo(function GardenScene({
     onMoveTree,
     editMode = false,
     onExitEditMode,
+    justPlantedTile,
     onChoppingComplete,
     frozen = false,
     onRenderReady,
@@ -2681,6 +2779,7 @@ export const GardenScene = React.memo(function GardenScene({
                                     onMoveTree={onMoveTree}
                                     editMode={editMode}
                                     onExitEditMode={onExitEditMode}
+                                    justPlantedTile={justPlantedTile}
                                     onChoppingComplete={onChoppingComplete}
                                     isZoomedOut={isZoomedOut}
                                     onCenterTreeLoaded={handleCenterTreeLoaded}
