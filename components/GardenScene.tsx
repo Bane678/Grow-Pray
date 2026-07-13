@@ -2478,50 +2478,60 @@ export const GardenScene = React.memo(function GardenScene({
         { useNativeDriver: true },
     );
 
+    // ── Content-aware pan / zoom bounds ──────────────────────────────────────
+    // The garden diamond's bounding box at scale 1. It's centred in the viewport
+    // at pan (0,0), so bounds are symmetric around centre.
+    const contentW = gridSize * SCALED_WIDTH;
+    const contentH = gridSize * SCALED_HEIGHT;
+
+    // Minimum zoom is tied to garden size: you can pull back until the whole
+    // garden fits (with a little margin) and no further — a small garden can't
+    // shrink to a speck, a large one can zoom out enough to see all of it.
+    const fitScale = Math.min(SCREEN_W / contentW, SCREEN_H / contentH);
+    const MIN_SCALE = Math.max(0.14, Math.min(0.9, fitScale * 0.9));
+    const MAX_SCALE = 4;
+
+    // How far the garden may rest from centre at a given scale: enough to bring
+    // each edge to the viewport edge, plus a little play (REST_PAD) so short
+    // axes never feel rigidly pinned. Beyond this the garden springs back.
+    const REST_PAD = 18;
+    const restBounds = (scale: number) => ({
+        x: Math.max(REST_PAD, (contentW * scale - SCREEN_W) / 2),
+        y: Math.max(REST_PAD, (contentH * scale - SCREEN_H) / 2),
+    });
+    const clampToRest = (x: number, y: number, scale: number) => {
+        const b = restBounds(scale);
+        return { x: Math.max(-b.x, Math.min(b.x, x)), y: Math.max(-b.y, Math.min(b.y, y)) };
+    };
+
+    // Smoothly ease the garden to a resting position (rubber-band snap-back).
+    const springTo = (vx: number, vy: number) => {
+        Animated.parallel([
+            Animated.spring(baseX, { toValue: vx, useNativeDriver: true, tension: 90, friction: 11 }),
+            Animated.spring(baseY, { toValue: vy, useNativeDriver: true, tension: 90, friction: 11 }),
+        ]).start(({ finished }) => {
+            if (finished) { lastBaseX.current = vx; lastBaseY.current = vy; }
+        });
+    };
+
     const onPinchStateChange = (event: any) => {
         if (event.nativeEvent.state === State.END || event.nativeEvent.state === State.CANCELLED) {
             const raw = baseScale.current * event.nativeEvent.scale;
-            const clamped = Math.max(0.2, Math.min(4, raw));
+            const clamped = Math.max(MIN_SCALE, Math.min(MAX_SCALE, raw));
             baseScale.current = clamped;
             baseScaleAnim.setValue(clamped);
             pinchScaleAnim.setValue(1);
-            const nowZoomedOut = clamped < 0.5;
+            const nowZoomedOut = clamped <= MIN_SCALE * 1.05;
             setIsZoomedOut(prev => prev === nowZoomedOut ? prev : nowZoomedOut);
+            // Zooming changes the bounds — ease the garden back into view if the
+            // current offset is now out of range for the new scale.
+            const c = clampToRest(lastBaseX.current, lastBaseY.current, clamped);
+            if (c.x !== lastBaseX.current || c.y !== lastBaseY.current) springTo(c.x, c.y);
         }
     };
 
-    // Stop any running decay and sync the native value back to the JS ref.
-    const stopMomentum = (onSynced?: (x: number, y: number) => void) => {
-        if (momentumRef.current) {
-            momentumRef.current.stop();
-            momentumRef.current = null;
-            let sx = lastBaseX.current, sy = lastBaseY.current;
-            let doneX = false, doneY = false;
-            const check = () => { if (doneX && doneY) onSynced?.(sx, sy); };
-            baseX.stopAnimation(v => { sx = v; doneX = true; check(); });
-            baseY.stopAnimation(v => { sy = v; doneY = true; check(); });
-        } else {
-            onSynced?.(lastBaseX.current, lastBaseY.current);
-        }
-    };
-
-    // Max distance (px) the garden may be panned from centre before it stops.
-    // Grows with zoom so a zoomed-in garden stays explorable, but the garden can
-    // never be flung fully off-screen ("moderate" panning ~ one screen, scaled).
-    const panBounds = () => {
-        const s = Math.max(1, baseScale.current);
-        return { x: SCREEN_W * 0.75 * s, y: SCREEN_H * 0.6 * s };
-    };
-    const clampPan = (x: number, y: number) => {
-        const b = panBounds();
-        return {
-            x: Math.max(-b.x, Math.min(b.x, x)),
-            y: Math.max(-b.y, Math.min(b.y, y)),
-        };
-    };
-
-    // Listeners that keep a momentum fling inside the pan bounds. When the
-    // decaying value crosses a bound we stop that axis and pin it to the edge.
+    // Listeners that keep a momentum fling inside bounds: when a decaying axis
+    // crosses its bound we stop it and softly spring it to the edge (a soft wall).
     const momentumClampIds = useRef<{ x?: string; y?: string }>({});
     const clearMomentumClamps = () => {
         if (momentumClampIds.current.x) baseX.removeListener(momentumClampIds.current.x);
@@ -2533,53 +2543,58 @@ export const GardenScene = React.memo(function GardenScene({
         const { state, velocityX, velocityY, translationX, translationY } = event.nativeEvent;
 
         if (state === State.BEGAN) {
+            // Halt any in-flight momentum or rubber-band spring and sync refs.
             clearMomentumClamps();
-            stopMomentum((x, y) => {
-                lastBaseX.current = x;
-                lastBaseY.current = y;
-                baseX.setValue(x);
-                baseY.setValue(y);
-                dragX.setValue(0);
-                dragY.setValue(0);
-            });
+            if (momentumRef.current) { momentumRef.current.stop(); momentumRef.current = null; }
+            baseX.stopAnimation(v => { lastBaseX.current = v; baseX.setValue(v); });
+            baseY.stopAnimation(v => { lastBaseY.current = v; baseY.setValue(v); });
+            dragX.setValue(0);
+            dragY.setValue(0);
         }
 
         if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
-            const clamped = clampPan(lastBaseX.current + translationX, lastBaseY.current + translationY);
-            const newBaseX = clamped.x;
-            const newBaseY = clamped.y;
-
-            baseX.setValue(newBaseX);
-            baseY.setValue(newBaseY);
+            // Commit the raw (possibly over-scrolled) position first so there's
+            // no visual jump, then decide: snap back, fling, or settle.
+            const rawX = lastBaseX.current + translationX;
+            const rawY = lastBaseY.current + translationY;
+            baseX.setValue(rawX);
+            baseY.setValue(rawY);
             dragX.setValue(0);
             dragY.setValue(0);
-            lastBaseX.current = newBaseX;
-            lastBaseY.current = newBaseY;
+            lastBaseX.current = rawX;
+            lastBaseY.current = rawY;
 
+            const s = baseScale.current;
+            const target = clampToRest(rawX, rawY, s);
+            const outOfBounds = target.x !== rawX || target.y !== rawY;
             const speed = Math.sqrt(velocityX ** 2 + velocityY ** 2);
-            if (state === State.END && speed > 80) {
-                // Clamp the fling in real time so momentum can't overshoot bounds.
+
+            if (outOfBounds) {
+                // Over-scrolled past the edge → rubber-band back into view.
+                springTo(target.x, target.y);
+            } else if (state === State.END && speed > 80) {
+                // In-bounds fling with a soft wall: spring to the edge on contact.
                 momentumClampIds.current.x = baseX.addListener(({ value }) => {
-                    const b = panBounds();
-                    if (value > b.x || value < -b.x) {
+                    const b = restBounds(baseScale.current).x;
+                    if (value > b || value < -b) {
                         baseX.stopAnimation();
-                        const cx = Math.max(-b.x, Math.min(b.x, value));
-                        baseX.setValue(cx);
-                        lastBaseX.current = cx;
+                        if (momentumClampIds.current.x) { baseX.removeListener(momentumClampIds.current.x); momentumClampIds.current.x = undefined; }
+                        const c = Math.max(-b, Math.min(b, value));
+                        Animated.spring(baseX, { toValue: c, useNativeDriver: true, tension: 90, friction: 11 }).start(() => { lastBaseX.current = c; });
                     }
                 });
                 momentumClampIds.current.y = baseY.addListener(({ value }) => {
-                    const b = panBounds();
-                    if (value > b.y || value < -b.y) {
+                    const b = restBounds(baseScale.current).y;
+                    if (value > b || value < -b) {
                         baseY.stopAnimation();
-                        const cy = Math.max(-b.y, Math.min(b.y, value));
-                        baseY.setValue(cy);
-                        lastBaseY.current = cy;
+                        if (momentumClampIds.current.y) { baseY.removeListener(momentumClampIds.current.y); momentumClampIds.current.y = undefined; }
+                        const c = Math.max(-b, Math.min(b, value));
+                        Animated.spring(baseY, { toValue: c, useNativeDriver: true, tension: 90, friction: 11 }).start(() => { lastBaseY.current = c; });
                     }
                 });
                 momentumRef.current = Animated.parallel([
-                    Animated.decay(baseX, { velocity: velocityX / 1000, deceleration: 0.998, useNativeDriver: true }),
-                    Animated.decay(baseY, { velocity: velocityY / 1000, deceleration: 0.998, useNativeDriver: true }),
+                    Animated.decay(baseX, { velocity: velocityX / 1000, deceleration: 0.997, useNativeDriver: true }),
+                    Animated.decay(baseY, { velocity: velocityY / 1000, deceleration: 0.997, useNativeDriver: true }),
                 ]);
                 momentumRef.current.start(({ finished }) => {
                     momentumRef.current = null;

@@ -784,7 +784,7 @@ export function ShopModal({
                 {activeBoost && boostTimeRemainingMs > 0 && (() => {
                   const def = BOOST_CATALOG.find(b => b.id === activeBoost.boostId);
                   if (!def) return null;
-                  const tierColor = def.tier === 'divine' ? '#fbbf24' : def.tier === 'enhanced' ? '#a855f7' : '#4ade80';
+                  const tierColor = def.color;
                   return (
                     <View style={[styles.activeBoostBanner, { borderColor: tierColor + '80', backgroundColor: tierColor + '1f', shadowColor: tierColor }]}>
                       <View style={[styles.activeBoostIcon, { backgroundColor: tierColor + '2e' }]}>
@@ -856,8 +856,8 @@ export function ShopModal({
                   const canAfford = coins >= boost.price;
                   const isActive = activeBoost?.boostId === boost.id && boostTimeRemainingMs > 0;
                   const hasAnyActive = activeBoost !== null && boostTimeRemainingMs > 0;
-                  const tierColor = boost.tier === 'divine' ? '#fbbf24' : boost.tier === 'enhanced' ? '#a855f7' : '#4ade80';
-                  const tierBg = boost.tier === 'divine' ? 'rgba(251,191,36,0.08)' : boost.tier === 'enhanced' ? 'rgba(168,85,247,0.08)' : 'rgba(74,222,128,0.08)';
+                  const tierColor = boost.color;
+                  const tierBg = boost.color + '14'; // ~8% opacity tint of the rarity colour
 
                   return (
                     <View key={boost.id} style={[styles.boostCard, { borderColor: tierColor + '30', backgroundColor: tierBg }]}>

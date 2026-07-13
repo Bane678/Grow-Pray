@@ -773,10 +773,11 @@ function TopInfoBar({
   onMultiplierPress,
   activeBoostIcon,
   activeBoostName,
+  activeBoostColor,
   boostTimeRemaining,
   onOpenSettings,
   onOpenQibla,
-}: { 
+}: {
   streaks: PrayerStreaks; 
   coins: number;
   xp: number; 
@@ -789,6 +790,7 @@ function TopInfoBar({
   onMultiplierPress: () => void;
   activeBoostIcon?: string;
   activeBoostName?: string;
+  activeBoostColor?: string;
   boostTimeRemaining?: string;
   onOpenSettings: () => void;
   onOpenQibla: () => void;
@@ -920,25 +922,38 @@ function TopInfoBar({
 
       {/* Banners */}
       <View style={{ alignItems: 'center' }}>
-        {/* Active Boost banner */}
-        {activeBoostName && boostTimeRemaining && (
+        {/* Active Boost banner — tinted/bordered/glowing in the boost's rarity colour */}
+        {activeBoostName && boostTimeRemaining && (() => {
+          const bc = activeBoostColor || '#a855f7';
+          return (
           <View style={{
-            backgroundColor: 'rgba(168,85,247,0.15)',
-            borderRadius: 9,
-            paddingVertical: 4,
-            paddingHorizontal: 10,
+            backgroundColor: bc + '26',
+            borderColor: bc + '66',
+            borderWidth: 1,
+            borderRadius: 10,
+            paddingVertical: 5,
+            paddingHorizontal: 11,
             marginBottom: 6,
             marginTop: 4,
             flexDirection: 'row',
             alignItems: 'center',
-            gap: 4,
+            gap: 5,
+            shadowColor: bc,
+            shadowOpacity: 0.35,
+            shadowRadius: 6,
+            shadowOffset: { width: 0, height: 1 },
+            elevation: 3,
           }}>
-            <Text style={{ fontSize: 10 }}>{activeBoostIcon}</Text>
-            <Text style={{ fontSize: 10, fontWeight: '600', color: '#c084fc' }}>
-              {activeBoostName} · {boostTimeRemaining}
+            <Text style={{ fontSize: 11 }}>{activeBoostIcon}</Text>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: bc }}>
+              {activeBoostName}
+            </Text>
+            <Text style={{ fontSize: 10, fontWeight: '600', color: 'rgba(232,224,214,0.7)' }}>
+              · {boostTimeRemaining}
             </Text>
           </View>
-        )}
+          );
+        })()}
       </View>
 
       {/* ── Context label — subtle next prayer indicator with time ── */}
@@ -4621,6 +4636,7 @@ function AppInner() {
             onMultiplierPress={() => setShowMultiplierModal(true)}
             activeBoostIcon={boosts.activeBoost ? BOOST_CATALOG.find(b => b.id === boosts.activeBoost!.boostId)?.icon : undefined}
             activeBoostName={boosts.activeBoost ? BOOST_CATALOG.find(b => b.id === boosts.activeBoost!.boostId)?.name : undefined}
+            activeBoostColor={boosts.activeBoost ? BOOST_CATALOG.find(b => b.id === boosts.activeBoost!.boostId)?.color : undefined}
             boostTimeRemaining={boosts.activeBoost ? (() => { const ms = boosts.timeRemainingMs; const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return h > 0 ? `${h}h ${m}m left` : `${m}m left`; })() : undefined}
             onOpenSettings={() => setActiveTab('settings')}
             onOpenQibla={openQibla}
