@@ -2494,15 +2494,25 @@ export const GardenScene = React.memo(function GardenScene({
     const MIN_SCALE = Math.max(0.14, Math.min(0.9, fitScale * 0.9));
     const MAX_SCALE = 4;
 
-    // How far the garden may travel from centre at a given scale: exactly far
-    // enough to bring each edge to the viewport edge (plus a little play on very
-    // short axes). The rendered transform is hard-clamped to this range, so the
-    // garden can never be swiped/flung out of view — not even mid-drag.
+    // The pannable "environment" — a bounded region, larger than the garden and
+    // scaling with it, that the user can roam freely within (up/down as well as
+    // side to side). Bounds are the greater of (a) enough to bring each garden
+    // edge to the viewport edge, and (b) a roam margin that scales with garden
+    // size — then capped so at least KEEP_MIN px of garden always stays on
+    // screen, so it can never be lost. The rendered transform is hard-clamped to
+    // this, so the limit holds even mid-drag/fling.
     const REST_PAD = 18;
-    const restBounds = (scale: number) => ({
-        x: Math.max(REST_PAD, (contentW * scale - SCREEN_W) / 2),
-        y: Math.max(REST_PAD, (contentH * scale - SCREEN_H) / 2),
-    });
+    const KEEP_MIN = 100; // px of garden that must always remain visible
+    const restBounds = (scale: number) => {
+        const roam = 120 + Math.max(contentW, contentH) * scale * 0.18;
+        const axis = (content: number, screen: number) => {
+            const scaled = content * scale;
+            const edge = Math.max(0, (scaled - screen) / 2);      // reach the garden edge
+            const cap = scaled / 2 + screen / 2 - KEEP_MIN;       // don't lose the garden
+            return Math.max(REST_PAD, Math.min(cap, edge + roam));
+        };
+        return { x: axis(contentW, SCREEN_W), y: axis(contentH, SCREEN_H) };
+    };
     const clampToRest = (x: number, y: number, scale: number) => {
         const b = restBounds(scale);
         return { x: Math.max(-b.x, Math.min(b.x, x)), y: Math.max(-b.y, Math.min(b.y, y)) };
