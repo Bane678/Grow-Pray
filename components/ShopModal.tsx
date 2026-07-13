@@ -786,17 +786,21 @@ export function ShopModal({
                   if (!def) return null;
                   const tierColor = def.tier === 'divine' ? '#fbbf24' : def.tier === 'enhanced' ? '#a855f7' : '#4ade80';
                   return (
-                    <View style={[styles.activeBoostBanner, { borderColor: tierColor + '40' }]}>
-                      <Text style={{ fontSize: 24 }}>{def.icon}</Text>
-                      <View style={{ flex: 1, marginLeft: 10 }}>
-                        <Text style={{ color: tierColor, fontSize: 13, fontWeight: '700' }}>
-                          {def.name} Active
+                    <View style={[styles.activeBoostBanner, { borderColor: tierColor + '80', backgroundColor: tierColor + '1f', shadowColor: tierColor }]}>
+                      <View style={[styles.activeBoostIcon, { backgroundColor: tierColor + '2e' }]}>
+                        <Text style={{ fontSize: 24 }}>{def.icon}</Text>
+                      </View>
+                      <View style={{ flex: 1, marginLeft: 12 }}>
+                        <Text style={{ color: tierColor, fontSize: 15, fontWeight: '800', letterSpacing: 0.2 }}>
+                          {def.name}
                         </Text>
-                        <Text style={{ color: '#9ca3af', fontSize: 11, marginTop: 2 }}>
+                        <Text style={{ color: 'rgba(232,224,214,0.82)', fontSize: 11.5, fontWeight: '600', marginTop: 2 }}>
                           +{Math.round(def.xpBonus * 100)}% XP{def.coinBonus > 0 ? ` · +${def.coinBonus} coins` : ''} · {formatBoostTime(boostTimeRemainingMs)} left
                         </Text>
                       </View>
-                      <View style={[styles.activeBoostDot, { backgroundColor: tierColor }]} />
+                      <View style={[styles.activeBoostPill, { backgroundColor: tierColor }]}>
+                        <Text style={{ color: '#0f1526', fontSize: 9, fontWeight: '800', letterSpacing: 0.6 }}>ACTIVE</Text>
+                      </View>
                     </View>
                   );
                 })()}
@@ -1261,16 +1265,26 @@ const styles = StyleSheet.create({
   activeBoostBanner: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 14,
-    padding: 12,
-    marginBottom: 12,
-    borderWidth: 1,
+    padding: 13,
+    marginBottom: 14,
+    borderWidth: 1.5,
+    shadowOpacity: 0.28,
+    shadowRadius: 9,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
   },
-  activeBoostDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+  activeBoostIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  activeBoostPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 7,
   },
   boostCard: {
     flexDirection: 'row',

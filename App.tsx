@@ -3147,11 +3147,18 @@ function AppInner() {
     // Execute prayer toggle — bypass time-window if debug mode is on
     await (debugPrayersUnlocked ? prayerState.debugTogglePrayer(prayer) : prayerState.togglePrayerCompleted(prayer));
 
+    // Distinct prayers completed today AFTER this toggle. `completedPrayers` in
+    // this closure is the pre-toggle set, so add/subtract the one we just changed.
+    // This drives the "all 5" challenge off real distinct prayers, not raw taps.
+    const distinctCompletedToday = wasCompleted
+      ? Math.max(0, prayerState.completedPrayers.size - 1)
+      : prayerState.completedPrayers.size + 1;
+
     // Update challenges
     if (wasCompleted) {
-      challengesHook.undoPrayerCompletion(prayer, isOnTime);
+      challengesHook.undoPrayerCompletion(prayer, isOnTime, distinctCompletedToday);
     } else {
-      challengesHook.recordPrayerCompletion(prayer, isOnTime);
+      challengesHook.recordPrayerCompletion(prayer, isOnTime, distinctCompletedToday);
       // Gentle, dismissible nudge to continue with dhikr. Never blocks completion.
       setTimeout(() => setShowDhikrNudge(true), 1600);
     }

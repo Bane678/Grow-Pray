@@ -223,7 +223,7 @@ export function useChallenges() {
    * Call when a prayer is marked complete.
    * Updates both daily and weekly progress where relevant.
    */
-  const recordPrayerCompletion = useCallback(async (prayer: string, isOnTime: boolean) => {
+  const recordPrayerCompletion = useCallback(async (prayer: string, isOnTime: boolean, distinctCompletedToday?: number) => {
     if (!state) return;
     const ns: CombinedState = { ...state, weekly: { ...state.weekly }, daily: { ...state.daily } };
     const today = getToday();
@@ -259,9 +259,14 @@ export function useChallenges() {
       ns.daily.fajrToday = ft;
     }
 
-    // Daily — Daily Devotion (all 5)
+    // Daily — Daily Devotion: reflect the number of DISTINCT prayers completed
+    // today (passed in from the authoritative completed-prayers set), not raw
+    // completion events — so it can't be satisfied by toggling one prayer five
+    // times. Falls back to the old increment only if a count isn't supplied.
     const af = { ...ns.daily.allFiveToday };
-    if (af.progress < af.target) af.progress++;
+    af.progress = distinctCompletedToday !== undefined
+      ? Math.max(0, Math.min(distinctCompletedToday, af.target))
+      : Math.min(af.progress + 1, af.target);
     ns.daily.allFiveToday = af;
 
     // Daily — On Schedule (on-time count)
@@ -277,7 +282,7 @@ export function useChallenges() {
   /**
    * Call when a prayer is unchecked/toggled off.
    */
-  const undoPrayerCompletion = useCallback(async (prayer: string, wasOnTime: boolean) => {
+  const undoPrayerCompletion = useCallback(async (prayer: string, wasOnTime: boolean, distinctCompletedToday?: number) => {
     if (!state) return;
     const ns: CombinedState = { ...state, weekly: { ...state.weekly }, daily: { ...state.daily } };
     const today = getToday();
@@ -309,7 +314,9 @@ export function useChallenges() {
     }
 
     const af = { ...ns.daily.allFiveToday };
-    if (af.progress > 0) af.progress--;
+    af.progress = distinctCompletedToday !== undefined
+      ? Math.max(0, Math.min(distinctCompletedToday, af.target))
+      : Math.max(0, af.progress - 1);
     ns.daily.allFiveToday = af;
 
     await persist(ns);

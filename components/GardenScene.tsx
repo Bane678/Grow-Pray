@@ -2505,10 +2505,35 @@ export const GardenScene = React.memo(function GardenScene({
         }
     };
 
+    // Max distance (px) the garden may be panned from centre before it stops.
+    // Grows with zoom so a zoomed-in garden stays explorable, but the garden can
+    // never be flung fully off-screen ("moderate" panning ~ one screen, scaled).
+    const panBounds = () => {
+        const s = Math.max(1, baseScale.current);
+        return { x: SCREEN_W * 0.75 * s, y: SCREEN_H * 0.6 * s };
+    };
+    const clampPan = (x: number, y: number) => {
+        const b = panBounds();
+        return {
+            x: Math.max(-b.x, Math.min(b.x, x)),
+            y: Math.max(-b.y, Math.min(b.y, y)),
+        };
+    };
+
+    // Listeners that keep a momentum fling inside the pan bounds. When the
+    // decaying value crosses a bound we stop that axis and pin it to the edge.
+    const momentumClampIds = useRef<{ x?: string; y?: string }>({});
+    const clearMomentumClamps = () => {
+        if (momentumClampIds.current.x) baseX.removeListener(momentumClampIds.current.x);
+        if (momentumClampIds.current.y) baseY.removeListener(momentumClampIds.current.y);
+        momentumClampIds.current = {};
+    };
+
     const onPanStateChange = (event: any) => {
         const { state, velocityX, velocityY, translationX, translationY } = event.nativeEvent;
 
         if (state === State.BEGAN) {
+            clearMomentumClamps();
             stopMomentum((x, y) => {
                 lastBaseX.current = x;
                 lastBaseY.current = y;
@@ -2520,8 +2545,9 @@ export const GardenScene = React.memo(function GardenScene({
         }
 
         if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
-            const newBaseX = lastBaseX.current + translationX;
-            const newBaseY = lastBaseY.current + translationY;
+            const clamped = clampPan(lastBaseX.current + translationX, lastBaseY.current + translationY);
+            const newBaseX = clamped.x;
+            const newBaseY = clamped.y;
 
             baseX.setValue(newBaseX);
             baseY.setValue(newBaseY);
@@ -2532,12 +2558,32 @@ export const GardenScene = React.memo(function GardenScene({
 
             const speed = Math.sqrt(velocityX ** 2 + velocityY ** 2);
             if (state === State.END && speed > 80) {
+                // Clamp the fling in real time so momentum can't overshoot bounds.
+                momentumClampIds.current.x = baseX.addListener(({ value }) => {
+                    const b = panBounds();
+                    if (value > b.x || value < -b.x) {
+                        baseX.stopAnimation();
+                        const cx = Math.max(-b.x, Math.min(b.x, value));
+                        baseX.setValue(cx);
+                        lastBaseX.current = cx;
+                    }
+                });
+                momentumClampIds.current.y = baseY.addListener(({ value }) => {
+                    const b = panBounds();
+                    if (value > b.y || value < -b.y) {
+                        baseY.stopAnimation();
+                        const cy = Math.max(-b.y, Math.min(b.y, value));
+                        baseY.setValue(cy);
+                        lastBaseY.current = cy;
+                    }
+                });
                 momentumRef.current = Animated.parallel([
                     Animated.decay(baseX, { velocity: velocityX / 1000, deceleration: 0.998, useNativeDriver: true }),
                     Animated.decay(baseY, { velocity: velocityY / 1000, deceleration: 0.998, useNativeDriver: true }),
                 ]);
                 momentumRef.current.start(({ finished }) => {
                     momentumRef.current = null;
+                    clearMomentumClamps();
                     if (finished) {
                         baseX.stopAnimation(v => { lastBaseX.current = v; });
                         baseY.stopAnimation(v => { lastBaseY.current = v; });
@@ -2546,6 +2592,13 @@ export const GardenScene = React.memo(function GardenScene({
             }
         }
     };
+
+    // Remove any lingering momentum-clamp listeners on unmount.
+    useEffect(() => () => {
+        if (momentumClampIds.current.x) baseX.removeListener(momentumClampIds.current.x);
+        if (momentumClampIds.current.y) baseY.removeListener(momentumClampIds.current.y);
+        momentumRef.current?.stop();
+    }, []);
 
     return (
         <GestureHandlerRootView style={styles.container}>
