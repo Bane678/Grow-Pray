@@ -3499,32 +3499,52 @@ function AppInner() {
         </TouchableOpacity>
       )}
 
-      {/* Edit-mode "Done" button — exits the tree rearrange (jiggle) mode */}
+      {/* Edit-mode exit — prominent centered "Done" pill + hint. Wrapped in a
+          full-width box so it reliably centers regardless of content layout. */}
       {editMode && activeTab === 'garden' && (
-        <TouchableOpacity
-          onPress={() => {
-            setEditMode(false);
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-          }}
-          activeOpacity={0.85}
+        <View
+          pointerEvents="box-none"
           style={{
             position: 'absolute',
-            top: 12,
-            alignSelf: 'center',
-            backgroundColor: THEME.accent,
-            borderRadius: 20,
-            paddingVertical: 9,
-            paddingHorizontal: 24,
-            shadowColor: '#000',
-            shadowOpacity: 0.3,
-            shadowRadius: 8,
-            shadowOffset: { width: 0, height: 2 },
-            elevation: 6,
+            bottom: 30,
+            left: 0,
+            right: 0,
+            alignItems: 'center',
             zIndex: 100,
           }}
         >
-          <Text style={{ fontSize: 15, fontWeight: '700', color: '#fff' }}>Done</Text>
-        </TouchableOpacity>
+          <View style={{
+            backgroundColor: 'rgba(0,0,0,0.55)',
+            borderRadius: 12,
+            paddingVertical: 5,
+            paddingHorizontal: 12,
+            marginBottom: 10,
+          }}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.9)' }}>
+              Drag trees to rearrange
+            </Text>
+          </View>
+          <TouchableOpacity
+            onPress={() => {
+              setEditMode(false);
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+            }}
+            activeOpacity={0.85}
+            style={{
+              backgroundColor: THEME.accent,
+              borderRadius: 24,
+              paddingVertical: 12,
+              paddingHorizontal: 40,
+              shadowColor: '#000',
+              shadowOpacity: 0.35,
+              shadowRadius: 10,
+              shadowOffset: { width: 0, height: 3 },
+              elevation: 8,
+            }}
+          >
+            <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Done</Text>
+          </TouchableOpacity>
+        </View>
       )}
 
       {/* Rest Overlay - Shows when in rest mode */}

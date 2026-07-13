@@ -767,9 +767,9 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
             return;
         }
         const loop = Animated.loop(Animated.sequence([
-            Animated.timing(jiggleAnim, { toValue:  1, duration: 110, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(jiggleAnim, { toValue: -1, duration: 220, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(jiggleAnim, { toValue:  0, duration: 110, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(jiggleAnim, { toValue:  1, duration: 140, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(jiggleAnim, { toValue: -1, duration: 280, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(jiggleAnim, { toValue:  0, duration: 140, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
         ]));
         loop.start();
         return () => loop.stop();
@@ -804,7 +804,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
                     transformOrigin: 'center bottom',
                     transform: [
                         { rotate: swayAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-0.03rad', '0.03rad'] }) },
-                        { rotate: jiggleAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-0.05rad', '0.05rad'] }) },
+                        { rotate: jiggleAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-0.022rad', '0.022rad'] }) },
                     ],
                 }}
             >
@@ -1822,11 +1822,15 @@ function IsometricGrid({
         setHoverTile({ row: hit.row, col: hit.col, valid: isValidDropTarget(hit.row, hit.col) });
     }, [gridSize, rotation, startRow, startCol, isValidDropTarget]);
 
-    // Snap the lifted tree back to its origin, then drop the ghost.
+    // Snap the lifted tree back to its origin, then drop the ghost immediately
+    // so the jiggling tile tree reappears. A short timing (not a spring) is used
+    // because a spring's completion callback only fires after its long settle
+    // tail — which left the tree frozen at origin for ~1s before jiggling again.
     const snapBack = useCallback(() => {
-        Animated.spring(dragTranslate, {
+        Animated.timing(dragTranslate, {
             toValue: { x: 0, y: 0 },
-            tension: 130, friction: 9,
+            duration: 140,
+            easing: Easing.out(Easing.quad),
             useNativeDriver: false,
         }).start(() => setDraggingTree(null));
     }, []);
