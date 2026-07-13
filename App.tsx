@@ -3514,13 +3514,13 @@ function AppInner() {
           }}
         >
           <View style={{
-            backgroundColor: 'rgba(0,0,0,0.55)',
-            borderRadius: 12,
+            backgroundColor: 'rgba(15,21,38,0.9)',
+            borderRadius: 10,
             paddingVertical: 5,
             paddingHorizontal: 12,
             marginBottom: 10,
           }}>
-            <Text style={{ fontSize: 12, fontWeight: '600', color: 'rgba(255,255,255,0.9)' }}>
+            <Text style={{ fontSize: 11, fontWeight: '600', color: 'rgba(232,224,214,0.7)', letterSpacing: 0.3 }}>
               Drag trees to rearrange
             </Text>
           </View>
@@ -3532,17 +3532,17 @@ function AppInner() {
             activeOpacity={0.85}
             style={{
               backgroundColor: THEME.accent,
-              borderRadius: 24,
-              paddingVertical: 12,
-              paddingHorizontal: 40,
+              borderRadius: 12,
+              paddingVertical: 13,
+              paddingHorizontal: 44,
               shadowColor: '#000',
-              shadowOpacity: 0.35,
-              shadowRadius: 10,
-              shadowOffset: { width: 0, height: 3 },
+              shadowOpacity: 0.3,
+              shadowRadius: 12,
+              shadowOffset: { width: 0, height: 4 },
               elevation: 8,
             }}
           >
-            <Text style={{ fontSize: 16, fontWeight: '700', color: '#fff' }}>Done</Text>
+            <Text style={{ fontSize: 16, fontWeight: '600', color: '#000' }}>Done</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -3815,8 +3815,9 @@ function AppInner() {
               );
             })()}
 
-            {/* Move tree — closes the modal and enters garden edit mode */}
+            {/* Move tree — primary action (accent fill, dark label) */}
             <TouchableOpacity
+              activeOpacity={0.85}
               onPress={() => {
                 setRemoveTreeTarget(null);
                 setEditMode(true);
@@ -3825,17 +3826,18 @@ function AppInner() {
               style={{
                 width: '100%',
                 backgroundColor: THEME.accent,
-                paddingVertical: 13,
+                paddingVertical: 14,
                 borderRadius: 12,
                 alignItems: 'center',
                 marginBottom: 10,
               }}
             >
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Move tree</Text>
+              <Text style={{ color: '#000', fontSize: 16, fontWeight: '600' }}>Move tree</Text>
             </TouchableOpacity>
 
-            {/* Remove tree — permanent, no refund */}
+            {/* Remove tree — muted destructive (soft danger fill, danger label) */}
             <TouchableOpacity
+              activeOpacity={0.85}
               onPress={async () => {
                 if (removeTreeTarget) {
                   await gardenState.removePlantedTree(removeTreeTarget.row, removeTreeTarget.col);
@@ -3845,25 +3847,32 @@ function AppInner() {
               }}
               style={{
                 width: '100%',
-                backgroundColor: '#dc2626',
-                paddingVertical: 13,
+                backgroundColor: THEME.dangerMuted,
+                paddingVertical: 14,
                 borderRadius: 12,
                 alignItems: 'center',
-                marginBottom: 6,
+                marginBottom: 8,
               }}
             >
-              <Text style={{ color: '#fff', fontSize: 15, fontWeight: '700' }}>Remove tree</Text>
+              <Text style={{ color: THEME.danger, fontSize: 16, fontWeight: '600' }}>Remove tree</Text>
             </TouchableOpacity>
-            <Text style={{ fontSize: 11, color: 'rgba(232,224,214,0.4)', textAlign: 'center', marginBottom: 12 }}>
+            <Text style={{ fontSize: 11, color: THEME.textMuted, textAlign: 'center', marginBottom: 14 }}>
               Removing won't refund the tree.
             </Text>
 
-            {/* Cancel */}
+            {/* Cancel — subtle card fill */}
             <TouchableOpacity
+              activeOpacity={0.85}
               onPress={() => setRemoveTreeTarget(null)}
-              style={{ width: '100%', paddingVertical: 10, alignItems: 'center' }}
+              style={{
+                width: '100%',
+                backgroundColor: THEME.bgCard,
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: 'center',
+              }}
             >
-              <Text style={{ color: THEME.textSecondary, fontSize: 14, fontWeight: '600' }}>Cancel</Text>
+              <Text style={{ color: THEME.textSecondary, fontSize: 16, fontWeight: '600' }}>Cancel</Text>
             </TouchableOpacity>
           </View>
         </View>
