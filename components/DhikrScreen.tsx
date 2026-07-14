@@ -1,7 +1,8 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
@@ -81,6 +82,32 @@ export const DhikrScreen = React.memo(function DhikrScreen({
 }: DhikrScreenProps) {
   const dhikr = useDhikr();
   const [expanded, setExpanded] = useState<string | null>('after_salah');
+
+  // ── Directly-editable custom target ──
+  const [targetText, setTargetText] = useState(String(dhikr.customTarget));
+  const [editingTarget, setEditingTarget] = useState(false);
+
+  // Keep the field in sync when the target changes elsewhere (+/- buttons, quick chips),
+  // but don't clobber what the user is currently typing.
+  useEffect(() => {
+    if (!editingTarget) setTargetText(String(dhikr.customTarget));
+  }, [dhikr.customTarget, editingTarget]);
+
+  const commitTarget = useCallback(() => {
+    setEditingTarget(false);
+    const n = parseInt(targetText, 10);
+    if (!Number.isNaN(n) && n > 0) {
+      if (n !== dhikr.customTarget) {
+        Haptics.selectionAsync();
+        dhikr.updateCustomTarget(n);
+      } else {
+        setTargetText(String(dhikr.customTarget));
+      }
+    } else {
+      // Invalid / empty — revert to the current target.
+      setTargetText(String(dhikr.customTarget));
+    }
+  }, [targetText, dhikr]);
 
   // ── Tap feedback animation ──
   const tapScale = useRef(new Animated.Value(1)).current;
@@ -285,8 +312,20 @@ export const DhikrScreen = React.memo(function DhikrScreen({
                   <MaterialCommunityIcons name="minus" size={20} color="#e8e0d6" />
                 </TouchableOpacity>
                 <View style={styles.stepperValue}>
-                  <Text style={styles.stepperValueText}>{dhikr.customTarget}</Text>
-                  <Text style={styles.stepperValueLabel}>target</Text>
+                  <TextInput
+                    style={styles.stepperValueInput}
+                    value={targetText}
+                    onChangeText={(t) => setTargetText(t.replace(/[^0-9]/g, '').slice(0, 4))}
+                    onFocus={() => setEditingTarget(true)}
+                    onBlur={commitTarget}
+                    onSubmitEditing={commitTarget}
+                    keyboardType="number-pad"
+                    returnKeyType="done"
+                    maxLength={4}
+                    selectTextOnFocus
+                    textAlign="center"
+                  />
+                  <Text style={styles.stepperValueLabel}>tap to edit target</Text>
                 </View>
                 <TouchableOpacity
                   onPress={() => { Haptics.selectionAsync(); dhikr.updateCustomTarget(dhikr.customTarget + 1); }}
@@ -473,9 +512,22 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  stepperValue: { alignItems: 'center', minWidth: 70 },
+  stepperValue: { alignItems: 'center', minWidth: 84 },
   stepperValueText: { fontSize: 26, fontWeight: '800', color: '#e8e0d6', fontFamily: FONTS.display },
-  stepperValueLabel: { fontSize: 10, color: 'rgba(232,224,214,0.45)', letterSpacing: 0.5 },
+  stepperValueInput: {
+    fontSize: 26,
+    fontWeight: '800',
+    color: '#e8e0d6',
+    fontFamily: FONTS.display,
+    minWidth: 72,
+    paddingVertical: 2,
+    paddingHorizontal: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: 'rgba(232,168,124,0.25)',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+  },
+  stepperValueLabel: { fontSize: 10, color: 'rgba(232,224,214,0.45)', letterSpacing: 0.5, marginTop: 3 },
   quickRow: { flexDirection: 'row', gap: 8, marginTop: 14 },
   quickChip: { paddingHorizontal: 16, paddingVertical: 7, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.05)' },
   quickChipActive: { backgroundColor: 'rgba(232,168,124,0.16)' },
