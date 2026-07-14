@@ -402,6 +402,211 @@ const CUSTOM_PREVIEW_ASSETS: Record<string, ReturnType<typeof require>> = {
   cedarSapling:         require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Sapling.png'),
 };
 
+// Full per-stage assets, keyed by the sprite names used in TreeCatalogItem.sprites,
+// plus the Basic tree's base sprites. Used by the tree-detail growth preview.
+const SHOP_STAGE_ASSETS: Record<string, ReturnType<typeof require>> = {
+  // Basic (tinted base sprites)
+  basicSapling:     require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png'),
+  basicGrowing:     require('../assets/Garden Assets/Tree Types/Basic Trees/Growing_Tree_converted.png'),
+  basicGrown:       require('../assets/Garden Assets/Tree Types/Basic Trees/Grown_Tree_converted.png'),
+  basicFlourishing: require('../assets/Garden Assets/Tree Types/Basic Trees/Flourishing_Tree_converted.png'),
+  // Palm
+  palmSapling:     require('../assets/Garden Assets/Tree Types/Palm Trees/Palm_Sapling.png'),
+  palmGrowing:     require('../assets/Garden Assets/Tree Types/Palm Trees/Palm_Growing.png'),
+  palmGrown:       require('../assets/Garden Assets/Tree Types/Palm Trees/Palm_Grown.png'),
+  palmFlourishing: require('../assets/Garden Assets/Tree Types/Palm Trees/Palm_Flourishing.png'),
+  // Willow
+  willowSapling:     require('../assets/Garden Assets/Tree Types/Willow Trees/Willow_Sapling.png'),
+  willowGrowing:     require('../assets/Garden Assets/Tree Types/Willow Trees/Willow_Growing.png'),
+  willowGrown:       require('../assets/Garden Assets/Tree Types/Willow Trees/Willow_Grown.png'),
+  willowFlourishing: require('../assets/Garden Assets/Tree Types/Willow Trees/Willow_Flourishing.png'),
+  // Oak
+  oakSapling:     require('../assets/Garden Assets/Tree Types/Oak Trees/Oak_Sapling.png'),
+  oakGrowing:     require('../assets/Garden Assets/Tree Types/Oak Trees/Oak_Growing.png'),
+  oakGrown:       require('../assets/Garden Assets/Tree Types/Oak Trees/Oak_Grown.png'),
+  oakFlourishing: require('../assets/Garden Assets/Tree Types/Oak Trees/Oak_Flourishing.png'),
+  // Cherry Blossom
+  cherryBlossomSapling:     require('../assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Sapling.png'),
+  cherryBlossomGrowing:     require('../assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Growing.png'),
+  cherryBlossomGrown:       require('../assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Grown.png'),
+  cherryBlossomFlourishing: require('../assets/Garden Assets/Tree Types/Cherry Blossom Trees/Cherry_Blossom_Flourishing.png'),
+  // Maple
+  mapleSapling:     require('../assets/Garden Assets/Tree Types/Maple Trees/Maple_Sapling.png'),
+  mapleGrowing:     require('../assets/Garden Assets/Tree Types/Maple Trees/Maple_Growing.png'),
+  mapleGrown:       require('../assets/Garden Assets/Tree Types/Maple Trees/Maple_Grown.png'),
+  mapleFlourishing: require('../assets/Garden Assets/Tree Types/Maple Trees/Maple_Flourishing.png'),
+  // Golden
+  goldenTreeSapling:     require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Sapling.png'),
+  goldenTreeGrowing:     require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Growing.png'),
+  goldenTreeGrown:       require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Grown.png'),
+  goldenTreeFlourishing: require('../assets/Garden Assets/Tree Types/Golden Trees/Golden_Tree_Flourishing.png'),
+  // Cedar
+  cedarSapling:     require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Sapling.png'),
+  cedarGrowing:     require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Growing.png'),
+  cedarGrown:       require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Grown.png'),
+  cedarFlourishing: require('../assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Flourished.png'),
+};
+
+type StageKey = 'sapling' | 'growing' | 'grown' | 'flourishing';
+
+const STAGE_META: { key: StageKey; label: string }[] = [
+  { key: 'sapling',     label: 'Sapling' },
+  { key: 'growing',     label: 'Growing' },
+  { key: 'grown',       label: 'Grown' },
+  { key: 'flourishing', label: 'Flourishing' },
+];
+
+interface ResolvedStage {
+  key: StageKey;
+  label: string;
+  source: ReturnType<typeof require>;
+  tint?: string;
+}
+
+// Resolve the four growth-stage images (+ any tint) for a catalog tree.
+function getTreeStageAssets(item: TreeCatalogItem): ResolvedStage[] {
+  if (item.sprites) {
+    return STAGE_META.map((s) => {
+      const spriteName = item.sprites?.[s.key];
+      const source = spriteName && SHOP_STAGE_ASSETS[spriteName] ? SHOP_STAGE_ASSETS[spriteName] : PREVIEW_ASSET;
+      return { key: s.key, label: s.label, source, tint: undefined };
+    });
+  }
+  // Basic / tint-only trees use the base sprites, tinted.
+  const baseKeys: Record<StageKey, string> = {
+    sapling:     'basicSapling',
+    growing:     'basicGrowing',
+    grown:       'basicGrown',
+    flourishing: 'basicFlourishing',
+  };
+  return STAGE_META.map((s) => ({
+    key: s.key,
+    label: s.label,
+    source: SHOP_STAGE_ASSETS[baseKeys[s.key]],
+    tint: item.tint || undefined,
+  }));
+}
+
+// ─── Tree detail sheet ────────────────────────────────────────────────────────
+
+interface TreeDetailSheetProps {
+  item: TreeCatalogItem;
+  owned: number;
+  coins: number;
+  isPremium: boolean;
+  purchasing: boolean;
+  onClose: () => void;
+  onBuy: () => void;
+  onPremiumTap?: () => void;
+}
+
+function TreeDetailSheet({
+  item,
+  owned,
+  coins,
+  isPremium,
+  purchasing,
+  onClose,
+  onBuy,
+  onPremiumTap,
+}: TreeDetailSheetProps) {
+  const rarity = RARITY_COLORS[item.rarity];
+  const stages = getTreeStageAssets(item);
+  const locked = !!item.premiumOnly && !isPremium;
+  const isFree = item.price === 0;
+  const canAfford = coins >= item.price;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <TouchableOpacity style={styles.detailOverlay} activeOpacity={1} onPress={onClose}>
+        <TouchableOpacity style={styles.detailCard} activeOpacity={1} onPress={() => {}}>
+          {/* Header */}
+          <View style={styles.detailHeader}>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={styles.detailTitle} numberOfLines={1}>{item.name}</Text>
+              <View style={[styles.rarityBadge, { backgroundColor: rarity.bg, borderColor: rarity.border, alignSelf: 'flex-start', marginLeft: 0, marginTop: 4 }]}>
+                <Text style={[styles.rarityText, { color: rarity.text }]}>
+                  {item.rarity.charAt(0).toUpperCase() + item.rarity.slice(1)}
+                </Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <MaterialCommunityIcons name="close" size={22} color="#9ca3af" />
+            </TouchableOpacity>
+          </View>
+
+          <Text style={styles.detailSectionLabel}>Growth journey</Text>
+
+          {/* Stage progression */}
+          <View style={styles.stageRow}>
+            {stages.map((stage, i) => {
+              const isFinal = i === stages.length - 1;
+              return (
+                <React.Fragment key={stage.key}>
+                  <View style={styles.stageCell}>
+                    <View style={[styles.stageBox, isFinal && styles.stageBoxFinal]}>
+                      <Image
+                        source={stage.source}
+                        style={[styles.stageImg, stage.tint ? { tintColor: stage.tint } : {}]}
+                        resizeMode="contain"
+                      />
+                    </View>
+                    <Text style={[styles.stageLabel, isFinal && styles.stageLabelFinal]} numberOfLines={1}>
+                      {stage.label}
+                    </Text>
+                  </View>
+                  {!isFinal && (
+                    <MaterialCommunityIcons name="chevron-right" size={16} color="#4b5563" style={styles.stageArrow} />
+                  )}
+                </React.Fragment>
+              );
+            })}
+          </View>
+
+          <Text style={styles.detailDesc}>{item.description}</Text>
+
+          {owned > 0 && (
+            <Text style={styles.detailOwned}>You own {owned}</Text>
+          )}
+
+          {/* Buy button */}
+          {isFree ? (
+            <View style={[styles.detailBuyBtn, { backgroundColor: 'rgba(74, 222, 128, 0.2)' }]}>
+              <Text style={{ color: '#4ade80', fontSize: 15, fontWeight: '700' }}>Free with every garden</Text>
+            </View>
+          ) : locked ? (
+            <TouchableOpacity
+              onPress={() => { onPremiumTap?.(); }}
+              style={[styles.detailBuyBtn, { backgroundColor: 'rgba(251, 191, 36, 0.15)' }]}
+              activeOpacity={0.85}
+            >
+              <Text style={{ color: '#fbbf24', fontSize: 14, fontWeight: '700' }}>👑 Unlock with Premium</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              onPress={onBuy}
+              disabled={!canAfford || purchasing}
+              activeOpacity={0.85}
+              style={[
+                styles.detailBuyBtn,
+                canAfford ? { backgroundColor: '#22c55e' } : { backgroundColor: '#374151' },
+                purchasing && { opacity: 0.45 },
+              ]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <Image source={ICON_COIN} style={{ width: 16, height: 16 }} resizeMode="contain" />
+                <Text style={{ color: canAfford ? '#fff' : '#9ca3af', fontSize: 15, fontWeight: '700' }}>
+                  {purchasing ? 'Purchasing…' : canAfford ? `Buy for ${item.price}` : `Need ${item.price} coins`}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          )}
+        </TouchableOpacity>
+      </TouchableOpacity>
+    </Modal>
+  );
+}
+
 // ─── Component ──────────────────────────────────────────────────────────────────
 
 export function ShopModal({
@@ -428,6 +633,12 @@ export function ShopModal({
   const [purchasingCoinPkg, setPurchasingCoinPkg] = useState<string | null>(null);
   const [coinPurchaseSuccess, setCoinPurchaseSuccess] = useState<string | null>(null);
   const [coinPurchaseError, setCoinPurchaseError] = useState<string | null>(null);
+  const [detailTree, setDetailTree] = useState<TreeCatalogItem | null>(null);
+
+  const openTreeDetail = useCallback((item: TreeCatalogItem) => {
+    Haptics.selectionAsync();
+    setDetailTree(item);
+  }, []);
 
   const handlePurchase = useCallback(async (item: TreeCatalogItem) => {
     if (purchasing) return;
@@ -534,8 +745,12 @@ export function ShopModal({
           locked && styles.lockedCard,
         ]}
       >
-        {/* Tree preview with tint */}
-        <View style={styles.previewContainer}>
+        {/* Tree preview with tint — tap to see growth stages */}
+        <TouchableOpacity
+          style={styles.previewContainer}
+          onPress={() => openTreeDetail(item)}
+          activeOpacity={0.7}
+        >
           <Image
             source={item.sprites?.sapling && CUSTOM_PREVIEW_ASSETS[item.sprites.sapling] ? CUSTOM_PREVIEW_ASSETS[item.sprites.sapling] : PREVIEW_ASSET}
             style={[
@@ -549,10 +764,14 @@ export function ShopModal({
               <MaterialCommunityIcons name="lock" size={24} color="#fbbf24" />
             </View>
           )}
-        </View>
+          {/* Corner hint that this preview is expandable */}
+          <View style={styles.expandHint}>
+            <MaterialCommunityIcons name="magnify-plus-outline" size={11} color="#e8e0d6" />
+          </View>
+        </TouchableOpacity>
 
         {/* Info */}
-        <View style={styles.cardInfo}>
+        <TouchableOpacity style={styles.cardInfo} onPress={() => openTreeDetail(item)} activeOpacity={0.7}>
           <View style={styles.cardHeader}>
             <Text style={styles.treeName} numberOfLines={2}>
               {item.name}
@@ -566,10 +785,15 @@ export function ShopModal({
 
           <Text style={styles.treeDesc} numberOfLines={2}>{item.description}</Text>
 
+          <View style={styles.viewGrowthRow}>
+            <MaterialCommunityIcons name="sprout-outline" size={12} color="#e8a87c" />
+            <Text style={styles.viewGrowthText}>View growth</Text>
+          </View>
+
           <Text style={[styles.ownedText, { opacity: owned > 0 ? 1 : 0 }]}>
             Owned: {owned}
           </Text>
-        </View>
+        </TouchableOpacity>
 
         {/* Purchase button */}
         <View style={styles.priceSection}>
@@ -938,12 +1162,26 @@ export function ShopModal({
     </>
   );
 
+  const detailSheet = detailTree ? (
+    <TreeDetailSheet
+      item={detailTree}
+      owned={inventory[detailTree.id] || 0}
+      coins={coins}
+      isPremium={isPremium}
+      purchasing={purchasing === detailTree.id}
+      onClose={() => setDetailTree(null)}
+      onBuy={() => handlePurchase(detailTree)}
+      onPremiumTap={onPremiumTap}
+    />
+  ) : null;
+
   if (asPage) {
     return (
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <View style={[styles.container, { flex: 1, borderRadius: 0, maxHeight: '100%', maxWidth: '100%' as any, borderWidth: 0, backgroundColor: 'transparent' }]}>
           {content}
         </View>
+        {detailSheet}
       </View>
     );
   }
@@ -953,6 +1191,7 @@ export function ShopModal({
       <View style={styles.overlay}>
         <View style={styles.container}>{content}</View>
       </View>
+      {detailSheet}
     </Modal>
   );
 }
@@ -1107,6 +1346,127 @@ const styles = StyleSheet.create({
     color: '#4ade80',
     fontSize: 11,
     fontWeight: '600',
+    marginTop: 4,
+  },
+  expandHint: {
+    position: 'absolute',
+    bottom: 3,
+    right: 3,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  viewGrowthRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 4,
+  },
+  viewGrowthText: {
+    color: '#e8a87c',
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  // ── Tree detail sheet ──
+  detailOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  detailCard: {
+    backgroundColor: '#0f1526',
+    borderRadius: 24,
+    width: '100%',
+    maxWidth: 360,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+  },
+  detailHeader: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  detailTitle: {
+    color: '#e8e0d6',
+    fontSize: 20,
+    fontWeight: '700',
+    fontFamily: FONTS.display,
+  },
+  detailSectionLabel: {
+    color: '#9ca3af',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginBottom: 10,
+  },
+  stageRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 18,
+  },
+  stageCell: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  stageBox: {
+    width: 62,
+    height: 62,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.06)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  stageBoxFinal: {
+    borderColor: 'rgba(232,168,124,0.55)',
+    backgroundColor: 'rgba(232,168,124,0.10)',
+  },
+  stageImg: {
+    width: 48,
+    height: 48,
+  },
+  stageLabel: {
+    color: '#9ca3af',
+    fontSize: 10,
+    fontWeight: '600',
+    marginTop: 6,
+    textAlign: 'center',
+  },
+  stageLabelFinal: {
+    color: '#e8a87c',
+  },
+  stageArrow: {
+    marginHorizontal: -2,
+    marginBottom: 18,
+  },
+  detailDesc: {
+    color: '#cbd5e1',
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  detailOwned: {
+    color: '#4ade80',
+    fontSize: 12,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  detailBuyBtn: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginTop: 4,
   },
   priceSection: {
