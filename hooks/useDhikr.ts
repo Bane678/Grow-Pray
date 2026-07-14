@@ -37,6 +37,7 @@ export function useDhikr() {
   const [count, setCount] = useState(0);
   const [customTarget, setCustomTarget] = useState(100);
   const [sequenceComplete, setSequenceComplete] = useState(false);
+  const [customComplete, setCustomComplete] = useState(false);
   const [dhikrStreak, setDhikrStreak] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
@@ -95,10 +96,14 @@ export function useDhikr() {
   // Increment the counter. Returns what happened so the screen can react.
   const increment = useCallback((): TapResult => {
     if (mode === 'custom') {
+      if (customComplete) return 'allComplete';
       let result: TapResult = 'counting';
       setCount((c) => {
         const next = c + 1;
-        if (next >= customTarget) result = 'allComplete';
+        if (next >= customTarget) {
+          result = 'allComplete';
+          setCustomComplete(true);
+        }
         persist({ mode: 'custom', stepIndex, count: next, customTarget });
         return next;
       });
@@ -132,6 +137,7 @@ export function useDhikr() {
   const reset = useCallback(() => {
     setCount(0);
     setSequenceComplete(false);
+    setCustomComplete(false);
     if (mode === 'sequence') {
       setStepIndex(0);
       persist({ mode: 'sequence', stepIndex: 0, count: 0, customTarget });
@@ -144,6 +150,7 @@ export function useDhikr() {
     setMode(m);
     setCount(0);
     setSequenceComplete(false);
+    setCustomComplete(false);
     if (m === 'sequence') {
       setStepIndex(0);
       persist({ mode: 'sequence', stepIndex: 0, count: 0, customTarget });
@@ -156,6 +163,7 @@ export function useDhikr() {
     const clamped = Math.max(1, Math.min(9999, Math.floor(t) || 1));
     setCustomTarget(clamped);
     setCount(0);
+    setCustomComplete(false);
     persist({ mode: 'custom', stepIndex, count: 0, customTarget: clamped });
   }, [stepIndex, persist]);
 
@@ -168,6 +176,7 @@ export function useDhikr() {
     target,
     customTarget,
     sequenceComplete,
+    customComplete,
     dhikrStreak,
     loaded,
     increment,

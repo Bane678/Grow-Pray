@@ -113,7 +113,8 @@ export const DhikrScreen = React.memo(function DhikrScreen({
   }, [tapScale, ripple]);
 
   const onTap = useCallback(() => {
-    if (dhikr.mode === 'sequence' && dhikr.sequenceComplete) {
+    const isComplete = dhikr.mode === 'sequence' ? dhikr.sequenceComplete : dhikr.customComplete;
+    if (isComplete) {
       Haptics.selectionAsync();
       dhikr.reset();
       pulse(false);
@@ -160,7 +161,7 @@ export const DhikrScreen = React.memo(function DhikrScreen({
   );
 
   const progress = dhikr.target > 0 ? dhikr.count / dhikr.target : 0;
-  const complete = dhikr.mode === 'sequence' && dhikr.sequenceComplete;
+  const complete = dhikr.mode === 'sequence' ? dhikr.sequenceComplete : dhikr.customComplete;
 
   const rippleScale = ripple.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1.25] });
   const rippleOpacity = ripple.interpolate({ inputRange: [0, 1], outputRange: [0.4, 0] });
