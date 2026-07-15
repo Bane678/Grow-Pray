@@ -1,7 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import Purchases from 'react-native-purchases';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
+
+// Dev-only: persisted "grant premium" override so it survives dev-server reloads.
+// Never read/written in production builds (guarded by __DEV__).
+const DEBUG_PREMIUM_KEY = '@GrowPray:debugPremium';
 
 // ↓↓ PASTE YOUR REVENUECAT PUBLIC SDK KEY HERE — iOS key starts with "appl_"
 const REVENUECAT_API_KEY_IOS = 'appl_VaGTERmLPtteHHWvmcvjUpXEfqo';
@@ -87,6 +92,15 @@ export function usePremium(): PremiumState {
     } catch {
       setLoading(false);
     }
+  }, []);
+
+  // Dev-only: restore a persisted debug-premium grant so it survives reloads.
+  // Applied on top of the RevenueCat check (only ever turns premium ON).
+  useEffect(() => {
+    if (!__DEV__) return;
+    AsyncStorage.getItem(DEBUG_PREMIUM_KEY)
+      .then((v) => { if (v === '1') setIsPremium(true); })
+      .catch(() => {});
   }, []);
 
   // Purchase a specific package by identifier
@@ -176,9 +190,14 @@ export function usePremium(): PremiumState {
     }
   }, []);
 
-  // Debug toggle — only use in dev, never call from production UI
+  // Debug toggle — only use in dev, never call from production UI.
+  // Persists the choice so it survives dev-server reloads.
   const togglePremiumDebug = useCallback(async () => {
-    setIsPremium(prev => !prev);
+    setIsPremium(prev => {
+      const next = !prev;
+      if (__DEV__) AsyncStorage.setItem(DEBUG_PREMIUM_KEY, next ? '1' : '0').catch(() => {});
+      return next;
+    });
   }, []);
 
   const limits = isPremium ? PREMIUM_LIMITS : FREE_LIMITS;
