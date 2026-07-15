@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { REFLECTIONS, Reflection, reflectionIndexForDate } from '../data/reflections';
+import { REFLECTIONS, Reflection, reflectionForDate } from '../data/reflections';
 
 const FAVOURITES_KEY = '@GrowPray:reflectionFavourites';
 
@@ -24,11 +24,8 @@ export function useReflections() {
     })();
   }, []);
 
-  // Today's reflection — deterministic per calendar day.
-  const today: Reflection | null = useMemo(() => {
-    if (REFLECTIONS.length === 0) return null;
-    return REFLECTIONS[reflectionIndexForDate(new Date())];
-  }, []);
+  // Today's reflection — deterministic per calendar day, prayer-weighted.
+  const today: Reflection | null = useMemo(() => reflectionForDate(new Date()), []);
 
   const persist = useCallback((next: string[]) => {
     AsyncStorage.setItem(FAVOURITES_KEY, JSON.stringify(next)).catch(() => {});
