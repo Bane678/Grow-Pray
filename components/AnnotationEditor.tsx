@@ -100,8 +100,9 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
         // the line you were drawing" when a parent tried to take over.
         onPanResponderTerminationRequest: () => false,
         onShouldBlockNativeResponder: () => true,
+        // Note: deliberately does NOT dismiss the keyboard - the tick in the
+        // notebook header is the one and only way to put the keyboard away.
         onPanResponderGrant: (e) => {
-          Keyboard.dismiss();
           const { locationX, locationY } = e.nativeEvent;
           currentRef.current = `M ${locationX.toFixed(1)} ${locationY.toFixed(1)}`;
           setCurrentPath(currentRef.current);
