@@ -67,6 +67,13 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
   // Canvas size at draw time, stored so previews can scale via viewBox.
   const canvas = useRef({ w: 1, h: 1 });
 
+  // Keyboard is dismissible ONLY via the notebook tick. We enforce that by
+  // holding focus: any other touch that blurs the field is undone by refocusing,
+  // unless `dismissing` was set by the tick (or by closing the editor).
+  const inputRef = useRef<TextInput>(null);
+  const notesFocusedRef = useRef(false);
+  const dismissing = useRef(false);
+
   // Load the entry's saved state whenever the editor opens.
   useEffect(() => {
     if (visible && entry) {
@@ -77,6 +84,8 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
       currentRef.current = '';
       setCurrentPath('');
       setNotesFocused(false);
+      notesFocusedRef.current = false;
+      dismissing.current = false;
     }
   }, [visible, entry]);
 
@@ -94,8 +103,10 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
   const panResponder = useMemo(
     () =>
       PanResponder.create({
-        onStartShouldSetPanResponder: () => true,
-        onMoveShouldSetPanResponder: () => true,
+        // While the notebook keyboard is up, the paper is inert - a touch here
+        // must not steal focus and drop the keyboard. Press the tick first.
+        onStartShouldSetPanResponder: () => !notesFocusedRef.current,
+        onMoveShouldSetPanResponder: () => !notesFocusedRef.current,
         // Never surrender the touch mid-stroke - this is what kept "deleting
         // the line you were drawing" when a parent tried to take over.
         onPanResponderTerminationRequest: () => false,
@@ -142,8 +153,16 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
     setStrokes([]);
   }, []);
 
+  // Dismiss the keyboard - the only sanctioned path (the notebook tick).
+  const dismissKeyboard = useCallback(() => {
+    dismissing.current = true;
+    inputRef.current?.blur();
+    Keyboard.dismiss();
+  }, []);
+
   const handleSave = useCallback(() => {
     if (!entry) return;
+    dismissing.current = true; // allow the field to blur as we close
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const annotation: Annotation | undefined = strokes.length
       ? { strokes, w: canvas.current.w, h: canvas.current.h }
@@ -288,7 +307,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
               <Text style={styles.notebookLabel}>My notes</Text>
               {notesFocused && (
                 <TouchableOpacity
-                  onPress={() => Keyboard.dismiss()}
+                  onPress={dismissKeyboard}
                   style={styles.keyboardDone}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   activeOpacity={0.85}
@@ -299,11 +318,22 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
             </View>
             <View style={styles.notebookMargin} />
             <TextInput
+              ref={inputRef}
               style={styles.notebookInput}
               value={note}
               onChangeText={setNote}
-              onFocus={() => setNotesFocused(true)}
-              onBlur={() => setNotesFocused(false)}
+              onFocus={() => { notesFocusedRef.current = true; setNotesFocused(true); }}
+              onBlur={() => {
+                if (dismissing.current) {
+                  // Sanctioned dismissal (tick or close) - let it go.
+                  dismissing.current = false;
+                  notesFocusedRef.current = false;
+                  setNotesFocused(false);
+                } else {
+                  // Something else tried to steal focus; hold the keyboard up.
+                  inputRef.current?.focus();
+                }
+              }}
               placeholder="What did this verse stir in you? A du'a, a memory, a promise..."
               placeholderTextColor="rgba(232,224,214,0.3)"
               multiline
