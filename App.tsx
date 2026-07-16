@@ -4705,9 +4705,12 @@ function AppInner() {
         />
       )}
       {/* Normal loading overlay for returning users (skip if we came from onboarding) */}
+      {/* Gate on gardenRendered too: appDataReady only means assets finished
+          DOWNLOADING - the splash must stay until the garden has actually PAINTED
+          (center tree image decoded), or it lifts onto a half-drawn garden. */}
       {!cameFromOnboarding.current && !showPreparing && (
         <LoadingOverlay
-          ready={appDataReady}
+          ready={appDataReady && gardenRendered}
           onImageLoaded={() => SplashScreen.hideAsync().catch(() => {})}
         />
       )}
