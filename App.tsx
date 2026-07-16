@@ -3327,10 +3327,8 @@ function AppInner() {
         // Pre-load the loading screen image so it's immediately available
         await Asset.loadAsync([LOADING_SCREEN_IMAGE]);
 
-        // Load all three batches CONCURRENTLY (not one-after-another) so a
-        // reload re-streaming assets from Metro in dev isn't 3x serial waits.
         // Batch 1: Ground tiles & decorations
-        const groundP = Asset.loadAsync([
+        await Asset.loadAsync([
           require('./assets/Garden Assets/Ground Tiles/Dead_Tile.png'),
           require('./assets/Garden Assets/Ground Tiles/Recovering_Tile.png'),
           require('./assets/Garden Assets/Ground Tiles/Recovered_Tile.png'),
@@ -3341,9 +3339,10 @@ function AppInner() {
           require('./assets/Garden Assets/Ground Tiles/Mushrooms.png'),
           require('./assets/Garden Assets/Ground Tiles/Clovers.png'),
         ]);
+        setAssetsProgress(p => ({ ...p, groundTiles: true }));
 
         // Batch 2: All tree sprites
-        const treesP = Asset.loadAsync([
+        await Asset.loadAsync([
           require('./assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png'),
           require('./assets/Garden Assets/Tree Types/Basic Trees/Growing_Tree_converted.png'),
           require('./assets/Garden Assets/Tree Types/Basic Trees/Grown_Tree_converted.png'),
@@ -3378,9 +3377,10 @@ function AppInner() {
           require('./assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Grown.png'),
           require('./assets/Garden Assets/Tree Types/Cedar Trees/Cedar_Flourished.png'),
         ]);
+        setAssetsProgress(p => ({ ...p, trees: true }));
 
         // Batch 3: Effects & UI icons
-        const uiP = Asset.loadAsync([
+        await Asset.loadAsync([
           require('./assets/Garden Assets/Effects/Ember_Mote.png'),
           require('./assets/Garden Assets/Effects/Dew_Sparkle.png'),
           require('./assets/Garden Assets/Effects/Pollen_Mote.png'),
@@ -3416,16 +3416,7 @@ function AppInner() {
           require('./assets/Garden Assets/Icons/Icon_Warning.png'),
           require('./assets/Garden Assets/Icons/Icon_Hands.png'),
         ]);
-
-        // Flip each flag as its batch arrives. Time-box every batch so a stalled
-        // dev-server fetch can NEVER leave the splash hanging forever - after the
-        // cap we proceed and images fill in as they load. No-op in production
-        // (bundled assets resolve in well under the cap).
-        const cap = (p: Promise<unknown>, ms: number) =>
-          Promise.race([p.catch(() => {}), new Promise<void>((res) => setTimeout(res, ms))]);
-        cap(groundP, 8000).then(() => setAssetsProgress(p => ({ ...p, groundTiles: true })));
-        cap(treesP, 8000).then(() => setAssetsProgress(p => ({ ...p, trees: true })));
-        cap(uiP, 8000).then(() => setAssetsProgress(p => ({ ...p, uiAssets: true })));
+        setAssetsProgress(p => ({ ...p, uiAssets: true }));
       } catch (error) {
         console.error('Error loading assets:', error);
         // Mark all done on error so app doesn't hang
