@@ -65,7 +65,7 @@ export const ChallengesModal = memo(function ChallengesModal({ visible, onClose,
 
   const totalCompleted = sectionChallenges.filter(c => c.claimed).length;
 
-  // Claimable = complete but not yet claimed — drives the red badge on each tab
+  // Claimable = complete but not yet claimed - drives the red badge on each tab
   const dailyClaimable  = useMemo(() => challenges.filter(c => c.type === 'daily'  && c.progress >= c.target && !c.claimed).length, [challenges]);
   const weeklyClaimable = useMemo(() => challenges.filter(c => c.type === 'weekly' && c.progress >= c.target && !c.claimed).length, [challenges]);
 
@@ -146,7 +146,7 @@ export const ChallengesModal = memo(function ChallengesModal({ visible, onClose,
         </View>
       </View>
 
-      {/* Challenge cards — FlatList for virtualized native scroll */}
+      {/* Challenge cards - FlatList for virtualized native scroll */}
       <FlatList
         key={section}
         data={listData}
@@ -192,7 +192,7 @@ function ChallengeCard({ challenge, onClaim }: { challenge: Challenge; onClaim: 
 
   const statusColor = isClaimed ? '#4ade80' : isComplete ? '#fbbf24' : '#e8a87c';
 
-  // Card wrapper — tinted left accent + status-aware background
+  // Card wrapper - tinted left accent + status-aware background
   const cardStyle = useMemo(() => {
     const bg = isClaimed
       ? 'rgba(74,222,128,0.05)'
@@ -434,7 +434,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: 12,
-    // No background — box removed per design
+    // No background - box removed per design
   },
   cardIcon: {
     fontSize: 28,

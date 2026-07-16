@@ -87,7 +87,7 @@ export const PRAYER_METHODS: Record<string, PrayerMethod> = {
         // Moonsighting Committee Worldwide method, recommended for UK & North America.
         // Uses 18° Fajr/Isha angles with seasonal adjustments and automatically
         // applies the 1/7th of night rule above 55° latitude (covers all of Scotland).
-        // Computed on-device by the adhan library — no API call needed.
+        // Computed on-device by the adhan library - no API call needed.
         name: 'Moonsighting Committee (UK)',
         fajrAngle: -18,
         ishaAngle: -18,
@@ -99,7 +99,7 @@ export const PRAYER_METHODS: Record<string, PrayerMethod> = {
 export type PrayerMethodKey = keyof typeof PRAYER_METHODS;
 export type Madhab = 'hanafi' | 'standard';
 
-/** Per-prayer minute offsets — kept for type compatibility but no longer used in UI.
+/** Per-prayer minute offsets - kept for type compatibility but no longer used in UI.
  * @deprecated Replaced by automatic high-latitude method selection.
  */
 export type PrayerOffsets = {
@@ -255,7 +255,7 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
                 Isha:    fmt(ptTomorrow.fajr),
             };
 
-            console.log(`[Prayer] adhan/${key} @ (${lat.toFixed(4)}, ${lng.toFixed(4)}) — Fajr ${t.Fajr}, Isha ${t.Isha}`);
+            console.log(`[Prayer] adhan/${key} @ (${lat.toFixed(4)}, ${lng.toFixed(4)}) - Fajr ${t.Fajr}, Isha ${t.Isha}`);
             applyTimings(t, d, token);
         } catch (err) {
             console.error('[Prayer] adhan computation failed, using fallback:', err);
@@ -280,7 +280,7 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
 
             if (status !== 'granted') {
                 setLocationError('Location permission denied');
-                // No manual coords and no GPS — last resort is London
+                // No manual coords and no GPS - last resort is London
                 computeTimes(51.5074, -0.1278, 'UK', token);
                 return;
             }

@@ -232,7 +232,7 @@ export const SettingsModal = memo(function SettingsModal({
       </Text>
 
       <View style={s.groupCard}>
-        {/* Location — always visible */}
+        {/* Location - always visible */}
         <View style={s.calcDescRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 6 }}>
             <MaterialCommunityIcons
@@ -293,7 +293,7 @@ export const SettingsModal = memo(function SettingsModal({
             </View>
           )}
 
-          {/* GPS restore button — only shown when a city is manually set */}
+          {/* GPS restore button - only shown when a city is manually set */}
           {manualCity.length > 0 && (
             <TouchableOpacity
               onPress={() => { Haptics.selectionAsync(); setCityInput(''); setCityStatus('idle'); onClearManualCity(); }}
@@ -417,7 +417,7 @@ export const SettingsModal = memo(function SettingsModal({
         <Text style={s.resetText}>Reset All Progress</Text>
       </TouchableOpacity>
 
-      {/* ── DEBUG (dev only — never shipped in production builds) ── */}
+      {/* ── DEBUG (dev only - never shipped in production builds) ── */}
       {__DEV__ && asPage && onDebug && (
         <TouchableOpacity
           onPress={onDebug}

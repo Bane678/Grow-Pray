@@ -33,7 +33,7 @@ type PrayerTimings = {
 
 const PRAYER_ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
 
-// Local prayer icon assets — used as notification image attachments on iOS
+// Local prayer icon assets - used as notification image attachments on iOS
 const PRAYER_ICON_MODULES: Record<string, number> = {
   Fajr:    require('../assets/Garden Assets/Icons/Fajr.png'),
   Dhuhr:   require('../assets/Garden Assets/Icons/Dhuhr.png'),
@@ -167,7 +167,7 @@ export function useNotifications(
   };
 
   // Schedule (or cancel) one daily local reflection reminder. Reuses the existing
-  // notification permission — no new prompt beyond what prayer reminders already ask.
+  // notification permission - no new prompt beyond what prayer reminders already ask.
   const scheduleReflectionReminder = async () => {
     try {
       await Notifications.cancelScheduledNotificationAsync(REFLECTION_REMINDER_ID).catch(() => {});
@@ -274,7 +274,7 @@ export function useNotifications(
           identifier: DECAY_WARN_ID,
           content: {
             title: 'Your garden needs care',
-            body: "You haven't prayed today — your garden will start withering soon.",
+            body: "You haven't prayed today - your garden will start withering soon.",
             data: { type: 'decay-warning' },
             sound: 'default',
             ...(Platform.OS === 'android' && { channelId: 'garden-decay' }),
@@ -334,7 +334,7 @@ export function useNotifications(
         const prayerStartMinutes = hours * 60 + minutes;
 
         // Schedule prayer start notification as a DAILY repeating trigger so it
-        // fires every day at this time — even if the user doesn't open the app.
+        // fires every day at this time - even if the user doesn't open the app.
         // Fixed identifier per prayer lets us cancel & replace when timings shift.
         const message = PRAYER_MESSAGES[prayer];
         const iconUri = Platform.OS === 'ios' ? await getPrayerIconUri(prayer) : null;
@@ -396,7 +396,7 @@ export function useNotifications(
           }
         }
 
-        // Deadline warning — today only (time-sensitive, not repeating)
+        // Deadline warning - today only (time-sensitive, not repeating)
         const warningMinutes = prayerEndMinutes - DEADLINE_WARNING_MINUTES;
         if (warningMinutes > currentMinutes && warningMinutes < 24 * 60) {
           const warningHours = Math.floor(warningMinutes / 60);
@@ -408,7 +408,7 @@ export function useNotifications(
             identifier: `prayer-deadline-${prayer}`,
             content: {
               title: `${DEADLINE_WARNING_MINUTES} min left for ${prayer}`,
-              body: `Don't break your streak — complete ${prayer} now!`,
+              body: `Don't break your streak - complete ${prayer} now!`,
               data: { prayer, type: 'deadline-warning' },
               sound: 'default',
               ...(Platform.OS === 'android' && { channelId: 'prayer-reminders' }),

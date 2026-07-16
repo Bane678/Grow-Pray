@@ -71,7 +71,7 @@ export const TREE_CATALOG: TreeCatalogItem[] = [
     name: 'Basic Tree',
     price: 0,
     rarity: 'common',
-    tint: '',  // no tint — default green
+    tint: '',  // no tint - default green
     description: 'A simple tree. Free with every garden!',
   },
   {
@@ -388,7 +388,7 @@ const RARITY_COLORS: Record<string, { bg: string; text: string; border: string }
   premium: { bg: 'rgba(251, 191, 36, 0.15)', text: '#fbbf24', border: 'rgba(251, 191, 36, 0.3)' },
 };
 
-// Preview asset — we use sapling (what gets planted) as the shop preview
+// Preview asset - we use sapling (what gets planted) as the shop preview
 const PREVIEW_ASSET = require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png');
 
 // Per-tree custom preview assets keyed by sprites.sapling value
@@ -745,7 +745,7 @@ export function ShopModal({
           locked && styles.lockedCard,
         ]}
       >
-        {/* Tree preview with tint — tap to see growth stages */}
+        {/* Tree preview with tint - tap to see growth stages */}
         <TouchableOpacity
           style={styles.previewContainer}
           onPress={() => openTreeDetail(item)}
@@ -886,7 +886,7 @@ export function ShopModal({
             })}
           </View>
 
-          {/* Content — one per-tab ScrollView always mounted so images stay decoded */}
+          {/* Content - one per-tab ScrollView always mounted so images stay decoded */}
           <View style={{ flex: 1, minHeight: 400 }}>
 
             {/* Trees */}
@@ -1031,7 +1031,7 @@ export function ShopModal({
 
                 <Text style={styles.sectionTitle}>🛡️ Streak Freeze</Text>
                 <Text style={{ color: '#9ca3af', fontSize: 12, marginBottom: 10, lineHeight: 16 }}>
-                  A safety net for missed days — consumed automatically if you miss prayers.
+                  A safety net for missed days - consumed automatically if you miss prayers.
                 </Text>
 
                 <View>

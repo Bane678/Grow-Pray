@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // Never read/written in production builds (guarded by __DEV__).
 const DEBUG_PREMIUM_KEY = '@GrowPray:debugPremium';
 
-// ↓↓ PASTE YOUR REVENUECAT PUBLIC SDK KEY HERE — iOS key starts with "appl_"
+// ↓↓ PASTE YOUR REVENUECAT PUBLIC SDK KEY HERE - iOS key starts with "appl_"
 const REVENUECAT_API_KEY_IOS = 'appl_VaGTERmLPtteHHWvmcvjUpXEfqo';
 // Leave Android blank unless you ship on Android
 const REVENUECAT_API_KEY_ANDROID = '';
@@ -125,7 +125,7 @@ export function usePremium(): PremiumState {
       }
       return false;
     } catch (e: any) {
-      // User cancelled — not a real error
+      // User cancelled - not a real error
       if (e?.code !== '1') console.error('Purchase failed:', e);
       return false;
     }
@@ -138,7 +138,7 @@ export function usePremium(): PremiumState {
     purchasePackage(PREMIUM_PLANS.yearly.id), [purchasePackage]);
 
   // Purchase a consumable coin pack by its App Store product ID.
-  // Consumables don't grant an entitlement — we resolve `true` on a completed
+  // Consumables don't grant an entitlement - we resolve `true` on a completed
   // (non-cancelled) transaction and the caller credits the coins.
   const purchaseCoins = useCallback(async (productId: string): Promise<boolean> => {
     try {
@@ -153,7 +153,7 @@ export function usePremium(): PremiumState {
       } catch { /* fall through to direct lookup */ }
 
       if (!storeProduct) {
-        // Coin packs are consumables — must request the NON_SUBSCRIPTION category,
+        // Coin packs are consumables - must request the NON_SUBSCRIPTION category,
         // otherwise getProducts (which defaults to SUBSCRIPTION) returns nothing.
         const products = await Purchases.getProducts(
           [productId],
@@ -190,7 +190,7 @@ export function usePremium(): PremiumState {
     }
   }, []);
 
-  // Debug toggle — only use in dev, never call from production UI.
+  // Debug toggle - only use in dev, never call from production UI.
   // Persists the choice so it survives dev-server reloads.
   const togglePremiumDebug = useCallback(async () => {
     setIsPremium(prev => {

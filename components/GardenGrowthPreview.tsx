@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Animated, Image, StyleSheet, Easing, Text } from 'react-native';
 import { FONTS } from '../theme/typography';
 
-// Real in-app tree growth sprites — sapling → growing → grown → flourishing.
+// Real in-app tree growth sprites - sapling → growing → grown → flourishing.
 const STAGES = [
   require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png'),
   require('../assets/Garden Assets/Tree Types/Basic Trees/Growing_Tree_converted.png'),
@@ -57,14 +57,14 @@ export function GardenGrowthPreview({ size = 200 }: { size?: number }) {
       {/* Soft glow behind the canopy */}
       <View style={[styles.glow, { width: size * 0.7, height: size * 0.7, borderRadius: size * 0.35, left: size * 0.15, top: size * 0.12 }]} />
 
-      {/* Ground tile (2:1 isometric) — centred */}
+      {/* Ground tile (2:1 isometric) - centred */}
       <Image
         source={GROUND}
         style={{ width: size * 0.66, height: size * 0.33, position: 'absolute', left: size * 0.17, top: size * 0.455 }}
         resizeMode="contain"
       />
 
-      {/* Growing tree — anchored exactly like the real garden:
+      {/* Growing tree - anchored exactly like the real garden:
           top = tileCenterY - 0.75 * treeHeight, so the base rests ~25% below tile centre */}
       <Animated.Image
         source={STAGES[stage]}

@@ -122,7 +122,7 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
       },
       {
         id: 'morning_sayyidul_istighfar',
-        // VERIFY — Sayyid al-Istighfar (abbreviated; verify full text before release)
+        // VERIFY - Sayyid al-Istighfar (abbreviated; verify full text before release)
         arabic: 'اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ',
         transliteration: "Allahumma anta Rabbi la ilaha illa anta, khalaqtani wa ana 'abduka",
         translation: 'O Allah, You are my Lord, none has the right to be worshipped except You. You created me and I am Your servant.',

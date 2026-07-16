@@ -104,7 +104,7 @@ export const DhikrScreen = React.memo(function DhikrScreen({
         setTargetText(String(dhikr.customTarget));
       }
     } else {
-      // Invalid / empty — revert to the current target.
+      // Invalid / empty - revert to the current target.
       setTargetText(String(dhikr.customTarget));
     }
   }, [targetText, dhikr]);

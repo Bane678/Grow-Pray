@@ -121,7 +121,7 @@ export const InsightsView = React.memo(function InsightsView({
               { color: insights.mostConsistent ? PRAYER_COLORS[insights.mostConsistent] : '#e8e0d6' },
             ]}
           >
-            {insights.mostConsistent || '—'}
+            {insights.mostConsistent || '-'}
           </Text>
         </View>
         <View style={[styles.card, styles.dualCard]}>
@@ -132,7 +132,7 @@ export const InsightsView = React.memo(function InsightsView({
               { color: insights.leastConsistent ? PRAYER_COLORS[insights.leastConsistent] : '#e8e0d6' },
             ]}
           >
-            {insights.leastConsistent || '—'}
+            {insights.leastConsistent || '-'}
           </Text>
         </View>
       </View>

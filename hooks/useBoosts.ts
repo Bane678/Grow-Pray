@@ -17,7 +17,7 @@ export interface BoostDefinition {
   durationHours: number;
   /** Rarity tier for styling */
   tier: 'basic' | 'enhanced' | 'divine';
-  /** Rarity accent colour — drives the boost's banner/card styling everywhere. */
+  /** Rarity accent colour - drives the boost's banner/card styling everywhere. */
   color: string;
 }
 
@@ -32,7 +32,7 @@ export const BOOST_CATALOG: BoostDefinition[] = [
     coinBonus: 0,
     durationHours: 3,
     tier: 'basic',
-    color: '#4ade80', // green — common
+    color: '#4ade80', // green - common
   },
   {
     id: 'bloom',
@@ -44,7 +44,7 @@ export const BOOST_CATALOG: BoostDefinition[] = [
     coinBonus: 1,
     durationHours: 6,
     tier: 'enhanced',
-    color: '#38bdf8', // blue — intermediate
+    color: '#38bdf8', // blue - intermediate
   },
   {
     id: 'radiance',
@@ -56,7 +56,7 @@ export const BOOST_CATALOG: BoostDefinition[] = [
     coinBonus: 2,
     durationHours: 24,
     tier: 'enhanced',
-    color: '#a855f7', // purple — rare
+    color: '#a855f7', // purple - rare
   },
   {
     id: 'noor',
@@ -68,7 +68,7 @@ export const BOOST_CATALOG: BoostDefinition[] = [
     coinBonus: 3,
     durationHours: 48,
     tier: 'divine',
-    color: '#fbbf24', // gold — legendary
+    color: '#fbbf24', // gold - legendary
   },
 ];
 
@@ -133,7 +133,7 @@ export function useBoosts(
           if (parsed.expiresAt > Date.now()) {
             setActiveBoost(parsed);
           } else {
-            // Expired — clean up
+            // Expired - clean up
             await AsyncStorage.removeItem(ACTIVE_BOOST_KEY);
           }
         }

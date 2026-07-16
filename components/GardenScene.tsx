@@ -32,7 +32,7 @@ const { width: SCREEN_W, height: SCREEN_H } = Dimensions.get('window');
 // Stars span the full sky but get smaller and dimmer toward the bottom,
 // creating a natural gradient that avoids overcrowding.
 const STAR_DATA = Array.from({ length: 18 }, (_, i) => {
-    const yFrac = ((i * 31 + 7) % 92 + 4) / 100;           // 4–96% — full screen
+    const yFrac = ((i * 31 + 7) % 92 + 4) / 100;           // 4–96% - full screen
     const depth = 1 - yFrac;                                 // 1 at top → 0 at bottom
     return {
         x:    ((i * 47 + 13) % 97) / 100,
@@ -150,7 +150,7 @@ function DustMote({ spec }: { spec: MoteSpec }) {
     const wobble  = useRef(new Animated.Value(0)).current;
 
     useEffect(() => {
-        // Organic lateral breath — perpendicular oscillation independent of drift
+        // Organic lateral breath - perpendicular oscillation independent of drift
         const wobbleDur = 1400 + (spec.delay % 700);
         const wobbleLoop = Animated.loop(Animated.sequence([
             Animated.timing(wobble, { toValue: -spec.wobble, duration: wobbleDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -176,7 +176,7 @@ function DustMote({ spec }: { spec: MoteSpec }) {
                 Animated.timing(tx, { toValue: spec.dx, duration: spec.dur, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
                 Animated.timing(ty, { toValue: spec.dy, duration: spec.dur, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
             ]),
-            // Phase 2: guard — wait a frame to ensure opacity=0 is committed before position snaps
+            // Phase 2: guard - wait a frame to ensure opacity=0 is committed before position snaps
             Animated.delay(50),
             // Phase 3: invisible reset back to origin
             Animated.parallel([
@@ -213,7 +213,7 @@ function DustMote({ spec }: { spec: MoteSpec }) {
 const FloatingParticles = React.memo(function FloatingParticles({ treePositions }: {
     treePositions: { x: number; y: number; isFlourishing: boolean }[];
 }) {
-    // Generate mote specs from tree positions — stable identity via useMemo
+    // Generate mote specs from tree positions - stable identity via useMemo
     const specs = useMemo(() => {
         const result: MoteSpec[] = [];
         let seed = 0;
@@ -242,7 +242,7 @@ const FloatingParticles = React.memo(function FloatingParticles({ treePositions 
 
 // ── Falling Leaves ────────────────────────────────────────────────────────────
 // Occasional small leaves drift down from the tree canopy zone.
-// Sparse and gentle — long rest periods between each cycle.
+// Sparse and gentle - long rest periods between each cycle.
 const GARDEN_CX = SCREEN_W / 2;
 const GARDEN_CY = SCREEN_H * 0.42;
 const LEAF_COUNT = 3;
@@ -297,7 +297,7 @@ function FallingLeaf({ spec }: { spec: typeof LEAF_SPECS[0] }) {
                 Animated.timing(ty, { toValue: spec.dy, duration: spec.dur, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
                 Animated.timing(rotate, { toValue: 1, duration: spec.dur, easing: Easing.linear, useNativeDriver: true }),
             ]),
-            // Phase 2: guard — wait a frame to ensure opacity=0 is committed before position snaps
+            // Phase 2: guard - wait a frame to ensure opacity=0 is committed before position snaps
             Animated.delay(50),
             // Phase 3: invisible instant reset (opacity is 0)
             Animated.parallel([
@@ -415,7 +415,7 @@ const WOOD_CHOP_SOUND = require('../assets/sounds/Wood_Chopping_Noise.m4a');
 const TREE_WIDTH = 848;
 const TREE_HEIGHT = 1264;
 
-// Vertical squash factor — compresses tree height to simulate a more overhead camera angle
+// Vertical squash factor - compresses tree height to simulate a more overhead camera angle
 // and reduce visual overlap between neighboring tiles. 1.0 = no squash, 0.7 = 30% shorter.
 const TREE_SQUASH = 0.7;
 
@@ -479,7 +479,7 @@ const generateDeadTreePositions = (maxGridSize: number) => {
 const ALL_DEAD_TREE_POSITIONS = generateDeadTreePositions(21); // MAX_GRID_SIZE from hook
 
 // Rotates local grid coordinates to simulate camera orbiting the garden.
-// This changes which tiles appear in front/back — the actual isometric camera rotation.
+// This changes which tiles appear in front/back - the actual isometric camera rotation.
 // rotation: 0=default, 1=90°CW, 2=180°, 3=270°CW
 const rotateLocal = (localRow: number, localCol: number, rotation: number, maxLocal: number): [number, number] => {
     switch (((rotation % 4) + 4) % 4) {
@@ -585,7 +585,7 @@ const LevelUpFX = React.memo(function LevelUpFX({
 
     return (
         <>
-            {/* Ring pulse — temporarily hidden */}
+            {/* Ring pulse - temporarily hidden */}
             {/* <Animated.View
                 pointerEvents="none"
                 style={{
@@ -809,7 +809,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
                 }}
             >
                 {/* Inner view: level-up scale on JS driver so the image is re-rendered
-                    at full resolution every frame — eliminates the grainy texture-stretch
+                    at full resolution every frame - eliminates the grainy texture-stretch
                     artifact that native driver causes by rasterising at 1× then stretching. */}
                 <Animated.View
                     style={{
@@ -837,7 +837,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     );
 });
 
-// Temporary "just planted" spotlight — a soft ground glow plus a few expanding
+// Temporary "just planted" spotlight - a soft ground glow plus a few expanding
 // rings at a freshly placed tree so it's easy to spot. Fades itself out after
 // ~3s and calls onDone so the parent can drop it. Grounded (flattened) to sit
 // on the isometric floor rather than face the camera.
@@ -909,10 +909,10 @@ const JustPlantedPulse = React.memo(function JustPlantedPulse({
     );
 });
 
-// AnimatedTile component — keeps previous tile underneath to prevent black flash during swap
+// AnimatedTile component - keeps previous tile underneath to prevent black flash during swap
 // Supports ripple animation: scale + opacity spring on state transition
 // ─── Tile decoration data ─────────────────────────────────────────────────────
-// Deterministic decoration placement per tile — seeded by row+col so positions
+// Deterministic decoration placement per tile - seeded by row+col so positions
 // are stable across re-renders while still looking sparse and random.
 const DEAD_DECORATIONS = [ASSETS.deadGrassTuft, ASSETS.pebbles] as const;
 const RECOVERED_DECORATIONS = [ASSETS.wildflowers, ASSETS.grassBlades, ASSETS.mushrooms, ASSETS.clovers] as const;
@@ -1039,7 +1039,7 @@ const DewSparkle = React.memo(function DewSparkle({
     );
 });
 
-// Pre-computed wind shimmer phase type — shared across all tiles from one animation loop
+// Pre-computed wind shimmer phase type - shared across all tiles from one animation loop
 type WindShimmerPhase = {
     opacity: Animated.AnimatedInterpolation<number>;
     translateX: Animated.AnimatedInterpolation<number>;
@@ -1139,7 +1139,7 @@ const AnimatedTile = React.memo(function AnimatedTile({
                     style={{ position: 'absolute', width: SCALED_WIDTH, height: SCALED_HEIGHT }}
                     resizeMode="contain"
                 />
-                {/* Wind shimmer overlay — recovered tiles only, driven by shared animation */}
+                {/* Wind shimmer overlay - recovered tiles only, driven by shared animation */}
                 {state === 'recovered' && windShimmer && (
                     <Animated.View pointerEvents="none" style={{
                         position: 'absolute',
@@ -1155,7 +1155,7 @@ const AnimatedTile = React.memo(function AnimatedTile({
                         />
                     </Animated.View>
                 )}
-                {/* Tile decorations — small sprites scattered on the tile */}
+                {/* Tile decorations - small sprites scattered on the tile */}
                 {!hasTree && (state === 'dead' || state === 'recovered') && getTileDecorations(row, col, state).map((deco, i) => (
                     <Image
                         key={`deco-${i}`}
@@ -1237,7 +1237,7 @@ const getPlantedTreeStageWithIndex = (currentXP: number, plantedAtXP: number) =>
     return { stage: TREE_STAGES[0], index: 0 };
 };
 
-// Chopping animation component — 3 distinct axe swings synced to Wood_Chopping_Noise.m4a
+// Chopping animation component - 3 distinct axe swings synced to Wood_Chopping_Noise.m4a
 // The sound has 3 chop hits at ~0.5s, ~1.3s, ~2.3s in a 3s file.
 // Chops 1 & 2: moderate swing (axe getting in). Chop 3: big swing (tree felled).
 const CHOP_DURATION_MS = 3000; // Matches the full sound length
@@ -1276,7 +1276,7 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
                         sound.unloadAsync();
                     }
                 });
-                // Start sound and animation in the same microtask — no await before startChopAnimation
+                // Start sound and animation in the same microtask - no await before startChopAnimation
                 sound.playAsync().catch(() => {});
                 startChopAnimation();
             })
@@ -1319,7 +1319,7 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
         // ── 3-chop sequence synced to sound hits at ~0.5s, ~1.3s, ~2.3s ──
         const chopSequence = Animated.sequence([
             // Chop 1: moderate (wind-up 350ms + strike ~158ms + rebound ~245ms ≈ 753ms)
-            // Impact at ~508ms — matches first sound hit at ~500ms
+            // Impact at ~508ms - matches first sound hit at ~500ms
             makeChop(0.6, 350, 2.5),
             // Gap to chop 2
             Animated.delay(50),
@@ -1327,7 +1327,7 @@ const ChoppingAnimation = React.memo(function ChoppingAnimation({
             makeChop(0.65, 360, 3),
             // Gap to final chop
             Animated.delay(80),
-            // Chop 3: big finishing blow — tree felled
+            // Chop 3: big finishing blow - tree felled
             makeChop(0.9, 420, 6),
             // Let the final shake settle
             Animated.delay(120),
@@ -1633,7 +1633,7 @@ function IsometricGrid({
     const centerOffsetX = (gridSize - 1) * STEP_X;
     const maxLocal = gridSize - 1;
 
-    // ─── Shared wind shimmer — 1 animation loop, 8 phase groups ────────────
+    // ─── Shared wind shimmer - 1 animation loop, 8 phase groups ────────────
     // Instead of 200+ per-tile Animated.loops, one native-driven value drives all tiles.
     // Each tile picks a pre-interpolated phase based on (row+col) for a wave-sweep effect.
     const windAnim = useRef(new Animated.Value(0)).current;
@@ -1726,7 +1726,7 @@ function IsometricGrid({
 
     // ─── Grid-level tap handler with isometric diamond hit-testing ────────────
     const handleGridTap = useCallback((x: number, y: number) => {
-        // In edit mode a plain tap (not a drag) leaves the rearrange mode —
+        // In edit mode a plain tap (not a drag) leaves the rearrange mode -
         // trees are moved by dragging, so any tap here means "I'm done".
         if (editMode) { onExitEditMode?.(); return; }
 
@@ -1868,7 +1868,7 @@ function IsometricGrid({
         if (hit.row === maxCenter && hit.col === maxCenter) return; // main tree can't move
         const planted = getPlantedTree(hit.row, hit.col);
         if (!planted) return;
-        // Don't pick up a fully-withered (dead) planted tree — matches the tap gate.
+        // Don't pick up a fully-withered (dead) planted tree - matches the tap gate.
         const { index: stageIdx } = getPlantedTreeStageWithIndex(xp, planted.plantedAtXP);
         if (stageIdx < 0) return;
 
@@ -1899,7 +1899,7 @@ function IsometricGrid({
     // Snap the lifted tree back to its origin, then drop the ghost immediately
     // so the jiggling tile tree reappears. A short timing (not a spring) is used
     // because a spring's completion callback only fires after its long settle
-    // tail — which left the tree frozen at origin for ~1s before jiggling again.
+    // tail - which left the tree frozen at origin for ~1s before jiggling again.
     const snapBack = useCallback(() => {
         Animated.timing(dragTranslate, {
             toValue: { x: 0, y: 0 },
@@ -1911,7 +1911,7 @@ function IsometricGrid({
 
     // Finish a drag: commit the move/swap or snap back with an error flash.
     // The ghost is kept on screen until the move is confirmed committed, so the
-    // tree can never disappear — it either lands on the target or springs back.
+    // tree can never disappear - it either lands on the target or springs back.
     const endDrag = useCallback(async (px: number, py: number) => {
         const d = draggingRef.current;
         stopWiggle();
@@ -1927,7 +1927,7 @@ function IsometricGrid({
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
                 setDraggingTree(null);
             } else {
-                // Rejected unexpectedly — snap back rather than leave it stranded.
+                // Rejected unexpectedly - snap back rather than leave it stranded.
                 flashError(hit.row, hit.col);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
                 snapBack();
@@ -1990,7 +1990,7 @@ function IsometricGrid({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [justPlantedTile?.seq]);
 
-    // Memoize the tile elements — only rebuilt when grid state actually changes
+    // Memoize the tile elements - only rebuilt when grid state actually changes
     const tiles = useMemo(() => {
         const result: React.ReactElement[] = [];
         for (let row = startRow; row <= endRow; row++) {
@@ -2022,7 +2022,7 @@ function IsometricGrid({
         return result;
     }, [startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, animDelayMap, treeOccupiedTileSet]);
 
-    // Memoize ambient tile effects — embers on dead, dew sparkles on recovered
+    // Memoize ambient tile effects - embers on dead, dew sparkles on recovered
     const tileEffects = useMemo(() => {
         if (isZoomedOut) return [];
         const effects: React.ReactElement[] = [];
@@ -2163,7 +2163,7 @@ function IsometricGrid({
         });
     }, [visibleDeadTrees, gridSize, rotation, getTileState, choppingTrees, onDeadTreePress, onChoppingComplete]);
 
-    // Memoize planted tree elements — each renders as an AnimatedPlantedTree component
+    // Memoize planted tree elements - each renders as an AnimatedPlantedTree component
     // which owns its own stage-tracking state and level-up FX. The tile currently
     // being dragged is skipped here; its lifted "ghost" is rendered separately.
     const draggingKey = draggingTree ? `${draggingTree.fromRow},${draggingTree.fromCol}` : null;
@@ -2214,7 +2214,7 @@ function IsometricGrid({
     const containerWidth = (gridSize - 1) * STEP_X * 2 + SCALED_WIDTH;
     const containerHeight = (gridSize - 1) * STEP_Y * 2 + SCALED_HEIGHT;
 
-    // Center point of the center tile in screen space — anchor for level-up FX
+    // Center point of the center tile in screen space - anchor for level-up FX
     const fxCenterX = centerTileX + SCALED_WIDTH / 2;
     const fxCenterY = centerTileY + SCALED_HEIGHT / 2;
 
@@ -2230,10 +2230,10 @@ function IsometricGrid({
             >
             {tiles}
 
-            {/* Ambient tile effects — embers & dew sparkles */}
+            {/* Ambient tile effects - embers & dew sparkles */}
             {tileEffects}
 
-            {/* Tap highlight — subtle outline around diamond edge of tapped tile */}
+            {/* Tap highlight - subtle outline around diamond edge of tapped tile */}
             {tapHighlight && (
                 <Animated.View
                     pointerEvents="none"
@@ -2373,7 +2373,7 @@ function IsometricGrid({
                 </Animated.View>
             )}
 
-            {/* Lifted "ghost" of the tree being dragged — follows the finger */}
+            {/* Lifted "ghost" of the tree being dragged - follows the finger */}
             {draggingTree && (() => {
                 const sprite = getPlantedTreeSprite(draggingTree.planted, xp, 'recovered', daysSinceLastXP);
                 const posX = draggingTree.tileCenterX - sprite.ptWidth / 2 + sprite.offsetX;
@@ -2461,7 +2461,7 @@ export const GardenScene = React.memo(function GardenScene({
 }: GardenSceneProps) {
     // ── Fire onRenderReady when the center tree image actually decodes ──────
     // onLoad fires on the native thread once the bitmap is decoded and ready
-    // to paint — a true signal that the garden's most prominent element is visible.
+    // to paint - a true signal that the garden's most prominent element is visible.
     const renderReadyFired = useRef(false);
     const handleCenterTreeLoaded = useCallback(() => {
         if (renderReadyFired.current || !onRenderReady) return;
@@ -2469,7 +2469,7 @@ export const GardenScene = React.memo(function GardenScene({
         onRenderReady();
     }, [onRenderReady]);
 
-    // ── Native-driver opacity for freeze — no React re-render ──────────────
+    // ── Native-driver opacity for freeze - no React re-render ──────────────
     // We use an Animated.Value instead of useState so that hiding/showing the
     // garden when a modal opens doesn't trigger React reconciliation (which
     // would force IsometricGrid to re-render all N×N tiles).
@@ -2543,7 +2543,7 @@ export const GardenScene = React.memo(function GardenScene({
 
     // ── Gesture translation: fully on UI thread via Reanimated ──────────────
     // ── Gesture translation: offset (committed) + drag (live) ─────────────
-    // Both driven on the native thread — zero JS involvement during drag or fling.
+    // Both driven on the native thread - zero JS involvement during drag or fling.
     const baseX  = useRef(new Animated.Value(0)).current;
     const baseY  = useRef(new Animated.Value(0)).current;
     const dragX  = useRef(new Animated.Value(0)).current;
@@ -2561,7 +2561,7 @@ export const GardenScene = React.memo(function GardenScene({
     const momentumRef = useRef<Animated.CompositeAnimation | null>(null);
 
     const [isZoomedOut, setIsZoomedOut] = useState(false);
-    // Committed zoom level — drives the pan clamp bounds and re-renders the
+    // Committed zoom level - drives the pan clamp bounds and re-renders the
     // clamped transform when zoom settles.
     const [viewScale, setViewScale] = useState(1);
 
@@ -2586,17 +2586,17 @@ export const GardenScene = React.memo(function GardenScene({
     const contentH = gridSize * SCALED_HEIGHT;
 
     // Minimum zoom is tied to garden size: you can pull back until the whole
-    // garden fits (with a little margin) and no further — a small garden can't
+    // garden fits (with a little margin) and no further - a small garden can't
     // shrink to a speck, a large one can zoom out enough to see all of it.
     const fitScale = Math.min(SCREEN_W / contentW, SCREEN_H / contentH);
     const MIN_SCALE = Math.max(0.14, Math.min(0.9, fitScale * 0.9));
     const MAX_SCALE = 4;
 
-    // The pannable "environment" — a bounded region, larger than the garden and
+    // The pannable "environment" - a bounded region, larger than the garden and
     // scaling with it, that the user can roam freely within (up/down as well as
     // side to side). Bounds are the greater of (a) enough to bring each garden
     // edge to the viewport edge, and (b) a roam margin that scales with garden
-    // size — then capped so at least KEEP_MIN px of garden always stays on
+    // size - then capped so at least KEEP_MIN px of garden always stays on
     // screen, so it can never be lost. The rendered transform is hard-clamped to
     // this, so the limit holds even mid-drag/fling.
     const REST_PAD = 18;
@@ -2626,7 +2626,7 @@ export const GardenScene = React.memo(function GardenScene({
             setViewScale(clamped); // re-render the clamp with the new bounds
             const nowZoomedOut = clamped <= MIN_SCALE * 1.05;
             setIsZoomedOut(prev => prev === nowZoomedOut ? prev : nowZoomedOut);
-            // Zooming changes the bounds — pull the offset back into range.
+            // Zooming changes the bounds - pull the offset back into range.
             const c = clampToRest(lastBaseX.current, lastBaseY.current, clamped);
             baseX.setValue(c.x);
             baseY.setValue(c.y);
@@ -2660,7 +2660,7 @@ export const GardenScene = React.memo(function GardenScene({
         if (state === State.END || state === State.CANCELLED || state === State.FAILED) {
             // Commit the clamped position. The rendered transform is hard-clamped
             // to the same bounds, so the garden never visually left view during
-            // the drag — committing the clamp here just keeps the logical offset
+            // the drag - committing the clamp here just keeps the logical offset
             // in sync (no jump).
             const s = baseScale.current;
             const clamped = clampToRest(lastBaseX.current + translationX, lastBaseY.current + translationY, s);
@@ -2712,7 +2712,7 @@ export const GardenScene = React.memo(function GardenScene({
     };
 
     // Hard-clamp the rendered pan so the garden can never be moved past its
-    // bounds — this is what stops a drag/fling from pushing it out of view. The
+    // bounds - this is what stops a drag/fling from pushing it out of view. The
     // bounds follow the committed zoom level (viewScale) and garden size.
     const clampBoundX = restBounds(viewScale).x;
     const clampBoundY = restBounds(viewScale).y;
@@ -2736,7 +2736,7 @@ export const GardenScene = React.memo(function GardenScene({
 
     return (
         <GestureHandlerRootView style={styles.container}>
-            {/* ── Sky ambience — behind gesture layer ──────────────────────── */}
+            {/* ── Sky ambience - behind gesture layer ──────────────────────── */}
             <View style={[StyleSheet.absoluteFill, { zIndex: 0 }]} pointerEvents="none">
                 <StarField />
                 <CloudDrift />
@@ -2760,7 +2760,7 @@ export const GardenScene = React.memo(function GardenScene({
                     >
                         <Animated.View style={styles.canvasContainer}>
                             <Animated.View style={[styles.scaleWrapper, { transform: [{ translateX: clampedPanX }, { translateY: clampedPanY }, { scale: displayScale }] }]}>
-                                {/* gardenOpacity is an Animated.Value — changes via native driver, no React re-render */}
+                                {/* gardenOpacity is an Animated.Value - changes via native driver, no React re-render */}
                                 <Animated.View style={{ opacity: gardenOpacity }} pointerEvents="box-none">
                                 <MemoIsometricGrid
                                     xp={xp}
@@ -2786,7 +2786,7 @@ export const GardenScene = React.memo(function GardenScene({
                                     panRef={panRef}
                                     pinchRef={pinchRef}
                                 />
-                                {/* Pollen motes — always mounted so we never pay the cost of
+                                {/* Pollen motes - always mounted so we never pay the cost of
                                     stopping/starting all animation loops on every modal open */}
                                 {!frozen && !isZoomedOut && treePositions.length > 0 && (
                                     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
@@ -2800,7 +2800,7 @@ export const GardenScene = React.memo(function GardenScene({
                 </Animated.View>
             </PanGestureHandler>
 
-            {/* ── Foreground ambience — above garden (leaves only; pollen is inside scaleWrapper) ── */}
+            {/* ── Foreground ambience - above garden (leaves only; pollen is inside scaleWrapper) ── */}
             {!frozen && !isZoomedOut && leafCount > 0 && (
             <Animated.View
                 pointerEvents="none"

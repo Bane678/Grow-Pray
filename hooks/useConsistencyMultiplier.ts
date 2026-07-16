@@ -56,7 +56,7 @@ export interface ConsistencyMultiplierResult {
   recordPerfectDay: () => Promise<void>;
   /** Call when a prayer is missed (resets streak) */
   resetPerfectDays: () => Promise<void>;
-  /** Call when an all-prayer freeze is used — keeps the streak date alive without incrementing count */
+  /** Call when an all-prayer freeze is used - keeps the streak date alive without incrementing count */
   preservePerfectDays: () => Promise<void>;
   /** Debug: set perfect days to any value */
   debugSetPerfectDays: (days: number) => Promise<void>;
@@ -83,7 +83,7 @@ export function useConsistencyMultiplier(): ConsistencyMultiplierResult {
           if (storedDate === today || storedDate === yesterdayStr) {
             setPerfectDays(days);
           } else {
-            // Streak broken — too many days have passed
+            // Streak broken - too many days have passed
             setPerfectDays(0);
             await AsyncStorage.setItem(PERFECT_DAYS_KEY, JSON.stringify(0));
           }
@@ -111,7 +111,7 @@ export function useConsistencyMultiplier(): ConsistencyMultiplierResult {
   const resetPerfectDays = useCallback(async () => {
     setPerfectDays(0);
     await AsyncStorage.setItem(PERFECT_DAYS_KEY, JSON.stringify(0));
-    // Don't clear LAST_PERFECT_DATE_KEY — it's fine as stale
+    // Don't clear LAST_PERFECT_DATE_KEY - it's fine as stale
   }, []);
 
   const debugSetPerfectDays = useCallback(async (days: number) => {
@@ -126,7 +126,7 @@ export function useConsistencyMultiplier(): ConsistencyMultiplierResult {
 
   const preservePerfectDays = useCallback(async () => {
     // Update the last-perfect date to today so the consecutive-day streak stays alive,
-    // but don't increment the count — the freeze protects the streak, not earns a perfect day.
+    // but don't increment the count - the freeze protects the streak, not earns a perfect day.
     await AsyncStorage.setItem(LAST_PERFECT_DATE_KEY, new Date().toDateString());
   }, []);
 

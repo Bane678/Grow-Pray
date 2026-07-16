@@ -249,7 +249,7 @@ export const REFLECTIONS: Reflection[] = [
     theme: 'prayer',
     // VERIFY
     translation:
-      'Whoever prays the two cool prayers — Fajr and Asr — will enter Paradise.',
+      'Whoever prays the two cool prayers - Fajr and Asr - will enter Paradise.',
     source: 'Bukhari & Muslim', // VERIFY
   },
   {

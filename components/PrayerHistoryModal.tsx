@@ -123,7 +123,7 @@ function intensityColor(count: number): string {
   if (count === 2) return 'rgba(232,168,124,0.15)';
   if (count === 3) return 'rgba(232,168,124,0.22)';
   if (count === 4) return 'rgba(232,168,124,0.32)';
-  return 'rgba(251,191,36,0.18)'; // perfect — golden tint
+  return 'rgba(251,191,36,0.18)'; // perfect - golden tint
 }
 
 // ─── Component ─────────────────────────────────────────────────────────────────
@@ -459,7 +459,7 @@ export const PrayerHistoryModal = memo(function PrayerHistoryModal({
               <InsightsView insights={insights} prayerHistory={prayerHistory} windowDays={30} />
             ) : (
               <View style={{ position: 'relative' }}>
-                {/* Blurred sample preview — real values never rendered for free users */}
+                {/* Blurred sample preview - real values never rendered for free users */}
                 <View pointerEvents="none">
                   <InsightsView insights={SAMPLE_INSIGHTS} windowDays={30} />
                 </View>

@@ -21,7 +21,7 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 // Apple requires auto-renewing subscriptions to surface functional links to the
 // Terms of Use (EULA) and Privacy Policy on the paywall (Guideline 3.1.2).
 const PRIVACY_POLICY_URL = 'https://bane678.github.io/Grow-Pray/privacy-policy.html';
-// Apple's standard EULA — used unless you host your own Terms of Use page.
+// Apple's standard EULA - used unless you host your own Terms of Use page.
 const TERMS_OF_USE_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
 interface PaywallModalProps {
@@ -509,7 +509,7 @@ export function PaywallModal({
           Payment charged to App Store. Auto-renews unless cancelled 24h before period ends. Manage in App Store settings.
         </Text>
 
-        {/* Required legal links — Terms of Use & Privacy Policy */}
+        {/* Required legal links - Terms of Use & Privacy Policy */}
         <View style={{
           flexDirection: 'row',
           justifyContent: 'center',

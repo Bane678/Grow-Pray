@@ -126,7 +126,7 @@ function SkyBackground({
 }
 
 
-// Preload reward sound once at app startup — avoids 200-400ms createAsync delay on first tap
+// Preload reward sound once at app startup - avoids 200-400ms createAsync delay on first tap
 let _rewardSound: Audio.Sound | null = null;
 (async () => {
   try {
@@ -136,7 +136,7 @@ let _rewardSound: Audio.Sound | null = null;
       { shouldPlay: false, volume: 0.5 }
     );
     _rewardSound = sound;
-  } catch (_) { /* silent fail — sound is non-critical */ }
+  } catch (_) { /* silent fail - sound is non-critical */ }
 })();
 
 // Custom pixel-art icons
@@ -195,10 +195,10 @@ SplashScreen.preventAutoHideAsync().catch(() => {});
 
 // ─── Design Tokens ────────────────────────────────────────────────────────────
 const THEME = {
-  bg: '#0f1526',               // Deep navy — unified across all screens
+  bg: '#0f1526',               // Deep navy - unified across all screens
   bgCard: 'rgba(255,255,255,0.04)',  // Subtle card fill (no borders)
   bgOverlay: 'rgba(0,0,0,0.7)',      // Modal overlay
-  accent: '#e8a87c',           // Warm peach — active states, highlights
+  accent: '#e8a87c',           // Warm peach - active states, highlights
   accentMuted: 'rgba(232,168,124,0.15)', // Soft accent bg
   text: '#e8e0d6',             // Primary text (warm off-white)
   textSecondary: '#6b7280',    // Muted gray
@@ -572,8 +572,8 @@ function RestOverlay({
   );
 }
 
-// Top Info Bar — clean minimal: stats row + next prayer line
-// SVG-based countdown ring — reliable strokeDashoffset approach
+// Top Info Bar - clean minimal: stats row + next prayer line
+// SVG-based countdown ring - reliable strokeDashoffset approach
 function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
   progress: number;
   size: number;
@@ -801,7 +801,7 @@ function TopInfoBar({
   return (
     <View style={{ paddingTop: 6 }}>
 
-      {/* Settings gear — top-right corner overlay */}
+      {/* Settings gear - top-right corner overlay */}
       <TouchableOpacity
         onPress={onOpenSettings}
         activeOpacity={0.7}
@@ -827,7 +827,7 @@ function TopInfoBar({
         <Text style={{ fontSize: 8, fontWeight: '500', color: 'rgba(232,224,214,0.35)', letterSpacing: 0.5, marginTop: 2 }}>SETTINGS</Text>
       </TouchableOpacity>
 
-      {/* Qibla compass — top-left corner overlay */}
+      {/* Qibla compass - top-left corner overlay */}
       <TouchableOpacity
         onPress={onOpenQibla}
         activeOpacity={0.7}
@@ -922,7 +922,7 @@ function TopInfoBar({
 
       {/* Banners */}
       <View style={{ alignItems: 'center' }}>
-        {/* Active Boost banner — tinted/bordered/glowing in the boost's rarity colour */}
+        {/* Active Boost banner - tinted/bordered/glowing in the boost's rarity colour */}
         {activeBoostName && boostTimeRemaining && (() => {
           const bc = activeBoostColor || '#a855f7';
           return (
@@ -956,7 +956,7 @@ function TopInfoBar({
         })()}
       </View>
 
-      {/* ── Context label — subtle next prayer indicator with time ── */}
+      {/* ── Context label - subtle next prayer indicator with time ── */}
       <View style={{ alignItems: 'center' }}>
         {nextPrayer ? (
           <View style={{ alignItems: 'center', marginBottom: 10, marginTop: 6 }}>
@@ -993,7 +993,7 @@ function TopInfoBar({
             backgroundColor: 'rgba(160,190,240,0.06)',
           }} />
 
-          {/* ── Countdown Circle — sole focal element ── */}
+          {/* ── Countdown Circle - sole focal element ── */}
           <View style={{ width: 96, height: 96, alignItems: 'center', justifyContent: 'center' }}>
             <PremiumCountdownRing
               progress={ringProgress}
@@ -1320,7 +1320,7 @@ function BottomTabBar({
 
 // ─── Unified Reward Toast ──────────────────────────────────────────────────────
 // Single notification combining XP + coins with clear visual hierarchy.
-// One sound, one haptic, one animation — no sensory overload.
+// One sound, one haptic, one animation - no sensory overload.
 function RewardToast({ xp, baseXp, multiplier, coins, visible, onComplete }: {
   xp: number;
   baseXp: number;
@@ -1420,7 +1420,7 @@ function RewardToast({ xp, baseXp, multiplier, coins, visible, onComplete }: {
         alignItems: 'center',
         minWidth: 120,
       }}>
-        {/* XP — hero element */}
+        {/* XP - hero element */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Image
             source={XP_BADGE}
@@ -1437,7 +1437,7 @@ function RewardToast({ xp, baseXp, multiplier, coins, visible, onComplete }: {
           </Text>
         </View>
 
-        {/* Multiplier breakdown — secondary, only if active */}
+        {/* Multiplier breakdown - secondary, only if active */}
         {hasMultiplier && (
           <Text style={{
             fontSize: 10,
@@ -1458,7 +1458,7 @@ function RewardToast({ xp, baseXp, multiplier, coins, visible, onComplete }: {
           marginVertical: 6,
         }} />
 
-        {/* Coins — compact secondary line */}
+        {/* Coins - compact secondary line */}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
           <Text style={{
             fontSize: 13,
@@ -1589,7 +1589,7 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
             color: '#e5e7eb',
             marginBottom: 2,
           }}>
-            {prayer} — {streak} Day Streak
+            {prayer} - {streak} Day Streak
           </Text>
           <Text style={{
             fontSize: 14,
@@ -1597,7 +1597,7 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
             marginBottom: 20,
             textAlign: 'center',
           }}>
-            Keep it up — your garden is thriving.
+            Keep it up - your garden is thriving.
           </Text>
 
           {bonus > 0 && (
@@ -1754,7 +1754,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
       ? `${prayerConfig.manualCoords.lat.toFixed(3)},${prayerConfig.manualCoords.lng.toFixed(3)}`
       : 'gps';
     if (prevCoordKeyRef.current === null) {
-      // First call after hydration — just record, don't wipe.
+      // First call after hydration - just record, don't wipe.
       prevCoordKeyRef.current = key;
       return;
     }
@@ -1789,7 +1789,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     try {
       const today = new Date().toDateString();
 
-      // Load completed prayers — keep yesterday's if we haven't crossed Fajr yet
+      // Load completed prayers - keep yesterday's if we haven't crossed Fajr yet
       // (the live Fajr effect will clear them at the right time once timings load)
       const storedPrayers = await AsyncStorage.getItem(COMPLETED_PRAYERS_KEY);
       let savedPrayersData = null;
@@ -1799,13 +1799,13 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
         prevDay.setDate(prevDay.getDate() - 1);
         const prevDayStr = prevDay.toDateString();
         if (savedPrayersData.date === today) {
-          // Same calendar day — restore as-is
+          // Same calendar day - restore as-is
           setCompletedPrayers(new Set(savedPrayersData.prayers));
         } else if (savedPrayersData.date === prevDayStr) {
           // Yesterday's prayers: keep them visible until the live Fajr effect clears them
           setCompletedPrayers(new Set(savedPrayersData.prayers));
         } else {
-          // Older than yesterday — clear immediately
+          // Older than yesterday - clear immediately
           await AsyncStorage.setItem(COMPLETED_PRAYERS_KEY, JSON.stringify({ date: today, prayers: [] }));
         }
       }
@@ -1844,12 +1844,12 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
       }
 
       if (detectedMissed.length > 0 && !freezeAlreadyResolved) {
-        // Defer streak reset — let the freeze prompt handle it
+        // Defer streak reset - let the freeze prompt handle it
         setMissedPrayers(detectedMissed);
         // Keep current streaks intact until resolved
         setStreaks(currentStreaks);
       } else {
-        // No missed prayers, or freeze already resolved today — streaks stay as-is
+        // No missed prayers, or freeze already resolved today - streaks stay as-is
         // Save updated streaks
         await AsyncStorage.setItem(STREAKS_KEY, JSON.stringify({
           counts: currentStreaks,
@@ -1953,7 +1953,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
       const deadlineStr = deadlines[prayer as keyof typeof deadlines];
       const deadlineMinutes = timeToMinutes(deadlineStr);
       
-      // Isha crosses midnight — deadline (next Fajr) is on the next day
+      // Isha crosses midnight - deadline (next Fajr) is on the next day
       if (prayer === 'Isha') {
         return 24 * 60 + deadlineMinutes;
       }
@@ -2054,7 +2054,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
       // Completing a prayer
       newCompleted.add(prayer);
       
-      // Award XP (flat rate — prayer is within its Islamic deadline)
+      // Award XP (flat rate - prayer is within its Islamic deadline)
       // Friday (Jummah) bonus: getDay() === 5 is Friday
       const isFriday = new Date().getDay() === 5;
       const baseXp = XP_ON_TIME + (isFriday ? JUMMAH_XP_BONUS : 0);
@@ -2241,7 +2241,7 @@ const MADHAB_KEY = '@GrowPray:madhab';
 const CALC_METHOD_KEY = '@GrowPray:calcMethod';
 const MANUAL_CITY_KEY = '@GrowPray:manualCity';
 const MANUAL_COORDS_KEY = '@GrowPray:manualCoords';
-const PRAYER_OFFSETS_KEY = '@GrowPray:prayerOffsets'; // kept for migration only — no longer written
+const PRAYER_OFFSETS_KEY = '@GrowPray:prayerOffsets'; // kept for migration only - no longer written
 
 // ─── Preparing Screen ────────────────────────────────────────────────────────────
 // Shows after onboarding while the garden renders in the background.
@@ -2281,7 +2281,7 @@ function PreparingScreen({ progress, onDone }: { progress: LoadingProgress; onDo
     const currentStep = PREPARING_STEPS[visibleChecked];
     if (!progress[currentStep.key]) return; // wait for real flag
 
-    // Real flag is ready — wait minimum display time then check off
+    // Real flag is ready - wait minimum display time then check off
     stepTimerRef.current = setTimeout(() => {
       Animated.spring(checkAnims[visibleChecked], {
         toValue: 1,
@@ -2476,12 +2476,12 @@ const PlantTreeModal = React.memo(function PlantTreeModal({
       onRequestClose={onClose}
     >
       <View style={{ flex: 1 }}>
-        {/* Backdrop — sibling, not parent, so it can't steal ScrollView gestures */}
+        {/* Backdrop - sibling, not parent, so it can't steal ScrollView gestures */}
         <Pressable onPress={onClose} style={StyleSheet.absoluteFill}>
           <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.6)' }} />
         </Pressable>
 
-        {/* Content float — pointerEvents="box-none" lets taps outside pass to backdrop */}
+        {/* Content float - pointerEvents="box-none" lets taps outside pass to backdrop */}
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: 32 }} pointerEvents="box-none">
           <Animated.View style={{
             backgroundColor: THEME.bg,
@@ -2596,14 +2596,14 @@ function PrayerIconsPrerender() {
       {/* Sparkle at both sizes used by PaywallModal (header: 40x40, welcome: 60x60) */}
       <Image source={require('./assets/Garden Assets/Icons/Icon_Sparkle.png')} style={{ width: 40, height: 40 }} resizeMode="contain" />
       <Image source={require('./assets/Garden Assets/Icons/Icon_Sparkle.png')} style={{ width: 60, height: 60 }} resizeMode="contain" />
-      {/* RewardToast images — XP badge and coin icon at their exact display sizes */}
+      {/* RewardToast images - XP badge and coin icon at their exact display sizes */}
       <Image source={XP_BADGE} style={{ width: 20, height: 20 }} resizeMode="contain" />
       <Image source={ICON_COIN} style={{ width: 13, height: 13 }} resizeMode="contain" />
     </View>
   );
 }
 
-// Freezes children when hidden — prevents re-renders of invisible tab pages
+// Freezes children when hidden - prevents re-renders of invisible tab pages
 // so the JS thread stays responsive on the active tab.  Images inside the
 // frozen tree remain mounted (bitmaps stay decoded), but React skips the
 // entire subtree reconciliation when visible === false.
@@ -2630,7 +2630,7 @@ function AppInner() {
     uiAssets: false,
   });
   const isReady = fontsLoaded && assetsProgress.groundTiles && assetsProgress.trees && assetsProgress.uiAssets;
-  // Tracks when the loading overlay has fully faded out — gates auto-showing prompts
+  // Tracks when the loading overlay has fully faded out - gates auto-showing prompts
   const [appFullyReady, setAppFullyReady] = useState(false);
 
   const appMountTime = useRef(Date.now());
@@ -2641,7 +2641,7 @@ function AppInner() {
   const gardenRevealAnim = useRef(new Animated.Value(1)).current;
   const cameFromOnboarding = useRef(false);
   const [showRestModal, setShowRestModal] = useState(false);
-  // showSettingsModal removed — Settings is now a full tab page
+  // showSettingsModal removed - Settings is now a full tab page
   const [showExpansionModal, setShowExpansionModal] = useState(false);
   const [expansionDismissed, setExpansionDismissed] = useState(false);
   const [showShopModal, setShowShopModal] = useState(false);
@@ -2651,9 +2651,9 @@ function AppInner() {
   const [showChallengesModal, setShowChallengesModal] = useState(false);
 
   const [showHistoryModal, setShowHistoryModal] = useState(false);
-  // showMoreMenu removed — replaced by dedicated Settings tab
+  // showMoreMenu removed - replaced by dedicated Settings tab
   const [activeTab, setActiveTab] = useState<'garden' | 'shop' | 'challenges' | 'history' | 'settings' | 'dhikr'>('garden');
-  // Track which tabs have been opened at least once — mount lazily, keep alive after
+  // Track which tabs have been opened at least once - mount lazily, keep alive after
   const visitedTabs = useRef<Set<string>>(new Set()).current;
   if (activeTab !== 'garden') visitedTabs.add(activeTab);
 
@@ -2730,7 +2730,7 @@ function AppInner() {
         const tzData = await tzResp.json();
         timezone = typeof tzData.timeZone === 'string' ? tzData.timeZone : undefined;
       }
-    } catch { /* ignore — falls back to device timezone */ }
+    } catch { /* ignore - falls back to device timezone */ }
 
     const coords = { lat: result.lat, lng: result.lng, countryCode: result.countryCode, timezone };
     setManualCoords(coords);
@@ -2778,7 +2778,7 @@ function AppInner() {
   const [plantTarget, setPlantTarget] = useState<{ row: number; col: number } | null>(null);
   const [choppingTrees, setChoppingTrees] = useState<Set<string>>(new Set());
   const [removeTreeTarget, setRemoveTreeTarget] = useState<{ row: number; col: number } | null>(null);
-  // Garden "edit mode" — entered from a tree's Move action. All planted trees
+  // Garden "edit mode" - entered from a tree's Move action. All planted trees
   // jiggle and can be dragged immediately (no long-press), iOS home-screen style.
   const [editMode, setEditMode] = useState(false);
   // Temporary "just planted" spotlight so a freshly placed tree is easy to spot.
@@ -2799,7 +2799,7 @@ function AppInner() {
   // XP multiplier from consistency
   const combinedXpMultiplier = consistency.multiplier;
 
-  // Boosts — refs used internally by useBoosts, so we can pass initial values
+  // Boosts - refs used internally by useBoosts, so we can pass initial values
   // and wire them to prayerState after it's created
   const boostCoinsRef = useRef(0);
   const boostSpendRef = useRef<(amount: number, reason: string) => void>(() => {});
@@ -2883,7 +2883,7 @@ function AppInner() {
     return () => clearTimeout(t);
   }, [showOnboarding, showPreparing, tutorial.completedLoaded]);
 
-  // Garden state hook — organic tile recovery based on XP
+  // Garden state hook - organic tile recovery based on XP
   // Free users capped at limits.maxGridSize; premium gets full MAX_GRID_SIZE
   const gardenState = useGardenState(prayerState.xp, prayerState.coins, (amount) => {
     prayerState.spendCoins(amount);
@@ -2952,7 +2952,7 @@ function AppInner() {
     }
   }, [gardenState.pendingTransitions]);
 
-  // Show paywall when garden hits free user's grid limit — wait for loading screen to finish
+  // Show paywall when garden hits free user's grid limit - wait for loading screen to finish
   useEffect(() => {
     if (!appFullyReady) return;
     if (gardenState.gridLimitReached && !premium.isPremium) {
@@ -2972,7 +2972,7 @@ function AppInner() {
   useEffect(() => {
     if (!prayerState.stateLoaded) return;
     if (prayerState.missedPrayers.length > 0) return; // wait until freeze resolution
-    // All-prayer freeze protects the consistency multiplier — skip reset for this render
+    // All-prayer freeze protects the consistency multiplier - skip reset for this render
     if (allFreezeUsedTodayRef.current) {
       allFreezeUsedTodayRef.current = false;
       consistency.preservePerfectDays();
@@ -3053,7 +3053,7 @@ function AppInner() {
       earnCoinsRef.current(reward, 'dead_tree_removal');
     }
     // choppingTrees cleanup is handled by the useEffect watching gardenState.isDeadTreeRemoved,
-    // which fires only after gardenData is committed — eliminating the race condition.
+    // which fires only after gardenData is committed - eliminating the race condition.
   }, []);
 
   // Handle recovered tile tap (where dead tree was removed → offer to plant)
@@ -3076,7 +3076,7 @@ function AppInner() {
   // Pickup + success/error haptics are fired inside GardenScene. Returns the
   // commit result so the caller can keep the lifted "ghost" on screen until the
   // move is actually persisted (the tree either lands on the new tile or snaps
-  // back — it can never vanish). Uses the ref so the callback stays stable.
+  // back - it can never vanish). Uses the ref so the callback stays stable.
   const handleMoveTree = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number): Promise<boolean> => {
     return gardenStateRef.current.movePlantedTree(fromRow, fromCol, toRow, toCol);
   }, []);
@@ -3089,7 +3089,7 @@ function AppInner() {
   const prayerXpRef = useRef(prayerState.xp);
   prayerXpRef.current = prayerState.xp;
 
-  // Handle plant confirmation from PlantTreeModal — stable callback via refs
+  // Handle plant confirmation from PlantTreeModal - stable callback via refs
   const handlePlantConfirm = useCallback(async (selectedTreeType: string) => {
     const target = plantTargetRef.current;
     if (target) {
@@ -3143,13 +3143,13 @@ function AppInner() {
     return true;
   }, [prayerState, freezeCount]);
 
-  // Handle IAP coin purchase — routes through RevenueCat / App Store.
+  // Handle IAP coin purchase - routes through RevenueCat / App Store.
   // `productId` is the App Store product identifier (e.g. growpray_coins_500);
   // `coinAmount` is the trusted amount from COIN_PACKAGES to credit on success.
   const handlePurchaseCoins = useCallback(async (productId: string, coinAmount: number): Promise<boolean> => {
     try {
       const purchased = await premium.purchaseCoins(productId);
-      if (!purchased) return false; // cancelled or failed — credit nothing
+      if (!purchased) return false; // cancelled or failed - credit nothing
       await prayerState.earnCoins(coinAmount, `iap_${productId}`);
       return true;
     } catch (e) {
@@ -3165,7 +3165,7 @@ function AppInner() {
     const status = prayerState.getPrayerWindowStatus(prayer);
     const isOnTime = status === 'active';
 
-    // Execute prayer toggle — bypass time-window if debug mode is on
+    // Execute prayer toggle - bypass time-window if debug mode is on
     await (debugPrayersUnlocked ? prayerState.debugTogglePrayer(prayer) : prayerState.togglePrayerCompleted(prayer));
 
     // Distinct prayers completed today AFTER this toggle. `completedPrayers` in
@@ -3224,7 +3224,7 @@ function AppInner() {
     });
   }, []);
 
-  // Auto-consume freeze when missed prayers detected — fires after loading screen is gone
+  // Auto-consume freeze when missed prayers detected - fires after loading screen is gone
   useEffect(() => {
     if (!appFullyReady || !prayerState.stateLoaded || freezeAutoResolved) return;
     if (prayerState.missedPrayers.length === 0) return;
@@ -3232,7 +3232,7 @@ function AppInner() {
     const protectable = prayerState.missedPrayers.filter(p => (prayerState.streaks[p] || 0) > 0);
 
     if (protectable.length === 0) {
-      // Nothing worth protecting — resolve immediately with no freeze
+      // Nothing worth protecting - resolve immediately with no freeze
       prayerState.resolveStreakFreeze([]);
       setFreezeAutoResolved(true);
       return;
@@ -3255,7 +3255,7 @@ function AppInner() {
         Animated.timing(bannerAnim, { toValue: 0, duration: 500, useNativeDriver: true }),
       ]).start(() => setShowFreezeProtectedBanner(null));
     } else {
-      // No freezes — let streaks break silently
+      // No freezes - let streaks break silently
       prayerState.resolveStreakFreeze([]);
       setFreezeAutoResolved(true);
     }
@@ -3273,7 +3273,7 @@ function AppInner() {
     // doesn't re-appear on every cold start. (OnboardingScreen writes a legacy
     // key under a different namespace; this is the authoritative one.)
     AsyncStorage.setItem('@GrowPray:onboardingComplete', 'true').catch(() => {});
-    // Hide the garden before it first renders — revealed after PreparingScreen
+    // Hide the garden before it first renders - revealed after PreparingScreen
     gardenRevealAnim.setValue(0);
     setShowOnboarding(false);
     setShowPreparing(true);
@@ -3427,7 +3427,7 @@ function AppInner() {
     loadAssets();
   }, []);
 
-  // Day/night state — must be called unconditionally before any early return below,
+  // Day/night state - must be called unconditionally before any early return below,
   // otherwise hook order changes across renders (onboarding -> app) and React throws.
   const isDay = useIsDay(prayerState.timings?.Sunrise, prayerState.timings?.Sunset);
 
@@ -3473,7 +3473,7 @@ function AppInner() {
       {/* Decode prayer icons off-screen before FloatingPrayerBar first mounts */}
       <PrayerIconsPrerender />
       
-      {/* Content area — fills space above bottom bar */}
+      {/* Content area - fills space above bottom bar */}
       <View style={{ flex: 1 }}>
 
       {/* Fullscreen Garden Scene - invisible until PreparingScreen fades out */}
@@ -3501,7 +3501,7 @@ function AppInner() {
       />
       </Animated.View>
       
-      {/* Subtle expand button — shown when expansion is available but was dismissed */}
+      {/* Subtle expand button - shown when expansion is available but was dismissed */}
       {gardenState.canExpand && !showExpansionModal && expansionDismissed && activeTab === 'garden' && (
         <TouchableOpacity
           onPress={() => {
@@ -3528,7 +3528,7 @@ function AppInner() {
         </TouchableOpacity>
       )}
 
-      {/* Edit-mode exit — prominent centered "Done" pill + hint. Wrapped in a
+      {/* Edit-mode exit - prominent centered "Done" pill + hint. Wrapped in a
           full-width box so it reliably centers regardless of content layout. */}
       {editMode && activeTab === 'garden' && (
         <View
@@ -3584,7 +3584,7 @@ function AppInner() {
         />
       )}
       
-      {/* Reward Toast — unified XP + coins notification */}
+      {/* Reward Toast - unified XP + coins notification */}
       <RewardToast
         xp={prayerState.rewardPopup.xp}
         baseXp={prayerState.rewardPopup.baseXp}
@@ -3611,7 +3611,7 @@ function AppInner() {
         currentStreak={Math.max(...Object.values(prayerState.streaks))}
       />
       
-      {/* Settings Modal removed — rendered as a full tab below */}
+      {/* Settings Modal removed - rendered as a full tab below */}
 
       {/* Prayer History Modal */}
       <PrayerHistoryModal
@@ -3694,7 +3694,7 @@ function AppInner() {
         </View>
       </Modal>
 
-      {/* Skip Tile Recovery Modal — spend coins to instantly recover a tile */}
+      {/* Skip Tile Recovery Modal - spend coins to instantly recover a tile */}
       <Modal
         visible={skipTileTarget !== null}
         transparent
@@ -3775,7 +3775,7 @@ function AppInner() {
         </View>
       </Modal>
 
-      {/* Plant Tree Modal — tap recovered tile (with dead tree removed) to plant */}
+      {/* Plant Tree Modal - tap recovered tile (with dead tree removed) to plant */}
       <PlantTreeModal
         plantTarget={plantTarget}
         onClose={handlePlantClose}
@@ -3787,7 +3787,7 @@ function AppInner() {
         plantModalOpacity={plantModalOpacity}
       />
 
-      {/* Planted Tree Options Modal — Move (enter edit mode) / Remove / Cancel */}
+      {/* Planted Tree Options Modal - Move (enter edit mode) / Remove / Cancel */}
       <Modal
         visible={removeTreeTarget !== null}
         transparent
@@ -3812,7 +3812,7 @@ function AppInner() {
             <Text style={{ fontSize: 18, fontWeight: '700', color: THEME.text, marginBottom: 14 }}>
               Tree Options
             </Text>
-            {/* Growth progress — shown when tree is not yet flourishing */}
+            {/* Growth progress - shown when tree is not yet flourishing */}
             {(() => {
               const planted = removeTreeTarget ? gardenState.getPlantedTree(removeTreeTarget.row, removeTreeTarget.col) : null;
               if (!planted) return null;
@@ -3844,7 +3844,7 @@ function AppInner() {
               );
             })()}
 
-            {/* Move tree — primary action (accent fill, dark label) */}
+            {/* Move tree - primary action (accent fill, dark label) */}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => {
@@ -3864,7 +3864,7 @@ function AppInner() {
               <Text style={{ color: '#000', fontSize: 16, fontWeight: '600' }}>Move tree</Text>
             </TouchableOpacity>
 
-            {/* Remove tree — muted destructive (soft danger fill, danger label) */}
+            {/* Remove tree - muted destructive (soft danger fill, danger label) */}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={async () => {
@@ -3889,7 +3889,7 @@ function AppInner() {
               Removing won't refund the tree.
             </Text>
 
-            {/* Cancel — subtle card fill */}
+            {/* Cancel - subtle card fill */}
             <TouchableOpacity
               activeOpacity={0.85}
               onPress={() => setRemoveTreeTarget(null)}
@@ -4151,7 +4151,7 @@ function AppInner() {
         triggerReason={paywallReason}
       />
 
-      {/* Qibla compass — full-screen surface; unmounts on close so the magnetometer stops */}
+      {/* Qibla compass - full-screen surface; unmounts on close so the magnetometer stops */}
       <Modal
         visible={showQibla}
         animationType="slide"
@@ -4166,7 +4166,7 @@ function AppInner() {
         </SafeAreaView>
       </Modal>
 
-      {/* Post-prayer dhikr nudge — gentle, dismissible, never blocks completion */}
+      {/* Post-prayer dhikr nudge - gentle, dismissible, never blocks completion */}
       <Modal
         visible={showDhikrNudge}
         transparent
@@ -4218,7 +4218,7 @@ function AppInner() {
         </Pressable>
       </Modal>
 
-      {/* Debug Modal - Decay Testing (dev only — never shipped in production) */}
+      {/* Debug Modal - Decay Testing (dev only - never shipped in production) */}
       {__DEV__ && (
       <Modal
         visible={showDebugModal}
@@ -4440,7 +4440,7 @@ function AppInner() {
               >
                 <Text style={{ color: '#4fd1c5', fontSize: 14, fontWeight: '600' }}>🧊 Test Auto-Consume</Text>
                 <Text style={{ color: '#81e6d9', fontSize: 11, marginTop: 4 }}>
-                  Fajr + Dhuhr missed — freeze consumes automatically
+                  Fajr + Dhuhr missed - freeze consumes automatically
                 </Text>
               </TouchableOpacity>
 
@@ -4476,7 +4476,7 @@ function AppInner() {
       </Modal>
       )}
 
-      {/* Tab page views — lazy mount on first visit, then keep alive + frozen when hidden */}
+      {/* Tab page views - lazy mount on first visit, then keep alive + frozen when hidden */}
       {visitedTabs.has('shop') && (
       <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, opacity: activeTab === 'shop' ? 1 : 0 }} pointerEvents={activeTab === 'shop' ? 'auto' : 'none'}>
         <FreezeWhenHidden visible={activeTab === 'shop'}>
@@ -4598,7 +4598,7 @@ function AppInner() {
           zIndex: 300,
         }}
       >
-        {/* Soft gradient transition — deep navy fading into transparent */}
+        {/* Soft gradient transition - deep navy fading into transparent */}
         <LinearGradient
           colors={[
             'rgba(10,14,28,0.88)',   // deep navy, near-opaque
@@ -4656,7 +4656,7 @@ function AppInner() {
       </View>
       {/* End content area */}
 
-      {/* Bottom area: Prayer Bar + Tab Bar — liquid glass */}
+      {/* Bottom area: Prayer Bar + Tab Bar - liquid glass */}
       <SafeAreaView 
         edges={['bottom']} 
         style={{ 
@@ -4693,7 +4693,7 @@ function AppInner() {
 
 
     </SkyBackground>
-      {/* Preparing overlay — hides the garden while it loads after onboarding */}
+      {/* Preparing overlay - hides the garden while it loads after onboarding */}
       {showPreparing && (
         <PreparingScreen
           progress={{
@@ -4712,7 +4712,7 @@ function AppInner() {
         />
       )}
 
-      {/* First-run tutorial — overlays everything once the garden is visible */}
+      {/* First-run tutorial - overlays everything once the garden is visible */}
       <TutorialOverlay
         visible={tutorial.active}
         step={tutorial.currentStep}

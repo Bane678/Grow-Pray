@@ -64,9 +64,9 @@ const TILE_RECOVERED  = require('../assets/Garden Assets/Ground Tiles/Recovered_
 // Flip any of these back to `false` to instantly restore that card's previous design.
 // Each redesigned render path keeps its original ("legacy") branch intact behind the flag,
 // so reversal is a one-line edit and no assets are removed.
-const REDESIGN_INSIGHT        = true; // cards 4 & 8 — the empathy insight card
-const REDESIGN_PILLAR_PRIVACY = true; // card 11 — "Your spiritual life is private" pillar
-const REDESIGN_FREE_WARNING   = true; // card 21 — the "Are you sure?" free-version warning
+const REDESIGN_INSIGHT        = true; // cards 4 & 8 - the empathy insight card
+const REDESIGN_PILLAR_PRIVACY = true; // card 11 - "Your spiritual life is private" pillar
+const REDESIGN_FREE_WARNING   = true; // card 21 - the "Are you sure?" free-version warning
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -117,9 +117,9 @@ type Step =
   | { kind: 'ayah'; quote: string; source: string; cta: string; image: any }
   /** Animated garden growth preview pillar */
   | { kind: 'growthPillar'; title: string; body: string; cta: string }
-  /** Empathy select — like singleSelect but with a soft reframe response built in */
+  /** Empathy select - like singleSelect but with a soft reframe response built in */
   | { kind: 'empathySelect'; key: string; title: string; subtitle: string; cta: string; options: SelectOption[] }
-  /** Personalised plan summary — derives copy from earlier answers */
+  /** Personalised plan summary - derives copy from earlier answers */
   | { kind: 'summary'; cta: string }
   /** Aspirational premium showcase shown right before the pledge + paywall */
   | { kind: 'premiumIntro' }
@@ -143,10 +143,10 @@ const FACTOR_TO_PILLAR_INDEX: Record<string, number> = {
 };
 
 const STEPS: Step[] = [
-  // 0 — Welcome
+  // 0 - Welcome
   { kind: 'welcome', title: 'Salaam', body: 'Every prayer you keep grows your garden. Every one you miss, it shows. A peaceful, honest companion for your daily worship.', cta: 'Bismillah', image: OB_WELCOME },
 
-  // 1 — Ayah (Qur'an 29:45)
+  // 1 - Ayah (Qur'an 29:45)
   {
     kind: 'ayah',
     quote: 'Indeed, prayer prohibits immorality and wrongdoing.',
@@ -155,7 +155,7 @@ const STEPS: Step[] = [
     image: OB_AYAH,
   },
 
-  // 2 — Relationship with salah (empathetic select)
+  // 2 - Relationship with salah (empathetic select)
   {
     kind: 'empathySelect',
     key: ROUTINE_KEY,
@@ -171,7 +171,7 @@ const STEPS: Step[] = [
     ],
   },
 
-  // 3 — Hardest prayer (single select)
+  // 3 - Hardest prayer (single select)
   {
     kind: 'singleSelect',
     key: '@GrowPray:hardestPrayer',
@@ -188,7 +188,7 @@ const STEPS: Step[] = [
     ],
   },
 
-  // 4 — What gets in the way (multi select)
+  // 4 - What gets in the way (multi select)
   {
     kind: 'multiSelect',
     key: BLOCKERS_KEY,
@@ -205,7 +205,7 @@ const STEPS: Step[] = [
     ],
   },
 
-  // 5 — How you feel after missing (emotional empathy)
+  // 5 - How you feel after missing (emotional empathy)
   {
     kind: 'empathySelect',
     key: '@GrowPray:missedFeeling',
@@ -220,7 +220,7 @@ const STEPS: Step[] = [
     ],
   },
 
-  // 6 — Reframe: every prayer is a fresh start
+  // 6 - Reframe: every prayer is a fresh start
   {
     kind: 'reframe',
     title: 'Every prayer is a fresh start.',
@@ -228,16 +228,16 @@ const STEPS: Step[] = [
     cta: 'That gives me hope',
   },
 
-  // 7 — Garden growth pillar
+  // 7 - Garden growth pillar
   { kind: 'growthPillar', title: 'Your prayers build something real.', body: 'Every salah you keep grows your garden. Miss days and it begins to wither. Grow Pray makes your consistency visible.', cta: 'Let\'s grow' },
 
-  // 8 — Privacy pillar
+  // 8 - Privacy pillar
   { kind: 'pillar', title: 'Your spiritual life is private.', body: 'No accounts. No servers. Your prayers, streaks, and garden never leave your device.', cta: 'Next', icon: 'shield-check-outline', highlights: ['On-device only', 'No login required', 'Zero data sharing'] },
 
-  // 9 — Name input
+  // 9 - Name input
   { kind: 'nameInput', title: 'What should we call you?', body: 'We use your name in a few places to make the experience feel personal.', cta: 'Next', placeholder: 'Enter your name' },
 
-  // 10 — Goal (single select)
+  // 10 - Goal (single select)
   {
     kind: 'singleSelect',
     key: GOAL_KEY,
@@ -253,29 +253,29 @@ const STEPS: Step[] = [
     ],
   },
 
-  // 11 — Personalised summary (pulls from answers)
+  // 11 - Personalised summary (pulls from answers)
   { kind: 'summary', cta: 'Let\'s set up your prayer times' },
 
-  // 12 — Madhab
+  // 12 - Madhab
   { kind: 'madhab' },
 
-  // 13 — Location
+  // 13 - Location
   { kind: 'locationPermission' },
 
-  // 14 — Notifications
+  // 14 - Notifications
   { kind: 'notificationPermission' },
 
-  // 15 — Pledge (signed niyyah) — the sincere commitment comes first, with no
+  // 15 - Pledge (signed niyyah) - the sincere commitment comes first, with no
   //       premium messaging beforehand.
   { kind: 'pledge' },
 
-  // 16 — Premium showcase — desire-building immediately after the pledge
+  // 16 - Premium showcase - desire-building immediately after the pledge
   { kind: 'premiumIntro' },
 
-  // 17 — Paywall
+  // 17 - Paywall
   { kind: 'paywall' },
 
-  // 18 — Free warning fallback
+  // 18 - Free warning fallback
   { kind: 'freeWarning' },
 ];
 const TOTAL_STEPS = STEPS.length;
@@ -283,7 +283,7 @@ const TOTAL_STEPS = STEPS.length;
 const INSIGHT_STEP_INDICES = [2, 5];
 const TRUE_TOTAL = STEPS.length + INSIGHT_STEP_INDICES.length; // 20 steps + 2 insights = 20
 
-// Common profanity/slur blocklist — word-boundary matched, case-insensitive.
+// Common profanity/slur blocklist - word-boundary matched, case-insensitive.
 // This is a client-side first pass; not exhaustive but catches obvious cases.
 const BLOCKED_TERMS = [
   'fuck', 'fucker', 'fucking', 'fuk', 'f\u00fck',
@@ -406,7 +406,7 @@ function FreePremiumTransform({ size = 150 }: { size?: number }) {
   // tile the same way the existing onboarding GIF does.
   return (
     <View style={{ width: size, height: size }}>
-      {/* Gold bloom glow — fades in as the garden flourishes */}
+      {/* Gold bloom glow - fades in as the garden flourishes */}
       <Animated.View
         style={{
           position: 'absolute',
@@ -435,7 +435,7 @@ function FreePremiumTransform({ size = 150 }: { size?: number }) {
           }}
         />
       ))}
-      {/* Growing tree — anchored like the real garden (base rests ~25% below tile centre) */}
+      {/* Growing tree - anchored like the real garden (base rests ~25% below tile centre) */}
       <Animated.Image
         source={current.tree}
         resizeMode="contain"
@@ -492,7 +492,7 @@ const transformStyles = StyleSheet.create({
 });
 
 // ── Hold-to-confirm button ─────────────────────────────────────────────────────
-// Press and hold for ~1.1s to confirm — an intentional, deliberate gesture that
+// Press and hold for ~1.1s to confirm - an intentional, deliberate gesture that
 // suits "locking in" a sincere pledge (inspired by similar habit apps).
 function HoldToConfirmButton({ disabled, onConfirm, label }: {
   disabled: boolean;
@@ -600,7 +600,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       if (clearInsightOnComplete) setInsightCard(null);
       slideAnim.setValue(30);
       // Wait one frame so React commits the new step's render to the native layer
-      // before the fade-in starts — otherwise the native thread animates before
+      // before the fade-in starts - otherwise the native thread animates before
       // the content is painted, briefly exposing the white native window behind it.
       requestAnimationFrame(() => {
         Animated.parallel([
@@ -755,7 +755,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
         : await onPurchaseMonthly?.();
       if (ok) await finishOnboarding();
     } catch (_) {
-      // purchase failed — stay on page so user can retry or go free
+      // purchase failed - stay on page so user can retry or go free
     } finally {
       setPurchasing(false);
     }
@@ -934,7 +934,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       // ── Redesigned insight card (cards 4 & 8) ─────────────────────────────────
       return (
         <View style={styles.insightCardNew}>
-          {/* Layered hero — radial gold glow + faint starfield + glass medallion icon */}
+          {/* Layered hero - radial gold glow + faint starfield + glass medallion icon */}
           <View style={styles.insightHero}>
             <View style={styles.insightGlowOuter} />
             <View style={styles.insightGlowInner} />
@@ -1282,10 +1282,10 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     if (currentStep.kind === 'paywall') {
       return (
         <>
-          {/* Premium hero — golden tree on starry night */}
+          {/* Premium hero - golden tree on starry night */}
           <View style={styles.paywallHero}>
             <Image source={OB_PAYWALL} style={styles.paywallHeroImg} resizeMode="contain" />
-            {/* Bottom gradient fade into panel — only the lowest sliver fades, so the
+            {/* Bottom gradient fade into panel - only the lowest sliver fades, so the
                 full artwork stays visible. */}
             <LinearGradient
               colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0)', 'rgba(9,14,22,0.85)']}
@@ -1306,7 +1306,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               You've made your pledge. Give it the best chance to flourish.
             </Text>
 
-            {/* Benefits — pill-style with glow */}
+            {/* Benefits - pill-style with glow */}
             <View style={styles.benefitsGrid}>
               {[
                 { icon: 'grid' as const, text: 'Unlimited garden' },
@@ -1322,7 +1322,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               ))}
             </View>
 
-            {/* Plan selector — side by side */}
+            {/* Plan selector - side by side */}
             <View style={styles.planRow}>
               <TouchableOpacity
                 onPress={() => setSelectedPlan('yearly')}
@@ -1414,7 +1414,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             <View style={styles.freeWarnBody}>
               <Text style={styles.insightTitle}>Your garden could flourish.</Text>
               <Text style={styles.insightBodyText}>
-                Continuing free is completely okay — but here's what stays out of reach:
+                Continuing free is completely okay - but here's what stays out of reach:
               </Text>
 
               <View style={styles.insightChecklist}>
@@ -2248,7 +2248,7 @@ const styles = StyleSheet.create({
   // ─── Paywall ──────────────────────────────────────────────────────────────────
   paywallHero: {
     // Box matches the 1659×948 landscape art (~1.75:1). The image uses resizeMode
-    // "contain" so the WHOLE picture is always visible — nothing is ever cropped,
+    // "contain" so the WHOLE picture is always visible - nothing is ever cropped,
     // regardless of device width.
     width: '100%',
     aspectRatio: 1659 / 948,

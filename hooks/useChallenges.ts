@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-// v2 key — separate from old weekly-only storage so existing data doesn't conflict
+// v2 key - separate from old weekly-only storage so existing data doesn't conflict
 const CHALLENGES_KEY = '@GrowPray:challenges_v2';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -11,7 +11,7 @@ export type DailyChallengeId  = 'fajrToday'  | 'allFiveToday' | 'onTimeToday' | 
 export type ChallengeId = WeeklyChallengeId | DailyChallengeId;
 
 // (legacy alias kept so App.tsx import doesn't need touching)
-// export type ChallengeId used to be weekly-only — now it's the full union
+// export type ChallengeId used to be weekly-only - now it's the full union
 
 export interface Challenge {
   id: ChallengeId;
@@ -35,7 +35,7 @@ interface CombinedState {
 
 // ─── Challenge definitions ─────────────────────────────────────────────────────
 
-// Weekly — realistic across 7 days
+// Weekly - realistic across 7 days
 const WEEKLY_DEFINITIONS: Record<WeeklyChallengeId, Omit<Challenge, 'progress' | 'claimed'>> = {
   perfectWeek: {
     id: 'perfectWeek', type: 'weekly',
@@ -67,7 +67,7 @@ const WEEKLY_DEFINITIONS: Record<WeeklyChallengeId, Omit<Challenge, 'progress' |
   },
 };
 
-// Daily — all completable within a single day (5 prayers max)
+// Daily - all completable within a single day (5 prayers max)
 const DAILY_DEFINITIONS: Record<DailyChallengeId, Omit<Challenge, 'progress' | 'claimed'>> = {
   fajrToday: {
     id: 'fajrToday', type: 'daily',
@@ -228,12 +228,12 @@ export function useChallenges() {
     const ns: CombinedState = { ...state, weekly: { ...state.weekly }, daily: { ...state.daily } };
     const today = getToday();
 
-    // Weekly — Perfect Week (all prayers)
+    // Weekly - Perfect Week (all prayers)
     const pw = { ...ns.weekly.perfectWeek };
     if (pw.progress < pw.target) pw.progress++;
     ns.weekly.perfectWeek = pw;
 
-    // Weekly — Dawn Warrior (unique Fajr days)
+    // Weekly - Dawn Warrior (unique Fajr days)
     if (prayer === 'Fajr') {
       const fajrDays = [...(ns.fajrDays ?? [])];
       if (!fajrDays.includes(today)) {
@@ -245,23 +245,23 @@ export function useChallenges() {
       }
     }
 
-    // Weekly — On-Time Master
+    // Weekly - On-Time Master
     if (isOnTime) {
       const otm = { ...ns.weekly.onTimeMaster };
       if (otm.progress < otm.target) otm.progress++;
       ns.weekly.onTimeMaster = otm;
     }
 
-    // Daily — Dawn Start (Fajr)
+    // Daily - Dawn Start (Fajr)
     if (prayer === 'Fajr') {
       const ft = { ...ns.daily.fajrToday };
       if (ft.progress < ft.target) ft.progress++;
       ns.daily.fajrToday = ft;
     }
 
-    // Daily — Daily Devotion: reflect the number of DISTINCT prayers completed
+    // Daily - Daily Devotion: reflect the number of DISTINCT prayers completed
     // today (passed in from the authoritative completed-prayers set), not raw
-    // completion events — so it can't be satisfied by toggling one prayer five
+    // completion events - so it can't be satisfied by toggling one prayer five
     // times. Falls back to the old increment only if a count isn't supplied.
     const af = { ...ns.daily.allFiveToday };
     af.progress = distinctCompletedToday !== undefined
@@ -269,7 +269,7 @@ export function useChallenges() {
       : Math.min(af.progress + 1, af.target);
     ns.daily.allFiveToday = af;
 
-    // Daily — On Schedule (on-time count)
+    // Daily - On Schedule (on-time count)
     if (isOnTime) {
       const ot = { ...ns.daily.onTimeToday };
       if (ot.progress < ot.target) ot.progress++;
@@ -323,7 +323,7 @@ export function useChallenges() {
   }, [state, persist]);
 
   /**
-   * Record a tree plant — counts toward both weekly and daily tree challenges.
+   * Record a tree plant - counts toward both weekly and daily tree challenges.
    */
   const recordTreePlanted = useCallback(async () => {
     if (!state) return;

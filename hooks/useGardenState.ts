@@ -140,7 +140,7 @@ function generateRecoveryOrder(maxGridSize: number): Array<{ row: number; col: n
   const center = Math.floor(maxGridSize / 2);
   const order: Array<{ row: number; col: number }> = [];
 
-  // Starting recovered tiles (cross of 5: center + 4 cardinal) — skip these
+  // Starting recovered tiles (cross of 5: center + 4 cardinal) - skip these
   const isInitialTile = (r: number, c: number) => {
     if (r === center && c === center) return true;
     if (r === center - 1 && c === center) return true;
@@ -297,7 +297,7 @@ export interface TileTransition {
   col: number;
   from: TileState;
   to: TileState;
-  ring: number; // Chebyshev distance from center — used for stagger timing
+  ring: number; // Chebyshev distance from center - used for stagger timing
 }
 
 export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount: number) => void, userMaxGridSize?: number): GardenStateResult {
@@ -494,7 +494,7 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
 
   const clearTransitions = useCallback(() => setPendingTransitions([]), []);
 
-  // ─── Get tile state (main API) — includes decay ──────────────────────────
+  // ─── Get tile state (main API) - includes decay ──────────────────────────
   const getTileState = useCallback((row: number, col: number): TileState => {
     const key = `${row},${col}`;
     // Center cross (initial 5 tiles) never decays

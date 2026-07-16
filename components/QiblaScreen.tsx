@@ -35,7 +35,7 @@ export const QiblaScreen = React.memo(function QiblaScreen({
   // spins a full circle when the heading crosses the 0°/360° seam.
   const rotation = useRef(new Animated.Value(-heading)).current;
   const unwrappedRef = useRef(-heading);
-  // Live heading shown in the centre — driven off the animated rotation so it counts
+  // Live heading shown in the centre - driven off the animated rotation so it counts
   // up/down smoothly every frame as the dial turns (like Apple's Compass), instead of
   // snapping between throttled sensor samples.
   const [displayHeading, setDisplayHeading] = useState(Math.round(heading));
@@ -132,7 +132,7 @@ export const QiblaScreen = React.memo(function QiblaScreen({
               />
             </View>
 
-            {/* Rotating rose — smoothly animated toward the latest heading */}
+            {/* Rotating rose - smoothly animated toward the latest heading */}
             <Animated.View style={[styles.rose, { transform: [{ rotate: roseRotate }] }]}>
               <Svg width={DIAL} height={DIAL}>
                 <Circle
@@ -198,7 +198,7 @@ export const QiblaScreen = React.memo(function QiblaScreen({
               )}
             </Animated.View>
 
-            {/* Center readout — live heading, green when on the Qibla */}
+            {/* Center readout - live heading, green when on the Qibla */}
             <View style={styles.center} pointerEvents="none">
               <Text style={[styles.centerValue, aligned && styles.centerValueAligned]}>
                 {`${displayHeading}°`}
@@ -217,7 +217,7 @@ export const QiblaScreen = React.memo(function QiblaScreen({
             <View style={styles.calibrateRow}>
               <MaterialCommunityIcons name="compass-outline" size={15} color={ACCENT} />
               <Text style={styles.calibrateText}>
-                Low compass accuracy — wave your phone in a figure-8 to calibrate.
+                Low compass accuracy - wave your phone in a figure-8 to calibrate.
               </Text>
             </View>
           )}

@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 
-// ─── Prayer insights — pure, on-device analytics over local prayer data ──────────
+// ─── Prayer insights - pure, on-device analytics over local prayer data ──────────
 // Derives everything from `prayerHistory` (Record<dateKey, completedPrayerNames[]>)
 // and `streaks` (Record<prayerName, currentStreak>). No new persisted data needed.
 

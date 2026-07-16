@@ -149,7 +149,7 @@ export function useQibla({ manualCoords, active = true }: UseQiblaArgs) {
   }, [manualCoords]);
 
   // Subscribe to the compass while active. Prefer the OS heading API (returns TRUE
-  // north — already corrected for magnetic declination and device orientation, which
+  // north - already corrected for magnetic declination and device orientation, which
   // the raw magnetometer is not). Fall back to the raw magnetometer only if it fails.
   useEffect(() => {
     if (!active) return;
@@ -172,7 +172,7 @@ export function useQibla({ manualCoords, active = true }: UseQiblaArgs) {
           }
           Magnetometer.setUpdateInterval(50);
           magSubRef.current = Magnetometer.addListener(({ x, y }: { x: number; y: number }) => {
-            // NOTE: raw magnetic heading (no declination correction) — only reached
+            // NOTE: raw magnetic heading (no declination correction) - only reached
             // when the OS heading API is unavailable.
             let angle = Math.atan2(y, x) * (180 / Math.PI);
             angle = (angle + 360) % 360;
@@ -201,7 +201,7 @@ export function useQibla({ manualCoords, active = true }: UseQiblaArgs) {
           setStatus((s) => (s === 'no-location' ? s : 'ok'));
         });
       } catch {
-        // OS heading API unavailable on this device — fall back to the magnetometer.
+        // OS heading API unavailable on this device - fall back to the magnetometer.
         if (alive) startMagnetometerFallback();
       }
     })();
