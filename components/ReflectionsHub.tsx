@@ -132,14 +132,6 @@ function SavedCard({
         )}
       </View>
 
-      {/* Handwritten-feel note */}
-      {hasNote && (
-        <View style={styles.noteStrip}>
-          <View style={styles.noteAccent} />
-          <Text style={styles.noteText}>{item.note}</Text>
-        </View>
-      )}
-
       <View style={styles.savedFooter}>
         <Text style={[styles.source, { color: kindColor }]}>{item.source}</Text>
         <View style={styles.savedFooterRight}>
@@ -148,6 +140,18 @@ function SavedCard({
           <MaterialCommunityIcons name="chevron-right" size={15} color="rgba(232,224,214,0.5)" />
         </View>
       </View>
+
+      {/* The user's own note - labelled + sticky-note styling so it can't be
+          mistaken for the quote's source (which sits in the footer above). */}
+      {hasNote && (
+        <View style={styles.noteCardBox}>
+          <View style={styles.noteHeader}>
+            <MaterialCommunityIcons name="pencil-outline" size={12} color={ACCENT} />
+            <Text style={styles.noteLabel}>My note</Text>
+          </View>
+          <Text style={styles.noteText} numberOfLines={3}>{item.note}</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -483,21 +487,26 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
   },
   savedPage: { position: 'relative', overflow: 'hidden', marginBottom: 4 },
-  noteStrip: {
-    flexDirection: 'row',
-    marginTop: 14,
-    paddingLeft: 2,
+  noteCardBox: {
+    marginTop: 12,
+    padding: 12,
+    borderRadius: 12,
+    backgroundColor: 'rgba(232,168,124,0.07)',
+    borderWidth: 1,
+    borderColor: 'rgba(232,168,124,0.22)',
+    borderStyle: 'dashed',
   },
-  noteAccent: {
-    width: 3,
-    borderRadius: 2,
-    backgroundColor: 'rgba(232,168,124,0.5)',
-    marginRight: 10,
+  noteHeader: { flexDirection: 'row', alignItems: 'center', gap: 5, marginBottom: 6 },
+  noteLabel: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: ACCENT,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
   },
   noteText: {
-    flex: 1,
     fontSize: 14,
-    color: 'rgba(232,224,214,0.8)',
+    color: 'rgba(232,224,214,0.82)',
     lineHeight: 22,
     fontStyle: 'italic',
     fontFamily: FONTS.display,

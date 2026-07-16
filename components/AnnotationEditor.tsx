@@ -5,10 +5,10 @@ import {
   TouchableOpacity,
   StyleSheet,
   Modal,
-  ScrollView,
   TextInput,
   PanResponder,
   KeyboardAvoidingView,
+  Keyboard,
   Platform,
   LayoutChangeEvent,
 } from 'react-native';
@@ -32,6 +32,20 @@ function strokeOpacity(kind: Stroke['kind']) {
   return kind === 'highlight' ? 0.32 : 1;
 }
 
+// Long verses get slightly smaller type so the paper always fits on screen
+// without scrolling (the editor deliberately has NO scroll view - a scroll
+// gesture would steal touches mid-stroke and break drawing).
+function arabicFontSize(len: number) {
+  if (len > 150) return 19;
+  if (len > 90) return 21;
+  return 24;
+}
+function translationFontSize(len: number) {
+  if (len > 220) return 13;
+  if (len > 140) return 14;
+  return 16;
+}
+
 interface AnnotationEditorProps {
   visible: boolean;
   entry: SavedReflectionEntry | null;
@@ -44,6 +58,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
   const [note, setNote] = useState('');
   const [tool, setTool] = useState<Tool>('pen');
   const [color, setColor] = useState(PALETTE[1]);
+  const [notesFocused, setNotesFocused] = useState(false);
 
   // Live stroke being drawn.
   const [currentPath, setCurrentPath] = useState('');
@@ -61,6 +76,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
       setColor(PALETTE[1]);
       currentRef.current = '';
       setCurrentPath('');
+      setNotesFocused(false);
     }
   }, [visible, entry]);
 
@@ -80,7 +96,12 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
       PanResponder.create({
         onStartShouldSetPanResponder: () => true,
         onMoveShouldSetPanResponder: () => true,
+        // Never surrender the touch mid-stroke - this is what kept "deleting
+        // the line you were drawing" when a parent tried to take over.
+        onPanResponderTerminationRequest: () => false,
+        onShouldBlockNativeResponder: () => true,
         onPanResponderGrant: (e) => {
+          Keyboard.dismiss();
           const { locationX, locationY } = e.nativeEvent;
           currentRef.current = `M ${locationX.toFixed(1)} ${locationY.toFixed(1)}`;
           setCurrentPath(currentRef.current);
@@ -134,6 +155,8 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
 
   const kindLabel = entry.kind === 'ayah' ? "Qur'an" : 'Hadith';
   const hasMarks = strokes.length > 0 || currentPath.length > 0;
+  const aSize = arabicFontSize(entry.arabic?.length ?? 0);
+  const tSize = translationFontSize(entry.translation.length);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleSave}>
@@ -155,118 +178,138 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
         <KeyboardAvoidingView
           style={{ flex: 1 }}
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
         >
-          <ScrollView
-            style={{ flex: 1 }}
-            contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
-          >
-            {/* The reflection "paper" you draw on */}
-            <Text style={styles.canvasHint}>Draw or highlight right on the verse</Text>
-            <View style={styles.page} onLayout={onCanvasLayout} {...panResponder.panHandlers}>
-              <View style={styles.pageText} pointerEvents="none">
-                {!!entry.arabic && <Text style={styles.arabic}>{entry.arabic}</Text>}
-                <Text style={styles.translation}>{entry.translation}</Text>
-                <Text style={styles.source}>{entry.source}</Text>
-              </View>
-              {/* Drawing layer on top of the text */}
-              <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
-                {strokes.map((s, i) => (
-                  <Path
-                    key={i}
-                    d={s.d}
-                    stroke={s.color}
-                    strokeWidth={s.width}
-                    strokeOpacity={strokeOpacity(s.kind)}
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                ))}
-                {currentPath ? (
-                  <Path
-                    d={currentPath}
-                    stroke={color}
-                    strokeWidth={tool === 'highlight' ? HIGHLIGHT_WIDTH : PEN_WIDTH}
-                    strokeOpacity={strokeOpacity(tool === 'highlight' ? 'highlight' : 'pen')}
-                    fill="none"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                ) : null}
-              </Svg>
+          {/* Workspace: tools left, verse centre-stage, colours right.
+              NO scroll view anywhere - the pen owns every touch on the paper. */}
+          <View style={styles.workspace}>
+            {/* Left rail - tools */}
+            <View style={styles.rail}>
+              <TouchableOpacity
+                style={[styles.railBtn, tool === 'pen' && styles.railBtnActive]}
+                onPress={() => { Haptics.selectionAsync(); setTool('pen'); }}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons name="pencil" size={19} color={tool === 'pen' ? '#0f1526' : 'rgba(232,224,214,0.7)'} />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.railBtn, tool === 'highlight' && styles.railBtnActive]}
+                onPress={() => { Haptics.selectionAsync(); setTool('highlight'); }}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons name="marker" size={19} color={tool === 'highlight' ? '#0f1526' : 'rgba(232,224,214,0.7)'} />
+              </TouchableOpacity>
+
+              <View style={styles.railGap} />
+
+              <TouchableOpacity
+                style={[styles.railBtn, !hasMarks && styles.railBtnDisabled]}
+                onPress={undo}
+                disabled={!hasMarks}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons name="undo-variant" size={19} color="rgba(232,224,214,0.7)" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.railBtn, !hasMarks && styles.railBtnDisabled]}
+                onPress={clear}
+                disabled={!hasMarks}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons name="eraser" size={19} color="rgba(232,224,214,0.7)" />
+              </TouchableOpacity>
             </View>
 
-            {/* Toolbar */}
-            <View style={styles.toolbar}>
-              <View style={styles.toolGroup}>
-                <TouchableOpacity
-                  style={[styles.toolBtn, tool === 'pen' && styles.toolBtnActive]}
-                  onPress={() => { Haptics.selectionAsync(); setTool('pen'); }}
-                  activeOpacity={0.85}
-                >
-                  <MaterialCommunityIcons name="pencil" size={18} color={tool === 'pen' ? '#0f1526' : 'rgba(232,224,214,0.7)'} />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.toolBtn, tool === 'highlight' && styles.toolBtnActive]}
-                  onPress={() => { Haptics.selectionAsync(); setTool('highlight'); }}
-                  activeOpacity={0.85}
-                >
-                  <MaterialCommunityIcons name="marker" size={18} color={tool === 'highlight' ? '#0f1526' : 'rgba(232,224,214,0.7)'} />
-                </TouchableOpacity>
-              </View>
+            {/* Centre - the verse paper (the canvas) */}
+            <View style={styles.paperColumn}>
+              <View style={styles.page} onLayout={onCanvasLayout} {...panResponder.panHandlers}>
+                <View pointerEvents="none">
+                  {!!entry.arabic && (
+                    <Text style={[styles.arabic, { fontSize: aSize, lineHeight: aSize * 1.9 }]}>{entry.arabic}</Text>
+                  )}
+                  <Text style={[styles.translation, { fontSize: tSize, lineHeight: tSize * 1.6 }]}>{entry.translation}</Text>
+                  <Text style={styles.pageSource}>{entry.source}</Text>
+                </View>
 
-              <View style={styles.swatchRow}>
-                {PALETTE.map((c) => (
-                  <TouchableOpacity
-                    key={c}
-                    onPress={() => { Haptics.selectionAsync(); setColor(c); }}
-                    style={[styles.swatch, { backgroundColor: c }, color === c && styles.swatchActive]}
-                    activeOpacity={0.8}
-                  />
-                ))}
-              </View>
+                {/* Drawing layer on top of the text */}
+                <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
+                  {strokes.map((s, i) => (
+                    <Path
+                      key={i}
+                      d={s.d}
+                      stroke={s.color}
+                      strokeWidth={s.width}
+                      strokeOpacity={strokeOpacity(s.kind)}
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ))}
+                  {currentPath ? (
+                    <Path
+                      d={currentPath}
+                      stroke={color}
+                      strokeWidth={tool === 'highlight' ? HIGHLIGHT_WIDTH : PEN_WIDTH}
+                      strokeOpacity={strokeOpacity(tool === 'highlight' ? 'highlight' : 'pen')}
+                      fill="none"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  ) : null}
+                </Svg>
 
-              <View style={styles.toolGroup}>
-                <TouchableOpacity
-                  style={[styles.toolBtn, !hasMarks && styles.toolBtnDisabled]}
-                  onPress={undo}
-                  disabled={!hasMarks}
-                  activeOpacity={0.85}
-                >
-                  <MaterialCommunityIcons name="undo-variant" size={18} color="rgba(232,224,214,0.7)" />
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.toolBtn, !hasMarks && styles.toolBtnDisabled]}
-                  onPress={clear}
-                  disabled={!hasMarks}
-                  activeOpacity={0.85}
-                >
-                  <MaterialCommunityIcons name="eraser" size={18} color="rgba(232,224,214,0.7)" />
-                </TouchableOpacity>
+                {/* First-open hint, fades once anything is drawn */}
+                {!hasMarks && (
+                  <View style={styles.pageHint} pointerEvents="none">
+                    <MaterialCommunityIcons name="gesture" size={14} color="rgba(232,224,214,0.35)" />
+                    <Text style={styles.pageHintText}>draw or highlight anywhere on the verse</Text>
+                  </View>
+                )}
               </View>
             </View>
 
-            {/* Journal notes */}
-            <View style={styles.journal}>
-              <View style={styles.journalHeader}>
-                <MaterialCommunityIcons name="notebook-outline" size={15} color={ACCENT} />
-                <Text style={styles.journalLabel}>Notes</Text>
-              </View>
-              <TextInput
-                style={styles.journalInput}
-                value={note}
-                onChangeText={setNote}
-                placeholder="Write what this verse stirred in you, a du'a, a memory..."
-                placeholderTextColor="rgba(232,224,214,0.3)"
-                multiline
-                maxLength={1000}
-                textAlignVertical="top"
-              />
+            {/* Right rail - ink colours */}
+            <View style={styles.rail}>
+              {PALETTE.map((c) => (
+                <TouchableOpacity
+                  key={c}
+                  onPress={() => { Haptics.selectionAsync(); setColor(c); }}
+                  style={[styles.swatch, { backgroundColor: c }, color === c && styles.swatchActive]}
+                  activeOpacity={0.8}
+                />
+              ))}
             </View>
-          </ScrollView>
+          </View>
+
+          {/* Bottom - notebook. Fills the lower third so the page feels balanced. */}
+          <View style={styles.notebook}>
+            <View style={styles.notebookHeader}>
+              <MaterialCommunityIcons name="pencil-outline" size={14} color={ACCENT} />
+              <Text style={styles.notebookLabel}>My notes</Text>
+              {notesFocused && (
+                <TouchableOpacity
+                  onPress={() => Keyboard.dismiss()}
+                  style={styles.keyboardDone}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  activeOpacity={0.85}
+                >
+                  <MaterialCommunityIcons name="check" size={15} color="#0f1526" />
+                </TouchableOpacity>
+              )}
+            </View>
+            <View style={styles.notebookMargin} />
+            <TextInput
+              style={styles.notebookInput}
+              value={note}
+              onChangeText={setNote}
+              onFocus={() => setNotesFocused(true)}
+              onBlur={() => setNotesFocused(false)}
+              placeholder="What did this verse stir in you? A du'a, a memory, a promise..."
+              placeholderTextColor="rgba(232,224,214,0.3)"
+              multiline
+              maxLength={1000}
+              textAlignVertical="top"
+            />
+          </View>
         </KeyboardAvoidingView>
       </View>
     </Modal>
@@ -326,66 +369,107 @@ const styles = StyleSheet.create({
   doneBtn: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 999, backgroundColor: ACCENT },
   doneText: { fontSize: 13, fontWeight: '800', color: '#0f1526' },
 
-  canvasHint: { fontSize: 11, color: 'rgba(232,224,214,0.4)', textAlign: 'center', marginBottom: 8, letterSpacing: 0.3 },
-
-  // The reflection "paper"
-  page: {
-    minHeight: 220,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255,255,255,0.045)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
-    padding: 20,
-    overflow: 'hidden',
-  },
-  pageText: {},
-  arabic: { fontSize: 24, color: '#e8e0d6', textAlign: 'right', lineHeight: 46, marginBottom: 14, fontFamily: FONTS.arabic },
-  translation: { fontSize: 16, color: 'rgba(232,224,214,0.9)', lineHeight: 26, marginBottom: 12 },
-  source: { fontSize: 13, color: ACCENT, fontWeight: '700' },
-
-  // Toolbar
-  toolbar: {
+  // ── Workspace: rails frame the verse so it's the centre of attention ──
+  workspace: {
+    flex: 1,
+    minHeight: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'space-between',
-    marginTop: 14,
-    padding: 8,
-    borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
+    paddingHorizontal: 8,
+    paddingVertical: 10,
   },
-  toolGroup: { flexDirection: 'row', gap: 6 },
-  toolBtn: {
-    width: 38,
-    height: 38,
-    borderRadius: 11,
+  rail: {
+    width: 46,
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  railBtn: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  toolBtnActive: { backgroundColor: ACCENT },
-  toolBtnDisabled: { opacity: 0.35 },
-  swatchRow: { flexDirection: 'row', gap: 8, alignItems: 'center' },
-  swatch: { width: 22, height: 22, borderRadius: 11, borderWidth: 2, borderColor: 'transparent' },
-  swatchActive: { borderColor: '#fff', transform: [{ scale: 1.15 }] },
-
-  // Journal
-  journal: {
-    marginTop: 18,
-    borderRadius: 18,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.06)',
-    padding: 16,
   },
-  journalHeader: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },
-  journalLabel: { fontSize: 13, fontWeight: '700', color: 'rgba(232,224,214,0.75)', letterSpacing: 0.3 },
-  journalInput: {
-    minHeight: 120,
-    fontSize: 16,
+  railBtnActive: { backgroundColor: ACCENT, borderColor: ACCENT },
+  railBtnDisabled: { opacity: 0.3 },
+  railGap: { height: 14 },
+  swatch: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: 'transparent' },
+  swatchActive: { borderColor: '#fff', transform: [{ scale: 1.2 }] },
+
+  // The verse paper
+  paperColumn: { flex: 1, justifyContent: 'center', minHeight: 0, paddingHorizontal: 4 },
+  page: {
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.05)',
+    borderWidth: 1,
+    borderColor: 'rgba(232,168,124,0.18)',
+    padding: 18,
+    paddingBottom: 30,
+    overflow: 'hidden',
+  },
+  arabic: { color: '#e8e0d6', textAlign: 'right', marginBottom: 12, fontFamily: FONTS.arabic },
+  translation: { color: 'rgba(232,224,214,0.9)', marginBottom: 10 },
+  pageSource: { fontSize: 12, color: ACCENT, fontWeight: '700' },
+  pageHint: {
+    position: 'absolute',
+    bottom: 8,
+    left: 0,
+    right: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  pageHintText: { fontSize: 11, color: 'rgba(232,224,214,0.35)', fontStyle: 'italic' },
+
+  // ── Notebook (bottom third) ──
+  notebook: {
+    marginHorizontal: 14,
+    marginBottom: 24,
+    borderRadius: 18,
+    backgroundColor: 'rgba(232,168,124,0.06)',
+    borderWidth: 1,
+    borderColor: 'rgba(232,168,124,0.18)',
+    padding: 14,
+    paddingTop: 10,
+  },
+  notebookHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  notebookLabel: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '800',
+    color: ACCENT,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  keyboardDone: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notebookMargin: {
+    position: 'absolute',
+    left: 34,
+    top: 38,
+    bottom: 14,
+    width: 1,
+    backgroundColor: 'rgba(232,168,124,0.15)',
+  },
+  notebookInput: {
+    minHeight: 74,
+    maxHeight: 120,
+    paddingLeft: 28,
+    fontSize: 15,
     color: '#e8e0d6',
-    lineHeight: 26,
+    lineHeight: 24,
+    fontStyle: 'italic',
     fontFamily: FONTS.display,
   },
 });
