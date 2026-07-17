@@ -13,7 +13,7 @@ import * as Haptics from 'expo-haptics';
 import { FONTS } from '../theme/typography';
 import { Reflection } from '../data/reflections';
 import { SavedReflectionEntry, Annotation } from '../hooks/useReflections';
-import { AnnotationEditor, AnnotationPreview } from './AnnotationEditor';
+import { AnnotationEditor, AnnotationPreview, VersePaper } from './AnnotationEditor';
 
 const ACCENT = '#e8a87c';
 // Per-kind accent so Qur'an vs Hadith read distinctly throughout the hub.
@@ -98,11 +98,18 @@ function SavedCard({
   const kindColor = KIND_ACCENT[item.kind];
   const [pageW, setPageW] = useState(0);
   const hasNote = !!item.note && item.note.trim().length > 0;
-  const hasMarks = !!item.annotation && item.annotation.strokes.length > 0;
+  const annotation = item.annotation;
+  const hasMarks = !!annotation && annotation.strokes.length > 0;
 
   const onPageLayout = useCallback((e: LayoutChangeEvent) => {
     setPageW(e.nativeEvent.layout.width);
   }, []);
+
+  // When annotated, render a faithful scaled clone of the editor page (same
+  // layout, uniformly scaled) so the strokes sit exactly where they were drawn.
+  const showReplica = hasMarks && !!annotation && pageW > 0;
+  const scale = showReplica ? pageW / annotation!.w : 1;
+  const paperH = showReplica ? annotation!.h * scale : 0;
 
   return (
     <TouchableOpacity
@@ -123,26 +130,25 @@ function SavedCard({
         </TouchableOpacity>
       </View>
 
-      {/* Verse + the user's marks overlaid */}
-      <View style={styles.savedPage} onLayout={onPageLayout}>
-        {!!item.arabic && <Text style={styles.arabic}>{item.arabic}</Text>}
-        <Text style={styles.translation}>{item.translation}</Text>
-        {hasMarks && pageW > 0 && (
-          <AnnotationPreview annotation={item.annotation as Annotation} width={pageW} />
+      {/* Verse. Annotated -> scaled clone of the editor page + marks overlaid so
+          they line up. Plain -> simple text with the source. */}
+      <View style={styles.savedVerseWrap} onLayout={onPageLayout}>
+        {showReplica && annotation ? (
+          <View style={{ height: paperH }}>
+            <VersePaper entry={item} scale={scale} forcedHeight={paperH} />
+            <AnnotationPreview annotation={annotation} width={pageW} />
+          </View>
+        ) : (
+          <View>
+            {!!item.arabic && <Text style={styles.arabic}>{item.arabic}</Text>}
+            <Text style={styles.translation}>{item.translation}</Text>
+            <Text style={[styles.source, { color: kindColor, marginTop: 10 }]}>{item.source}</Text>
+          </View>
         )}
       </View>
 
-      <View style={styles.savedFooter}>
-        <Text style={[styles.source, { color: kindColor }]}>{item.source}</Text>
-        <View style={styles.savedFooterRight}>
-          {hasMarks && <MaterialCommunityIcons name="draw" size={13} color="rgba(232,224,214,0.5)" />}
-          <Text style={styles.openHint}>{hasNote || hasMarks ? 'Open' : 'Add notes'}</Text>
-          <MaterialCommunityIcons name="chevron-right" size={15} color="rgba(232,224,214,0.5)" />
-        </View>
-      </View>
-
       {/* The user's own note - labelled + sticky-note styling so it can't be
-          mistaken for the quote's source (which sits in the footer above). */}
+          mistaken for the quote's source. */}
       {hasNote && (
         <View style={styles.noteCardBox}>
           <View style={styles.noteHeader}>
@@ -152,6 +158,12 @@ function SavedCard({
           <Text style={styles.noteText} numberOfLines={3}>{item.note}</Text>
         </View>
       )}
+
+      <View style={styles.savedFooter}>
+        {hasMarks && <MaterialCommunityIcons name="draw" size={13} color="rgba(232,224,214,0.5)" />}
+        <Text style={styles.openHint}>{hasNote || hasMarks ? 'Open' : 'Add notes'}</Text>
+        <MaterialCommunityIcons name="chevron-right" size={15} color="rgba(232,224,214,0.5)" />
+      </View>
     </TouchableOpacity>
   );
 }
@@ -487,6 +499,7 @@ const styles = StyleSheet.create({
     borderLeftWidth: 3,
   },
   savedPage: { position: 'relative', overflow: 'hidden', marginBottom: 4 },
+  savedVerseWrap: { marginBottom: 4 },
   noteCardBox: {
     marginTop: 12,
     padding: 12,
@@ -511,7 +524,7 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontFamily: FONTS.display,
   },
-  savedFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 14 },
+  savedFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 14 },
   savedFooterRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   openHint: { fontSize: 12, fontWeight: '600', color: 'rgba(232,224,214,0.5)' },
 

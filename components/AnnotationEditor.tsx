@@ -175,8 +175,6 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
 
   const kindLabel = entry.kind === 'ayah' ? "Qur'an" : 'Hadith';
   const hasMarks = strokes.length > 0 || currentPath.length > 0;
-  const aSize = arabicFontSize(entry.arabic?.length ?? 0);
-  const tSize = translationFontSize(entry.translation.length);
 
   return (
     <Modal visible={visible} animationType="slide" onRequestClose={handleSave}>
@@ -241,15 +239,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
 
             {/* Centre - the verse paper (the canvas) */}
             <View style={styles.paperColumn}>
-              <View style={styles.page} onLayout={onCanvasLayout} {...panResponder.panHandlers}>
-                <View pointerEvents="none">
-                  {!!entry.arabic && (
-                    <Text style={[styles.arabic, { fontSize: aSize, lineHeight: aSize * 1.9 }]}>{entry.arabic}</Text>
-                  )}
-                  <Text style={[styles.translation, { fontSize: tSize, lineHeight: tSize * 1.6 }]}>{entry.translation}</Text>
-                  <Text style={styles.pageSource}>{entry.source}</Text>
-                </View>
-
+              <VersePaper entry={entry} scale={1} onLayout={onCanvasLayout} panHandlers={panResponder.panHandlers}>
                 {/* Drawing layer on top of the text */}
                 <Svg style={StyleSheet.absoluteFill} pointerEvents="none">
                   {strokes.map((s, i) => (
@@ -284,7 +274,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
                     <Text style={styles.pageHintText}>draw or highlight anywhere on the verse</Text>
                   </View>
                 )}
-              </View>
+              </VersePaper>
             </View>
 
             {/* Right rail - ink colours */}
@@ -344,6 +334,57 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
         </KeyboardAvoidingView>
       </View>
     </Modal>
+  );
+}
+
+// The verse "paper". SHARED by the editor (scale 1, interactive) and the saved-
+// card preview (scaled down). Because it's one component rendered at a uniform
+// scale, the card reproduces the editor's exact text layout - so strokes, which
+// are stored relative to this box, always line up with the words they marked.
+export function VersePaper({
+  entry,
+  scale = 1,
+  forcedHeight,
+  onLayout,
+  panHandlers,
+  children,
+}: {
+  entry: { arabic?: string; translation: string; source: string };
+  scale?: number;
+  forcedHeight?: number;
+  onLayout?: (e: LayoutChangeEvent) => void;
+  panHandlers?: any;
+  children?: React.ReactNode;
+}) {
+  const aSize = arabicFontSize(entry.arabic?.length ?? 0) * scale;
+  const tSize = translationFontSize(entry.translation.length) * scale;
+  return (
+    <View
+      style={[
+        styles.page,
+        {
+          padding: 18 * scale,
+          paddingBottom: 30 * scale,
+          borderRadius: 20 * scale,
+          ...(forcedHeight != null ? { height: forcedHeight, minHeight: 0 } : { minHeight: 220 }),
+        },
+      ]}
+      onLayout={onLayout}
+      {...(panHandlers || {})}
+    >
+      <View pointerEvents="none">
+        {!!entry.arabic && (
+          <Text style={[styles.arabic, { fontSize: aSize, lineHeight: aSize * 1.9, marginBottom: 12 * scale }]}>
+            {entry.arabic}
+          </Text>
+        )}
+        <Text style={[styles.translation, { fontSize: tSize, lineHeight: tSize * 1.6, marginBottom: 10 * scale }]}>
+          {entry.translation}
+        </Text>
+        <Text style={[styles.pageSource, { fontSize: 12 * scale }]}>{entry.source}</Text>
+      </View>
+      {children}
+    </View>
   );
 }
 
