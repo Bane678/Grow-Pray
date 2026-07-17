@@ -67,12 +67,12 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
   // Canvas size at draw time, stored so previews can scale via viewBox.
   const canvas = useRef({ w: 1, h: 1 });
 
-  // Keyboard is dismissible ONLY via the notebook tick. We enforce that by
-  // holding focus: any other touch that blurs the field is undone by refocusing,
-  // unless `dismissing` was set by the tick (or by closing the editor).
+  // The notebook tick is the deliberate way to dismiss the keyboard. There's no
+  // scroll view here and the canvas goes inert while typing (see the pan guard
+  // below), so outside taps don't drop the keyboard on their own - no refocus
+  // hack needed (that was fighting the tick and yanking the keyboard back).
   const inputRef = useRef<TextInput>(null);
   const notesFocusedRef = useRef(false);
-  const dismissing = useRef(false);
 
   // Load the entry's saved state whenever the editor opens.
   useEffect(() => {
@@ -85,7 +85,6 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
       setCurrentPath('');
       setNotesFocused(false);
       notesFocusedRef.current = false;
-      dismissing.current = false;
     }
   }, [visible, entry]);
 
@@ -153,16 +152,15 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
     setStrokes([]);
   }, []);
 
-  // Dismiss the keyboard - the only sanctioned path (the notebook tick).
+  // Dismiss the keyboard - the deliberate path (the notebook tick).
   const dismissKeyboard = useCallback(() => {
-    dismissing.current = true;
+    notesFocusedRef.current = false;
     inputRef.current?.blur();
     Keyboard.dismiss();
   }, []);
 
   const handleSave = useCallback(() => {
     if (!entry) return;
-    dismissing.current = true; // allow the field to blur as we close
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const annotation: Annotation | undefined = strokes.length
       ? { strokes, w: canvas.current.w, h: canvas.current.h }
@@ -313,17 +311,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
               value={note}
               onChangeText={setNote}
               onFocus={() => { notesFocusedRef.current = true; setNotesFocused(true); }}
-              onBlur={() => {
-                if (dismissing.current) {
-                  // Sanctioned dismissal (tick or close) - let it go.
-                  dismissing.current = false;
-                  notesFocusedRef.current = false;
-                  setNotesFocused(false);
-                } else {
-                  // Something else tried to steal focus; hold the keyboard up.
-                  inputRef.current?.focus();
-                }
-              }}
+              onBlur={() => { notesFocusedRef.current = false; setNotesFocused(false); }}
               placeholder="What did this verse stir in you? A du'a, a memory, a promise..."
               placeholderTextColor="rgba(232,224,214,0.3)"
               multiline
