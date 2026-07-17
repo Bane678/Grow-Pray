@@ -67,12 +67,14 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
   // Canvas size at draw time, stored so previews can scale via viewBox.
   const canvas = useRef({ w: 1, h: 1 });
 
-  // The notebook tick is the deliberate way to dismiss the keyboard. There's no
-  // scroll view here and the canvas goes inert while typing (see the pan guard
-  // below), so outside taps don't drop the keyboard on their own - no refocus
-  // hack needed (that was fighting the tick and yanking the keyboard back).
+  // The keyboard may ONLY be dismissed via the notebook tick. Any other touch
+  // (tools, colours, canvas) blurs the field on iOS, so we hold focus: on blur
+  // we refocus UNLESS `allowDismiss` was set. The tick sets it on onPressIn -
+  // touch-DOWN, which fires before the blur - so the tick's own tap is honoured
+  // while every other tap keeps the keyboard up.
   const inputRef = useRef<TextInput>(null);
   const notesFocusedRef = useRef(false);
+  const allowDismiss = useRef(false);
 
   // Load the entry's saved state whenever the editor opens.
   useEffect(() => {
@@ -85,6 +87,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
       setCurrentPath('');
       setNotesFocused(false);
       notesFocusedRef.current = false;
+      allowDismiss.current = false;
     }
   }, [visible, entry]);
 
@@ -153,7 +156,10 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
   }, []);
 
   // Dismiss the keyboard - the deliberate path (the notebook tick).
+  // allowDismiss is set on the tick's onPressIn (before the blur) so onBlur
+  // lets go instead of refocusing.
   const dismissKeyboard = useCallback(() => {
+    allowDismiss.current = true;
     notesFocusedRef.current = false;
     inputRef.current?.blur();
     Keyboard.dismiss();
@@ -161,6 +167,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
 
   const handleSave = useCallback(() => {
     if (!entry) return;
+    allowDismiss.current = true; // let the field blur freely as we close
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     const annotation: Annotation | undefined = strokes.length
       ? { strokes, w: canvas.current.w, h: canvas.current.h }
@@ -295,6 +302,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
               <Text style={styles.notebookLabel}>My notes</Text>
               {notesFocused && (
                 <TouchableOpacity
+                  onPressIn={() => { allowDismiss.current = true; }}
                   onPress={dismissKeyboard}
                   style={styles.keyboardDone}
                   hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -310,8 +318,18 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
               style={styles.notebookInput}
               value={note}
               onChangeText={setNote}
-              onFocus={() => { notesFocusedRef.current = true; setNotesFocused(true); }}
-              onBlur={() => { notesFocusedRef.current = false; setNotesFocused(false); }}
+              onFocus={() => { notesFocusedRef.current = true; allowDismiss.current = false; setNotesFocused(true); }}
+              onBlur={() => {
+                if (allowDismiss.current) {
+                  // Sanctioned dismissal (tick or editor close).
+                  allowDismiss.current = false;
+                  notesFocusedRef.current = false;
+                  setNotesFocused(false);
+                } else {
+                  // Any other tap blurred us - hold the keyboard up.
+                  inputRef.current?.focus();
+                }
+              }}
               placeholder="What did this verse stir in you? A du'a, a memory, a promise..."
               placeholderTextColor="rgba(232,224,214,0.3)"
               multiline
