@@ -14,6 +14,7 @@ import { FONTS } from '../theme/typography';
 import { Reflection } from '../data/reflections';
 import { SavedReflectionEntry, Annotation } from '../hooks/useReflections';
 import { AnnotationEditor, AnnotationPreview, VersePaper } from './AnnotationEditor';
+import { QuranReader } from './QuranReader';
 
 const ACCENT = '#e8a87c';
 // Per-kind accent so Qur'an vs Hadith read distinctly throughout the hub.
@@ -22,7 +23,7 @@ const KIND_ACCENT: Record<Reflection['kind'], string> = {
   hadith: '#8fbf9f', // soft sage
 };
 
-type HubTab = 'explore' | 'saved';
+type HubTab = 'quran' | 'saved';
 type KindFilter = 'all' | 'ayah' | 'hadith';
 
 const FILTERS: { key: KindFilter; label: string }[] = [
@@ -35,7 +36,6 @@ interface ReflectionsHubProps {
   visible: boolean;
   initialTab: HubTab;
   onClose: () => void;
-  allReflections: Reflection[];
   savedReflections: SavedReflectionEntry[];
   isSaved: (id: string) => boolean;
   toggleSave: (id: string) => void;
@@ -44,45 +44,6 @@ interface ReflectionsHubProps {
 
 function kindLabel(kind: Reflection['kind']) {
   return kind === 'ayah' ? "Qur'an" : 'Hadith';
-}
-
-// ── Explore card: a reflection with a save toggle. ──
-function ExploreCard({
-  item,
-  saved,
-  onToggleSave,
-}: {
-  item: Reflection;
-  saved: boolean;
-  onToggleSave: () => void;
-}) {
-  const kindColor = KIND_ACCENT[item.kind];
-  return (
-    <View style={[styles.card, { borderLeftColor: kindColor }]}>
-      <View style={styles.cardTop}>
-        <View style={[styles.kindChip, { backgroundColor: kindColor + '1f' }]}>
-          <Text style={[styles.kindChipText, { color: kindColor }]}>{kindLabel(item.kind)}</Text>
-        </View>
-        <TouchableOpacity
-          onPress={onToggleSave}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-          activeOpacity={0.7}
-        >
-          <MaterialCommunityIcons
-            name={saved ? 'heart' : 'heart-outline'}
-            size={19}
-            color={saved ? '#f87171' : 'rgba(232,224,214,0.4)'}
-          />
-        </TouchableOpacity>
-      </View>
-
-      {!!item.arabic && <Text style={styles.arabic}>{item.arabic}</Text>}
-      <Text style={styles.translation}>{item.translation}</Text>
-
-      <View style={styles.cardDivider} />
-      <Text style={[styles.source, { color: kindColor }]}>{item.source}</Text>
-    </View>
-  );
 }
 
 // ── Saved card: journal-style, shows the user's own marks + note. Tap to open. ──
@@ -172,7 +133,6 @@ export function ReflectionsHub({
   visible,
   initialTab,
   onClose,
-  allReflections,
   savedReflections,
   isSaved,
   toggleSave,
@@ -180,7 +140,6 @@ export function ReflectionsHub({
 }: ReflectionsHubProps) {
   const [tab, setTab] = useState<HubTab>(initialTab);
   const [filter, setFilter] = useState<KindFilter>('all');
-  const [spotlightId, setSpotlightId] = useState<string | null>(null);
   const [editorEntry, setEditorEntry] = useState<SavedReflectionEntry | null>(null);
 
   // Sync to the requested tab each time the hub opens.
@@ -188,45 +147,10 @@ export function ReflectionsHub({
     if (visible) setTab(initialTab);
   }, [visible, initialTab]);
 
-  const filteredAll = useMemo(
-    () => (filter === 'all' ? allReflections : allReflections.filter((r) => r.kind === filter)),
-    [filter, allReflections],
-  );
   const filteredSaved = useMemo(
     () => (filter === 'all' ? savedReflections : savedReflections.filter((r) => r.kind === filter)),
     [filter, savedReflections],
   );
-
-  const pickSpotlight = useCallback((pool: Reflection[], excludeId?: string) => {
-    if (pool.length === 0) { setSpotlightId(null); return; }
-    if (pool.length === 1) { setSpotlightId(pool[0].id); return; }
-    let choice = pool[Math.floor(Math.random() * pool.length)];
-    let guard = 0;
-    while (choice.id === excludeId && guard < 8) {
-      choice = pool[Math.floor(Math.random() * pool.length)];
-      guard++;
-    }
-    setSpotlightId(choice.id);
-  }, []);
-
-  // Keep the spotlight valid: pick one when opening Explore or when the filter
-  // narrows the pool so the current pick no longer belongs.
-  useEffect(() => {
-    if (!visible || tab !== 'explore') return;
-    if (!spotlightId || !filteredAll.some((r) => r.id === spotlightId)) {
-      pickSpotlight(filteredAll);
-    }
-  }, [visible, tab, filteredAll, spotlightId, pickSpotlight]);
-
-  const spotlight = useMemo(
-    () => allReflections.find((r) => r.id === spotlightId) ?? null,
-    [allReflections, spotlightId],
-  );
-
-  const onShuffle = useCallback(() => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    pickSpotlight(filteredAll, spotlightId ?? undefined);
-  }, [pickSpotlight, filteredAll, spotlightId]);
 
   const onToggleSave = useCallback(
     (id: string) => {
@@ -241,6 +165,18 @@ export function ReflectionsHub({
     setEditorEntry(entry);
   }, []);
 
+  // From the Qur'an reader: open the annotation editor for a saved ayah.
+  const openAnnotateById = useCallback(
+    (id: string) => {
+      const entry = savedReflections.find((e) => e.id === id);
+      if (entry) {
+        Haptics.selectionAsync();
+        setEditorEntry(entry);
+      }
+    },
+    [savedReflections],
+  );
+
   const savedCount = savedReflections.length;
 
   return (
@@ -254,8 +190,8 @@ export function ReflectionsHub({
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={styles.title}>Reflections</Text>
               <Text style={styles.subtitle}>
-                {tab === 'explore'
-                  ? `Browse all ${allReflections.length} · Qur'an & hadith`
+                {tab === 'quran'
+                  ? '114 surahs · read, save & annotate'
                   : `${savedCount} saved · your collection`}
               </Text>
             </View>
@@ -271,7 +207,7 @@ export function ReflectionsHub({
           {/* Tabs */}
           <View style={styles.tabsRow}>
             {([
-              { key: 'explore', label: 'Explore', icon: 'compass-outline' },
+              { key: 'quran', label: "Qur'an", icon: 'book-open-page-variant' },
               { key: 'saved', label: 'Saved', icon: 'heart-outline' },
             ] as const).map((t) => {
               const active = tab === t.key;
@@ -295,54 +231,32 @@ export function ReflectionsHub({
             })}
           </View>
 
-          {/* Filter chips */}
-          <View style={styles.filterRow}>
-            {FILTERS.map((f) => {
-              const active = filter === f.key;
-              return (
-                <TouchableOpacity
-                  key={f.key}
-                  style={[styles.chip, active && styles.chipActive]}
-                  onPress={() => { Haptics.selectionAsync(); setFilter(f.key); }}
-                  activeOpacity={0.85}
-                >
-                  <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
-                </TouchableOpacity>
-              );
-            })}
-          </View>
+          {/* Filter chips - only meaningful on the Saved tab */}
+          {tab === 'saved' && (
+            <View style={styles.filterRow}>
+              {FILTERS.map((f) => {
+                const active = filter === f.key;
+                return (
+                  <TouchableOpacity
+                    key={f.key}
+                    style={[styles.chip, active && styles.chipActive]}
+                    onPress={() => { Haptics.selectionAsync(); setFilter(f.key); }}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          )}
 
           {/* Content */}
-          {tab === 'explore' ? (
-            <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
-              {/* Shuffle spotlight - a fresh verse on demand, no daily wait */}
-              {spotlight && (
-                <View style={styles.spotlightWrap}>
-                  <View style={styles.spotlightHeader}>
-                    <Text style={styles.spotlightLabel}>✨ Spotlight</Text>
-                    <TouchableOpacity style={styles.shuffleBtn} onPress={onShuffle} activeOpacity={0.85}>
-                      <MaterialCommunityIcons name="shuffle-variant" size={15} color={ACCENT} />
-                      <Text style={styles.shuffleText}>Shuffle</Text>
-                    </TouchableOpacity>
-                  </View>
-                  <ExploreCard
-                    item={spotlight}
-                    saved={isSaved(spotlight.id)}
-                    onToggleSave={() => onToggleSave(spotlight.id)}
-                  />
-                </View>
-              )}
-
-              <Text style={styles.listLabel}>All reflections · {filteredAll.length}</Text>
-              {filteredAll.map((item) => (
-                <ExploreCard
-                  key={item.id}
-                  item={item}
-                  saved={isSaved(item.id)}
-                  onToggleSave={() => onToggleSave(item.id)}
-                />
-              ))}
-            </ScrollView>
+          {tab === 'quran' ? (
+            <QuranReader
+              isSaved={isSaved}
+              toggleSave={onToggleSave}
+              onOpenAnnotate={openAnnotateById}
+            />
           ) : filteredSaved.length === 0 ? (
             <View style={styles.emptyWrap}>
               <View style={styles.emptyRing}>
@@ -353,8 +267,8 @@ export function ReflectionsHub({
               </Text>
               <Text style={styles.emptyBody}>
                 {savedCount === 0
-                  ? 'Tap the heart on any reflection in Explore to keep it here - then draw, highlight and write on it.'
-                  : 'Try a different filter, or save more from Explore.'}
+                  ? "Heart any ayah in the Qur'an tab (or the daily reflection) to keep it here - then draw, highlight and write on it."
+                  : "Try a different filter, or save more from the Qur'an tab."}
               </Text>
             </View>
           ) : (
@@ -390,7 +304,7 @@ const styles = StyleSheet.create({
     borderTopLeftRadius: 26,
     borderTopRightRadius: 26,
     // Fixed height so switching tabs/filters never resizes the sheet - only the
-    // inner content scrolls/reflows to fit, matching the Explore tab's feel.
+    // inner content scrolls/reflows to fit - the sheet frame never moves.
     height: '92%',
     paddingTop: 10,
     paddingHorizontal: 16,
@@ -449,43 +363,14 @@ const styles = StyleSheet.create({
   chipText: { fontSize: 12, fontWeight: '600', color: 'rgba(232,224,214,0.55)' },
   chipTextActive: { color: ACCENT },
 
-  // Spotlight
-  spotlightWrap: { marginBottom: 18 },
-  spotlightHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8, paddingHorizontal: 2 },
-  spotlightLabel: { fontSize: 12, fontWeight: '700', color: 'rgba(232,224,214,0.55)', letterSpacing: 0.5 },
-  shuffleBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 5,
-    paddingVertical: 6, paddingHorizontal: 12,
-    borderRadius: 999,
-    backgroundColor: 'rgba(232,168,124,0.14)',
-    borderWidth: 1, borderColor: 'rgba(232,168,124,0.3)',
-  },
-  shuffleText: { fontSize: 12, fontWeight: '700', color: ACCENT },
-
-  listLabel: {
-    fontSize: 11, fontWeight: '700', color: 'rgba(232,224,214,0.4)',
-    letterSpacing: 1, textTransform: 'uppercase', marginBottom: 10, marginLeft: 2,
-  },
-
   // Content fills the fixed-height sheet so it never grows/shrinks with content.
   scroll: { flex: 1 },
 
-  // ── Explore card ──
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 18,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.06)',
-    borderLeftWidth: 3,
-  },
   cardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   kindChip: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   kindChipText: { fontSize: 11, fontWeight: '700' },
   arabic: { fontSize: 23, color: '#e8e0d6', textAlign: 'right', lineHeight: 44, paddingTop: 8, marginBottom: 10, fontFamily: FONTS.arabic },
   translation: { fontSize: 14, color: 'rgba(232,224,214,0.85)', lineHeight: 21, marginTop: 4 },
-  cardDivider: { height: 1, backgroundColor: 'rgba(255,255,255,0.07)', marginTop: 14, marginBottom: 10 },
   source: { fontSize: 12, fontWeight: '700' },
 
   // ── Saved card (journal) ──

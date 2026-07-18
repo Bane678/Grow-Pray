@@ -34,7 +34,6 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
 }: DailyReflectionCardProps) {
   const {
     today,
-    allReflections,
     savedReflections,
     savedCount,
     isSaved,
@@ -43,10 +42,10 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
   } = useReflections();
 
   const [hubOpen, setHubOpen] = useState(false);
-  const [hubTab, setHubTab] = useState<'explore' | 'saved'>('explore');
+  const [hubTab, setHubTab] = useState<'quran' | 'saved'>('quran');
 
   const openHub = useCallback(
-    (tab: 'explore' | 'saved') => {
+    (tab: 'quran' | 'saved') => {
       Haptics.selectionAsync();
       if (!isPremium) {
         onOpenPaywall?.('reflection_archive');
@@ -77,13 +76,13 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
       <View style={styles.labelRow}>
         <Text style={styles.sectionLabel}>Reflection of the day</Text>
         <View style={styles.entryRow}>
-          <TouchableOpacity onPress={() => openHub('explore')} activeOpacity={0.8} style={styles.entryBtn}>
+          <TouchableOpacity onPress={() => openHub('quran')} activeOpacity={0.8} style={styles.entryBtn}>
             <MaterialCommunityIcons
-              name={isPremium ? 'compass-outline' : 'lock'}
+              name={isPremium ? 'book-open-page-variant' : 'lock'}
               size={13}
               color="rgba(232,224,214,0.7)"
             />
-            <Text style={styles.entryText}>Explore</Text>
+            <Text style={styles.entryText}>Qur'an</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => openHub('saved')} activeOpacity={0.8} style={styles.entryBtn}>
             <MaterialCommunityIcons
@@ -141,12 +140,11 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
         </TouchableOpacity>
       )}
 
-      {/* Reflections hub (premium): Explore + Saved with annotations */}
+      {/* Reflections hub (premium): full Qur'an + Saved with annotations */}
       <ReflectionsHub
         visible={hubOpen}
         initialTab={hubTab}
         onClose={() => setHubOpen(false)}
-        allReflections={allReflections}
         savedReflections={savedReflections}
         isSaved={isSaved}
         toggleSave={toggleSave}
