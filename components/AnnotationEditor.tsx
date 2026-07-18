@@ -21,15 +21,51 @@ import { SavedReflectionEntry, Stroke, Annotation } from '../hooks/useReflection
 const ACCENT = '#e8a87c';
 const PEN_WIDTH = 3.5;
 const HIGHLIGHT_WIDTH = 22;
+const ERASE_RADIUS = 16; // finger tolerance for the eraser, in canvas px
 
 // Warm ink palette that reads well on the dark "paper".
 const PALETTE = ['#f2e9dc', '#e8a87c', '#8fbf9f', '#7fb0d9', '#e07a8b', '#f4d06f'];
 
-type Tool = 'pen' | 'highlight';
+type Tool = 'pen' | 'highlight' | 'erase';
 
 // Highlighter marks render translucent + fat; pen marks solid + thin.
 function strokeOpacity(kind: Stroke['kind']) {
   return kind === 'highlight' ? 0.32 : 1;
+}
+
+// Parse an SVG "M x y L x y ..." path into its points.
+function parsePoints(d: string): { x: number; y: number }[] {
+  const nums = d.match(/-?\d+(\.\d+)?/g);
+  if (!nums) return [];
+  const pts: { x: number; y: number }[] = [];
+  for (let i = 0; i + 1 < nums.length; i += 2) {
+    pts.push({ x: parseFloat(nums[i]), y: parseFloat(nums[i + 1]) });
+  }
+  return pts;
+}
+
+// Shortest distance from point p to segment ab.
+function distToSegment(p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) {
+  const dx = b.x - a.x;
+  const dy = b.y - a.y;
+  const len2 = dx * dx + dy * dy;
+  if (len2 === 0) return Math.hypot(p.x - a.x, p.y - a.y);
+  let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2;
+  t = Math.max(0, Math.min(1, t));
+  return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
+}
+
+// True if an erase touch at (x,y) lands on this stroke.
+function strokeHit(s: Stroke, x: number, y: number): boolean {
+  const pts = parsePoints(s.d);
+  if (pts.length === 0) return false;
+  const threshold = ERASE_RADIUS + s.width / 2;
+  const p = { x, y };
+  if (pts.length === 1) return Math.hypot(x - pts[0].x, y - pts[0].y) <= threshold;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    if (distToSegment(p, pts[i], pts[i + 1]) <= threshold) return true;
+  }
+  return false;
 }
 
 // Long verses get slightly smaller type so the paper always fits on screen
@@ -102,6 +138,16 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
     canvas.current = { w: width, h: height };
   }, []);
 
+  // Remove any stroke the eraser touch lands on. Called live as the finger moves
+  // while the erase tool is active - drag across marks to rub them out.
+  const eraseAt = useCallback((x: number, y: number) => {
+    setStrokes((prev) => {
+      const next = prev.filter((s) => !strokeHit(s, x, y));
+      if (next.length !== prev.length) Haptics.selectionAsync();
+      return next;
+    });
+  }, []);
+
   const panResponder = useMemo(
     () =>
       PanResponder.create({
@@ -117,15 +163,24 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
         // notebook header is the one and only way to put the keyboard away.
         onPanResponderGrant: (e) => {
           const { locationX, locationY } = e.nativeEvent;
+          if (toolRef.current === 'erase') {
+            eraseAt(locationX, locationY);
+            return;
+          }
           currentRef.current = `M ${locationX.toFixed(1)} ${locationY.toFixed(1)}`;
           setCurrentPath(currentRef.current);
         },
         onPanResponderMove: (e) => {
           const { locationX, locationY } = e.nativeEvent;
+          if (toolRef.current === 'erase') {
+            eraseAt(locationX, locationY);
+            return;
+          }
           currentRef.current = `${currentRef.current} L ${locationX.toFixed(1)} ${locationY.toFixed(1)}`;
           setCurrentPath(currentRef.current);
         },
         onPanResponderRelease: () => {
+          if (toolRef.current === 'erase') return; // erasing handled live in grant/move
           const d = currentRef.current;
           currentRef.current = '';
           setCurrentPath('');
@@ -222,6 +277,15 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
                 <MaterialCommunityIcons name="marker" size={19} color={tool === 'highlight' ? '#0f1526' : 'rgba(232,224,214,0.7)'} />
               </TouchableOpacity>
 
+              {/* Eraser - a selectable tool: rub across marks to erase them */}
+              <TouchableOpacity
+                style={[styles.railBtn, tool === 'erase' && styles.railBtnActive]}
+                onPress={() => { Haptics.selectionAsync(); setTool('erase'); }}
+                activeOpacity={0.85}
+              >
+                <MaterialCommunityIcons name="eraser" size={19} color={tool === 'erase' ? '#0f1526' : 'rgba(232,224,214,0.7)'} />
+              </TouchableOpacity>
+
               <View style={styles.railGap} />
 
               <TouchableOpacity
@@ -232,13 +296,14 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
               >
                 <MaterialCommunityIcons name="undo-variant" size={19} color="rgba(232,224,214,0.7)" />
               </TouchableOpacity>
+              {/* Delete-all - clears every mark, sits below the eraser */}
               <TouchableOpacity
-                style={[styles.railBtn, !hasMarks && styles.railBtnDisabled]}
+                style={[styles.railBtn, styles.railBtnDanger, !hasMarks && styles.railBtnDisabled]}
                 onPress={clear}
                 disabled={!hasMarks}
                 activeOpacity={0.85}
               >
-                <MaterialCommunityIcons name="eraser" size={19} color="rgba(232,224,214,0.7)" />
+                <MaterialCommunityIcons name="delete-outline" size={19} color={hasMarks ? '#e07a8b' : 'rgba(232,224,214,0.7)'} />
               </TouchableOpacity>
             </View>
 
@@ -259,7 +324,7 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
                       strokeLinejoin="round"
                     />
                   ))}
-                  {currentPath ? (
+                  {currentPath && tool !== 'erase' ? (
                     <Path
                       d={currentPath}
                       stroke={color}
@@ -273,10 +338,16 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
                 </Svg>
 
                 {/* First-open hint, fades once anything is drawn */}
-                {!hasMarks && (
+                {!hasMarks && tool !== 'erase' && (
                   <View style={styles.pageHint} pointerEvents="none">
                     <MaterialCommunityIcons name="gesture" size={14} color="rgba(232,224,214,0.35)" />
                     <Text style={styles.pageHintText}>draw or highlight anywhere on the verse</Text>
+                  </View>
+                )}
+                {hasMarks && tool === 'erase' && (
+                  <View style={styles.pageHint} pointerEvents="none">
+                    <MaterialCommunityIcons name="eraser" size={14} color="rgba(232,224,214,0.35)" />
+                    <Text style={styles.pageHintText}>rub across a mark to erase it</Text>
                   </View>
                 )}
               </VersePaper>
@@ -473,6 +544,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   railBtnActive: { backgroundColor: ACCENT, borderColor: ACCENT },
+  railBtnDanger: { borderColor: 'rgba(224,122,139,0.4)' },
   railBtnDisabled: { opacity: 0.3 },
   railGap: { height: 14 },
   swatch: { width: 24, height: 24, borderRadius: 12, borderWidth: 2, borderColor: 'transparent' },
