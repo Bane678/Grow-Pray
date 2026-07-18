@@ -55,17 +55,41 @@ function distToSegment(p: { x: number; y: number }, a: { x: number; y: number },
   return Math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy));
 }
 
-// True if an erase touch at (x,y) lands on this stroke.
-function strokeHit(s: Stroke, x: number, y: number): boolean {
+// Turn a list of points back into an SVG "M x y L x y ..." path.
+function pointsToPath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return '';
+  let d = `M ${pts[0].x.toFixed(1)} ${pts[0].y.toFixed(1)}`;
+  for (let i = 1; i < pts.length; i++) d += ` L ${pts[i].x.toFixed(1)} ${pts[i].y.toFixed(1)}`;
+  return d;
+}
+
+// Erase the part of a stroke within reach of the touch at (x,y), keeping the
+// rest. Returns the resulting stroke pieces: 0 (fully rubbed out), 1 (nicked an
+// end), or 2+ (rubbed a gap in the middle, splitting it). This is what makes the
+// eraser rub out SECTIONS of a line rather than deleting the whole thing.
+function eraseFromStroke(s: Stroke, x: number, y: number): Stroke[] {
   const pts = parsePoints(s.d);
-  if (pts.length === 0) return false;
+  if (pts.length === 0) return [s];
   const threshold = ERASE_RADIUS + s.width / 2;
-  const p = { x, y };
-  if (pts.length === 1) return Math.hypot(x - pts[0].x, y - pts[0].y) <= threshold;
-  for (let i = 0; i + 1 < pts.length; i++) {
-    if (distToSegment(p, pts[i], pts[i + 1]) <= threshold) return true;
+
+  // Keep every point outside the eraser; break the run wherever points are erased.
+  const runs: { x: number; y: number }[][] = [];
+  let current: { x: number; y: number }[] = [];
+  for (const pt of pts) {
+    if (Math.hypot(pt.x - x, pt.y - y) <= threshold) {
+      if (current.length) { runs.push(current); current = []; }
+    } else {
+      current.push(pt);
+    }
   }
-  return false;
+  if (current.length) runs.push(current);
+
+  // Nothing erased -> stroke unchanged. Otherwise each surviving run (of 2+
+  // points, so it still draws a line) becomes its own stroke piece.
+  if (runs.length === 1 && runs[0].length === pts.length) return [s];
+  return runs
+    .filter((r) => r.length >= 2)
+    .map((r) => ({ ...s, d: pointsToPath(r) }));
 }
 
 // Long verses get slightly smaller type so the paper always fits on screen
@@ -138,13 +162,20 @@ export function AnnotationEditor({ visible, entry, onClose, onSave }: Annotation
     canvas.current = { w: width, h: height };
   }, []);
 
-  // Remove any stroke the eraser touch lands on. Called live as the finger moves
-  // while the erase tool is active - drag across marks to rub them out.
+  // Rub out the sections of any strokes within reach of the eraser, keeping the
+  // untouched parts. Called live as the finger moves - drag along a line and it
+  // erodes only the portion you follow, splitting or shortening strokes.
   const eraseAt = useCallback((x: number, y: number) => {
     setStrokes((prev) => {
-      const next = prev.filter((s) => !strokeHit(s, x, y));
-      if (next.length !== prev.length) Haptics.selectionAsync();
-      return next;
+      let changed = false;
+      const next: Stroke[] = [];
+      for (const s of prev) {
+        const pieces = eraseFromStroke(s, x, y);
+        if (pieces.length !== 1 || pieces[0] !== s) changed = true;
+        next.push(...pieces);
+      }
+      if (changed) Haptics.selectionAsync();
+      return changed ? next : prev;
     });
   }, []);
 
