@@ -82,7 +82,7 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
               size={13}
               color="rgba(232,224,214,0.7)"
             />
-            <Text style={styles.entryText}>Qur'an</Text>
+            <Text style={styles.entryText}>Read</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => openHub('saved')} activeOpacity={0.8} style={styles.entryBtn}>
             <MaterialCommunityIcons
