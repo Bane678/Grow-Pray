@@ -196,7 +196,11 @@ export function ReflectionsHub({
               </Text>
             </View>
             <TouchableOpacity
-              onPress={onClose}
+              // onPressIn (touch-DOWN), not onPress (touch-release): while the
+              // Qur'an FlatList is still flinging, a release-based tap can sit
+              // queued until the scroll settles. Touch-down fires immediately,
+              // so the sheet closes the instant you touch the X - no waiting.
+              onPressIn={onClose}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               style={styles.close}
             >
