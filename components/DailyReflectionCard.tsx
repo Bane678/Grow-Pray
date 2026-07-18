@@ -73,28 +73,38 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
 
   return (
     <View style={styles.wrap}>
+      {/* Featured entry point - the Qur'an & Hadith library. This is deliberately
+          the most prominent element on the Dhikr tab: full-width, its own icon
+          and copy, not a small pill tucked into a header row. */}
+      <TouchableOpacity style={styles.hero} onPress={() => openHub('quran')} activeOpacity={0.88}>
+        <View style={styles.heroIconRing}>
+          <MaterialCommunityIcons
+            name={isPremium ? 'book-open-page-variant' : 'lock'}
+            size={26}
+            color={ACCENT}
+          />
+        </View>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={styles.heroTitle}>Qur'an & Hadith</Text>
+          <Text style={styles.heroSubtitle}>
+            114 surahs · Nawawi's 40 · read, save & annotate
+          </Text>
+        </View>
+        <MaterialCommunityIcons name="chevron-right" size={22} color="rgba(232,224,214,0.5)" />
+      </TouchableOpacity>
+
       <View style={styles.labelRow}>
         <Text style={styles.sectionLabel}>Reflection of the day</Text>
-        <View style={styles.entryRow}>
-          <TouchableOpacity onPress={() => openHub('quran')} activeOpacity={0.8} style={styles.entryBtn}>
-            <MaterialCommunityIcons
-              name={isPremium ? 'book-open-page-variant' : 'lock'}
-              size={13}
-              color="rgba(232,224,214,0.7)"
-            />
-            <Text style={styles.entryText}>Read</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={() => openHub('saved')} activeOpacity={0.8} style={styles.entryBtn}>
-            <MaterialCommunityIcons
-              name={isPremium ? 'heart-outline' : 'lock'}
-              size={13}
-              color="rgba(232,224,214,0.7)"
-            />
-            <Text style={styles.entryText}>
-              Saved{isPremium && savedCount > 0 ? ` · ${savedCount}` : ''}
-            </Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity onPress={() => openHub('saved')} activeOpacity={0.8} style={styles.entryBtn}>
+          <MaterialCommunityIcons
+            name={isPremium ? 'heart-outline' : 'lock'}
+            size={13}
+            color="rgba(232,224,214,0.7)"
+          />
+          <Text style={styles.entryText}>
+            Saved{isPremium && savedCount > 0 ? ` · ${savedCount}` : ''}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {/* Daily reflection card */}
@@ -156,6 +166,30 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
 
 const styles = StyleSheet.create({
   wrap: { marginBottom: 22 },
+
+  // ── Featured Qur'an & Hadith hero ──
+  hero: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    padding: 16,
+    marginBottom: 18,
+    borderRadius: 20,
+    backgroundColor: 'rgba(232,168,124,0.09)',
+    borderWidth: 1,
+    borderColor: 'rgba(232,168,124,0.3)',
+  },
+  heroIconRing: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: 'rgba(232,168,124,0.16)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  heroTitle: { fontSize: 17, fontWeight: '800', color: '#e8e0d6', fontFamily: FONTS.display },
+  heroSubtitle: { fontSize: 12, color: 'rgba(232,224,214,0.55)', marginTop: 3 },
+
   labelRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
   sectionLabel: {
     fontSize: 12,
@@ -164,7 +198,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     textTransform: 'uppercase',
   },
-  entryRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   entryBtn: {
     flexDirection: 'row',
     alignItems: 'center',
