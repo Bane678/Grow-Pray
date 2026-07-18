@@ -15,6 +15,7 @@ import { Reflection } from '../data/reflections';
 import { SavedReflectionEntry, Annotation } from '../hooks/useReflections';
 import { AnnotationEditor, AnnotationPreview, VersePaper } from './AnnotationEditor';
 import { QuranReader } from './QuranReader';
+import { HadithReader } from './HadithReader';
 
 const ACCENT = '#e8a87c';
 // Per-kind accent so Qur'an vs Hadith read distinctly throughout the hub.
@@ -23,7 +24,7 @@ const KIND_ACCENT: Record<Reflection['kind'], string> = {
   hadith: '#8fbf9f', // soft sage
 };
 
-type HubTab = 'quran' | 'saved';
+type HubTab = 'quran' | 'hadith' | 'saved';
 type KindFilter = 'all' | 'ayah' | 'hadith';
 
 const FILTERS: { key: KindFilter; label: string }[] = [
@@ -192,6 +193,8 @@ export function ReflectionsHub({
               <Text style={styles.subtitle}>
                 {tab === 'quran'
                   ? '114 surahs · read, save & annotate'
+                  : tab === 'hadith'
+                  ? "Nawawi's 40 · authenticated & cited"
                   : `${savedCount} saved · your collection`}
               </Text>
             </View>
@@ -212,6 +215,7 @@ export function ReflectionsHub({
           <View style={styles.tabsRow}>
             {([
               { key: 'quran', label: "Qur'an", icon: 'book-open-page-variant' },
+              { key: 'hadith', label: 'Hadith', icon: 'script-text-outline' },
               { key: 'saved', label: 'Saved', icon: 'heart-outline' },
             ] as const).map((t) => {
               const active = tab === t.key;
@@ -227,8 +231,8 @@ export function ReflectionsHub({
                     size={15}
                     color={active ? '#0f1526' : 'rgba(232,224,214,0.6)'}
                   />
-                  <Text style={[styles.tabText, active && styles.tabTextActive]}>
-                    {t.label}{t.key === 'saved' && savedCount > 0 ? ` · ${savedCount}` : ''}
+                  <Text style={[styles.tabText, active && styles.tabTextActive]} numberOfLines={1}>
+                    {t.label}
                   </Text>
                 </TouchableOpacity>
               );
@@ -257,6 +261,12 @@ export function ReflectionsHub({
           {/* Content */}
           {tab === 'quran' ? (
             <QuranReader
+              isSaved={isSaved}
+              toggleSave={onToggleSave}
+              onOpenAnnotate={openAnnotateById}
+            />
+          ) : tab === 'hadith' ? (
+            <HadithReader
               isSaved={isSaved}
               toggleSave={onToggleSave}
               onOpenAnnotate={openAnnotateById}
@@ -334,7 +344,7 @@ const styles = StyleSheet.create({
   // Tabs
   tabsRow: {
     flexDirection: 'row',
-    gap: 8,
+    gap: 5,
     backgroundColor: 'rgba(255,255,255,0.04)',
     borderRadius: 14,
     padding: 4,
@@ -345,8 +355,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 6,
+    gap: 5,
     paddingVertical: 9,
+    paddingHorizontal: 4,
     borderRadius: 10,
   },
   tabActive: { backgroundColor: ACCENT },

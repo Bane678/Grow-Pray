@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { REFLECTIONS, Reflection, reflectionForDate } from '../data/reflections';
 import { getAyahAsReflection } from '../data/quran';
+import { getHadithAsReflection } from '../data/hadith';
 
 const FAVOURITES_KEY = '@GrowPray:reflectionFavourites';
 
@@ -129,13 +130,14 @@ export function useReflections() {
   );
 
   // Saved reflections joined with their content, newest saved first.
-  // Ids resolve against the curated pool first, then the full Qur'an (q_* ids)
-  // - so hearted Qur'an ayat show up in Saved exactly like curated verses.
+  // Ids resolve against the curated pool first, then the full Qur'an (q_* ids),
+  // then the hadith collection (h_nw_* ids) - so any hearted item shows up in
+  // Saved exactly like curated verses.
   const savedReflections: SavedReflectionEntry[] = useMemo(() => {
     const byId = new Map(REFLECTIONS.map((r) => [r.id, r]));
     return saved
       .map((s): SavedReflectionEntry | null => {
-        const r = byId.get(s.id) ?? getAyahAsReflection(s.id);
+        const r = byId.get(s.id) ?? getAyahAsReflection(s.id) ?? getHadithAsReflection(s.id);
         return r ? { ...r, note: s.note, savedAt: s.savedAt, annotation: s.annotation } : null;
       })
       .filter((x): x is SavedReflectionEntry => x !== null)
