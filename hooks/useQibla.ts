@@ -23,14 +23,14 @@ const KAABA = { lat: 21.4225, lng: 39.8262 };
 const ALIGN_TOLERANCE = 6;
 
 // Low-pass smoothing factor for the heading (0..1). Higher = snappier but noisier,
-// lower = smoother but laggier. 0.35 tracks the hand closely while still killing
-// most sensor jitter; the UI adds a short animation on top for the final glide.
-const SMOOTHING = 0.35;
+// lower = smoother but laggier. 0.25 leans a little smoother (the screen now renders
+// cheaply, so we can afford tighter filtering); the UI glide sits on top.
+const SMOOTHING = 0.25;
 
-// Only push a new heading to React when it moved at least this many degrees. Keeps
-// the SVG dial from re-rendering on every one of the ~10-60 samples/sec, but small
-// enough that motion stays continuous (the animated rose interpolates between them).
-const MIN_RENDER_DELTA = 0.4;
+// Only push a new heading to React when it moved at least this many degrees. The
+// dial is now memoized so a render is cheap, so we let finer motion through (0.2°)
+// for smoother tracking; the animated rose still interpolates between samples.
+const MIN_RENDER_DELTA = 0.2;
 
 export type QiblaStatus = 'loading' | 'ok' | 'no-location' | 'no-sensor';
 

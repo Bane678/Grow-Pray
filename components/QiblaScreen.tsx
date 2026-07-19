@@ -22,6 +22,66 @@ const CARDINALS = [
   { label: 'W', angle: 270 },
 ];
 
+// The dial's rings + tick marks never change, so render the SVG exactly once.
+// (Previously it was rebuilt on every heading update - ~60x/sec - which is the
+// main cause of the choppiness.) It rotates via the parent's native transform.
+const DialFace = React.memo(function DialFace() {
+  return (
+    <Svg width={DIAL} height={DIAL}>
+      <Circle cx={DIAL / 2} cy={DIAL / 2} r={DIAL / 2 - 6} stroke="rgba(255,255,255,0.12)" strokeWidth={2} fill="none" />
+      <Circle cx={DIAL / 2} cy={DIAL / 2} r={DIAL / 2 - 30} stroke="rgba(255,255,255,0.06)" strokeWidth={1} fill="none" />
+      {Array.from({ length: 12 }).map((_, i) => {
+        const a = (i * 30 * Math.PI) / 180;
+        const r1 = DIAL / 2 - 6;
+        const r2 = DIAL / 2 - 16;
+        const cx = DIAL / 2;
+        const cy = DIAL / 2;
+        return (
+          <Line
+            key={i}
+            x1={cx + r1 * Math.sin(a)}
+            y1={cy - r1 * Math.cos(a)}
+            x2={cx + r2 * Math.sin(a)}
+            y2={cy - r2 * Math.cos(a)}
+            stroke="rgba(255,255,255,0.18)"
+            strokeWidth={i % 3 === 0 ? 2 : 1}
+          />
+        );
+      })}
+    </Svg>
+  );
+});
+
+// The big centre degrees readout updates every animation frame. Isolating it in
+// its own memo leaf means only this tiny Text re-renders per frame - not the
+// whole screen (dial, markers, cardinals) as before.
+const HeadingReadout = React.memo(function HeadingReadout({
+  rotation,
+  aligned,
+}: {
+  rotation: Animated.Value;
+  aligned: boolean;
+}) {
+  const [displayHeading, setDisplayHeading] = useState(0);
+  useEffect(() => {
+    const id = rotation.addListener(({ value }) => {
+      const deg = ((Math.round(-value) % 360) + 360) % 360;
+      setDisplayHeading((prev) => (prev === deg ? prev : deg));
+    });
+    return () => rotation.removeListener(id);
+  }, [rotation]);
+  return (
+    <View style={styles.center} pointerEvents="none">
+      <Text style={[styles.centerValue, aligned && styles.centerValueAligned]}>
+        {`${displayHeading}°`}
+      </Text>
+      <Text style={[styles.centerLabel, aligned && styles.centerLabelAligned]}>
+        {aligned ? 'On Qibla' : 'Heading'}
+      </Text>
+    </View>
+  );
+});
+
 export const QiblaScreen = React.memo(function QiblaScreen({
   manualCoords,
   active = true,
@@ -35,33 +95,25 @@ export const QiblaScreen = React.memo(function QiblaScreen({
   // spins a full circle when the heading crosses the 0°/360° seam.
   const rotation = useRef(new Animated.Value(-heading)).current;
   const unwrappedRef = useRef(-heading);
-  // Live heading shown in the centre - driven off the animated rotation so it counts
-  // up/down smoothly every frame as the dial turns (like Apple's Compass), instead of
-  // snapping between throttled sensor samples.
-  const [displayHeading, setDisplayHeading] = useState(Math.round(heading));
 
   useEffect(() => {
     const target = -heading;
     // Move unwrappedRef by the shortest signed delta to the new target.
     let delta = ((target - unwrappedRef.current) % 360 + 540) % 360 - 180;
     unwrappedRef.current += delta;
+    // LINEAR easing (not ease-out): sensor samples arrive every ~30ms and each
+    // one restarts this animation. Ease-out decelerates toward a stop, so being
+    // interrupted mid-decel reads as stutter. Linear keeps a constant velocity,
+    // so back-to-back samples chain into one continuous glide (Apple-Compass feel).
+    // Duration slightly exceeds the sample interval so motion never fully stops
+    // between samples.
     Animated.timing(rotation, {
       toValue: unwrappedRef.current,
-      duration: 90,
-      easing: Easing.out(Easing.quad),
+      duration: 120,
+      easing: Easing.linear,
       useNativeDriver: true,
     }).start();
   }, [heading, rotation]);
-
-  // Track the animated rotation and derive the current heading each frame. rotation
-  // holds the (unwrapped) -heading, so heading = (-rotation) normalised to 0..359.
-  useEffect(() => {
-    const id = rotation.addListener(({ value }) => {
-      const deg = ((Math.round(-value) % 360) + 360) % 360;
-      setDisplayHeading((prev) => (prev === deg ? prev : deg));
-    });
-    return () => rotation.removeListener(id);
-  }, [rotation]);
 
   const roseRotate = rotation.interpolate({
     inputRange: [-360, 360],
@@ -134,43 +186,7 @@ export const QiblaScreen = React.memo(function QiblaScreen({
 
             {/* Rotating rose - smoothly animated toward the latest heading */}
             <Animated.View style={[styles.rose, { transform: [{ rotate: roseRotate }] }]}>
-              <Svg width={DIAL} height={DIAL}>
-                <Circle
-                  cx={DIAL / 2}
-                  cy={DIAL / 2}
-                  r={DIAL / 2 - 6}
-                  stroke="rgba(255,255,255,0.12)"
-                  strokeWidth={2}
-                  fill="none"
-                />
-                <Circle
-                  cx={DIAL / 2}
-                  cy={DIAL / 2}
-                  r={DIAL / 2 - 30}
-                  stroke="rgba(255,255,255,0.06)"
-                  strokeWidth={1}
-                  fill="none"
-                />
-                {/* Tick marks every 30° */}
-                {Array.from({ length: 12 }).map((_, i) => {
-                  const a = (i * 30 * Math.PI) / 180;
-                  const r1 = DIAL / 2 - 6;
-                  const r2 = DIAL / 2 - 16;
-                  const cx = DIAL / 2;
-                  const cy = DIAL / 2;
-                  return (
-                    <Line
-                      key={i}
-                      x1={cx + r1 * Math.sin(a)}
-                      y1={cy - r1 * Math.cos(a)}
-                      x2={cx + r2 * Math.sin(a)}
-                      y2={cy - r2 * Math.cos(a)}
-                      stroke="rgba(255,255,255,0.18)"
-                      strokeWidth={i % 3 === 0 ? 2 : 1}
-                    />
-                  );
-                })}
-              </Svg>
+              <DialFace />
 
               {/* Cardinal letters */}
               {CARDINALS.map((c) => (
@@ -198,15 +214,9 @@ export const QiblaScreen = React.memo(function QiblaScreen({
               )}
             </Animated.View>
 
-            {/* Center readout - live heading, green when on the Qibla */}
-            <View style={styles.center} pointerEvents="none">
-              <Text style={[styles.centerValue, aligned && styles.centerValueAligned]}>
-                {`${displayHeading}°`}
-              </Text>
-              <Text style={[styles.centerLabel, aligned && styles.centerLabelAligned]}>
-                {aligned ? 'On Qibla' : 'Heading'}
-              </Text>
-            </View>
+            {/* Center readout - live heading, green when on the Qibla. Its own
+                memo leaf so per-frame updates don't re-render the whole screen. */}
+            <HeadingReadout rotation={rotation} aligned={aligned} />
           </View>
 
           <Text style={styles.headingText}>
