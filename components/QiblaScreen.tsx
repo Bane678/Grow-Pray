@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Line } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
@@ -90,30 +90,49 @@ export const QiblaScreen = React.memo(function QiblaScreen({
   const { bearing, heading, aligned, status, accuracy } = useQibla({ manualCoords, active });
   const wasAligned = useRef(false);
 
-  // Smoothly animate the rose to the latest heading rather than snapping. We track an
-  // unwrapped (continuous) rotation so the dial always turns the short way and never
-  // spins a full circle when the heading crosses the 0°/360° seam.
+  // The rose rotates via a CONTINUOUS per-frame chase (like Apple's Compass),
+  // not a fresh animation per sensor sample. Sample-driven animation stops
+  // between samples (snapping when slow) and restarts mid-flight (stutter when
+  // fast); a frame-driven chase is always gliding a fraction toward the latest
+  // reading, so motion is smooth regardless of how samples arrive.
   const rotation = useRef(new Animated.Value(-heading)).current;
-  const unwrappedRef = useRef(-heading);
+  const currentRef = useRef(-heading); // where the dial is right now (unwrapped)
+  const targetRef = useRef(-heading);  // where it wants to be (unwrapped)
 
+  // A new heading only updates the TARGET (shortest arc, unwrapped so it never
+  // spins the long way round the 0°/360° seam). The chase loop does the moving.
   useEffect(() => {
     const target = -heading;
-    // Move unwrappedRef by the shortest signed delta to the new target.
-    let delta = ((target - unwrappedRef.current) % 360 + 540) % 360 - 180;
-    unwrappedRef.current += delta;
-    // LINEAR easing (not ease-out): sensor samples arrive every ~30ms and each
-    // one restarts this animation. Ease-out decelerates toward a stop, so being
-    // interrupted mid-decel reads as stutter. Linear keeps a constant velocity,
-    // so back-to-back samples chain into one continuous glide (Apple-Compass feel).
-    // Duration slightly exceeds the sample interval so motion never fully stops
-    // between samples.
-    Animated.timing(rotation, {
-      toValue: unwrappedRef.current,
-      duration: 120,
-      easing: Easing.linear,
-      useNativeDriver: true,
-    }).start();
-  }, [heading, rotation]);
+    const delta = ((target - targetRef.current) % 360 + 540) % 360 - 180;
+    targetRef.current += delta;
+  }, [heading]);
+
+  // Frame-driven chase: each frame move `current` toward `target` by a fraction
+  // scaled to elapsed time, so it's frame-rate independent and never stalls.
+  useEffect(() => {
+    let raf: number;
+    let last = Date.now();
+    // Time constant (ms): lower = snappier, higher = smoother/more trailing.
+    const TAU = 60;
+    const tick = () => {
+      const now = Date.now();
+      const dt = Math.min(now - last, 64); // clamp big gaps (e.g. after a stall)
+      last = now;
+      const cur = currentRef.current;
+      const diff = targetRef.current - cur;
+      if (Math.abs(diff) < 0.02) {
+        currentRef.current = targetRef.current;
+      } else {
+        // Exponential smoothing: alpha = 1 - e^(-dt/tau). Always in motion.
+        const alpha = 1 - Math.exp(-dt / TAU);
+        currentRef.current = cur + diff * alpha;
+      }
+      rotation.setValue(currentRef.current);
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [rotation]);
 
   const roseRotate = rotation.interpolate({
     inputRange: [-360, 360],

@@ -23,14 +23,16 @@ const KAABA = { lat: 21.4225, lng: 39.8262 };
 const ALIGN_TOLERANCE = 6;
 
 // Low-pass smoothing factor for the heading (0..1). Higher = snappier but noisier,
-// lower = smoother but laggier. 0.25 leans a little smoother (the screen now renders
-// cheaply, so we can afford tighter filtering); the UI glide sits on top.
-const SMOOTHING = 0.25;
+// lower = smoother but laggier. The screen now does the VISUAL smoothing via a
+// continuous per-frame chase, so this filter only needs to knock the worst
+// sensor jitter off the raw reading. Kept fairly high (0.5) so the chase target
+// tracks the hand closely - less end-to-end lag on fast spins.
+const SMOOTHING = 0.5;
 
 // Only push a new heading to React when it moved at least this many degrees. The
-// dial is now memoized so a render is cheap, so we let finer motion through (0.2°)
-// for smoother tracking; the animated rose still interpolates between samples.
-const MIN_RENDER_DELTA = 0.2;
+// dial is memoized (cheap render) and the rose chases the target continuously,
+// so we let very fine motion through (0.15°) for the closest possible tracking.
+const MIN_RENDER_DELTA = 0.15;
 
 export type QiblaStatus = 'loading' | 'ok' | 'no-location' | 'no-sensor';
 
