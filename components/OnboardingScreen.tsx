@@ -1314,6 +1314,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
                 { icon: 'tree' as const, text: 'Premium trees' },
                 { icon: 'chart-line' as const, text: 'Advanced insights' },
                 { icon: 'shield-check' as const, text: 'Free streak freezes' },
+                { icon: 'book-open-page-variant' as const, text: "Full Qur'an & Hadith" },
               ].map((b, i) => (
                 <View key={i} style={styles.benefitPill}>
                   <MaterialCommunityIcons name={b.icon} size={15} color="#d9a75f" />
@@ -1402,6 +1403,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           { icon: 'snowflake-off' as const, text: 'No streak freezes when life gets hard' },
           { icon: 'tree-outline' as const, text: 'Premium trees stay locked away' },
           { icon: 'speedometer-slow' as const, text: 'Coins and XP grow at half speed' },
+          { icon: 'book-lock-outline' as const, text: "The full Qur'an & Hadith library stays locked" },
         ];
         return (
           <View style={styles.freeWarnNew}>
@@ -1664,6 +1666,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
                 'Exclusive premium trees: the Golden Tree and Ancient Cedar',
                 'Advanced insights into your prayer habits and trends',
                 'Free streak freezes every month',
+                "The full Qur'an and Nawawi's 40 Hadith, to read, save & annotate",
               ].map((h) => (
                 <View key={h} style={styles.pillarChip}>
                   <MaterialCommunityIcons name="check" size={13} color="#d9a75f" />
