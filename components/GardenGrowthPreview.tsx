@@ -26,6 +26,7 @@ export function GardenGrowthPreview({ size = 200 }: { size?: number }) {
 
   useEffect(() => {
     let cancelled = false;
+    let timer: ReturnType<typeof setTimeout>;
 
     const animateStageIn = () => {
       scale.setValue(0.6);
@@ -36,20 +37,29 @@ export function GardenGrowthPreview({ size = 200 }: { size?: number }) {
       ]).start();
     };
 
-    const tick = () => {
-      if (cancelled) return;
-      // Fade/scale current out, then advance to next stage and pop in.
-      Animated.timing(opacity, { toValue: 0, duration: 280, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
+    // Only the very first sapling -> growing switch is trimmed slightly (feels
+    // less like a stall on first view); every switch after that keeps the same
+    // STAGE_DELAY cadence, so the loop's rhythm never noticeably changes.
+    const STAGE_DELAY = 1600;
+    const FIRST_STAGE_DELAY = 1300;
+
+    const scheduleTick = (delay: number) => {
+      timer = setTimeout(() => {
         if (cancelled) return;
-        stageRef.current = (stageRef.current + 1) % STAGES.length;
-        setStage(stageRef.current);
-        animateStageIn();
-      });
+        // Fade/scale current out, then advance to next stage and pop in.
+        Animated.timing(opacity, { toValue: 0, duration: 280, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
+          if (cancelled) return;
+          stageRef.current = (stageRef.current + 1) % STAGES.length;
+          setStage(stageRef.current);
+          animateStageIn();
+          scheduleTick(STAGE_DELAY);
+        });
+      }, delay);
     };
 
     animateStageIn();
-    const interval = setInterval(tick, 1600);
-    return () => { cancelled = true; clearInterval(interval); };
+    scheduleTick(FIRST_STAGE_DELAY);
+    return () => { cancelled = true; clearTimeout(timer); };
   }, []);
 
   return (
