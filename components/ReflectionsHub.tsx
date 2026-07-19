@@ -223,7 +223,11 @@ export function ReflectionsHub({
                 <TouchableOpacity
                   key={t.key}
                   style={[styles.tab, active && styles.tabActive]}
-                  onPress={() => { Haptics.selectionAsync(); setTab(t.key); }}
+                  // onPressIn (touch-DOWN), not onPress: while the Qur'an/Hadith
+                  // FlatList underneath is still flinging, a release-based tap
+                  // sits queued until the scroll settles - so switching tabs
+                  // mid-scroll felt unresponsive. Touch-down fires immediately.
+                  onPressIn={() => { Haptics.selectionAsync(); setTab(t.key); }}
                   activeOpacity={0.85}
                 >
                   <MaterialCommunityIcons
@@ -248,7 +252,7 @@ export function ReflectionsHub({
                   <TouchableOpacity
                     key={f.key}
                     style={[styles.chip, active && styles.chipActive]}
-                    onPress={() => { Haptics.selectionAsync(); setFilter(f.key); }}
+                    onPressIn={() => { Haptics.selectionAsync(); setFilter(f.key); }}
                     activeOpacity={0.85}
                   >
                     <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
