@@ -2275,9 +2275,13 @@ const styles = StyleSheet.create({
     height: '55%',
   },
   // Card 19 (premiumIntro) carries more body content than the paywall, so its hero is
-  // height-capped to keep the whole card on a single non-scrolling screen.
+  // height-capped to keep the whole card on a single non-scrolling screen. Capping
+  // maxHeight against a fixed aspectRatio shrinks the box's WIDTH too (to preserve
+  // the ratio) - alignSelf: 'center' keeps it centred instead of flush to one side.
   premiumHero: {
     maxHeight: SCREEN_HEIGHT * 0.2,
+    width: undefined,
+    alignSelf: 'center',
   },
   paywallHeroGlow: {
     position: 'absolute' as const,
