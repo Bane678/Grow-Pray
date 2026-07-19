@@ -2274,13 +2274,14 @@ const styles = StyleSheet.create({
     bottom: 0,
     height: '55%',
   },
-  // Card 19 (premiumIntro) carries more body content than the paywall, so its hero is
-  // height-capped to keep the whole card on a single non-scrolling screen. Capping
-  // maxHeight against a fixed aspectRatio shrinks the box's WIDTH too (to preserve
-  // the ratio) - alignSelf: 'center' keeps it centred instead of flush to one side.
+  // Card 19 (premiumIntro) carries more body content than the paywall, so its hero
+  // must be shorter. Instead of capping maxHeight against the inherited width:'100%'
+  // + aspectRatio (which leaves the box's size unresolvable -> it collapses and
+  // squishes the art + badge), give it an EXPLICIT width: the largest that keeps the
+  // aspectRatio-derived height within ~20% of the screen, but never wider than the
+  // content column. Height then derives from paywallHero's aspectRatio; centred.
   premiumHero: {
-    maxHeight: SCREEN_HEIGHT * 0.2,
-    width: undefined,
+    width: Math.min(SCREEN_WIDTH - 40, SCREEN_HEIGHT * 0.2 * (1659 / 948)),
     alignSelf: 'center',
   },
   paywallHeroGlow: {
