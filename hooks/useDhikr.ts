@@ -161,11 +161,16 @@ export function useDhikr() {
 
   const updateCustomTarget = useCallback((t: number) => {
     const clamped = Math.max(1, Math.min(9999, Math.floor(t) || 1));
+    // Preserve the count already tapped in - only clamp it down if shrinking the
+    // target below what's already been counted (in which case the session is now
+    // complete, same as reaching the target normally).
+    const nextCount = Math.min(count, clamped);
+    const isComplete = nextCount >= clamped;
     setCustomTarget(clamped);
-    setCount(0);
-    setCustomComplete(false);
-    persist({ mode: 'custom', stepIndex, count: 0, customTarget: clamped });
-  }, [stepIndex, persist]);
+    setCount(nextCount);
+    setCustomComplete(isComplete);
+    persist({ mode: 'custom', stepIndex, count: nextCount, customTarget: clamped });
+  }, [count, stepIndex, persist]);
 
   return {
     mode,
