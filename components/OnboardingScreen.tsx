@@ -1659,18 +1659,23 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             <Text style={styles.pillarBody}>
               {`You're working toward ${goalLine[goal ?? 'consistency'] ?? 'consistency'}. Premium removes every limit, grows your garden twice as fast, and shows you exactly how your salah is improving.`}
             </Text>
-            <View style={styles.pillarHighlights}>
+            <View style={styles.premiumBenefits}>
               {[
-                'Unlimited garden, grow without a ceiling',
-                '2x coins and XP, progress twice as fast',
-                'Exclusive premium trees: the Golden Tree and Ancient Cedar',
-                'Advanced insights into your prayer habits and trends',
-                'Free streak freezes every month',
-                "The full Qur'an and Nawawi's 40 Hadith, to read, save & annotate",
-              ].map((h) => (
-                <View key={h} style={styles.pillarChip}>
-                  <MaterialCommunityIcons name="check" size={13} color="#d9a75f" />
-                  <Text style={styles.pillarChipText}>{h}</Text>
+                { icon: 'grid' as const, title: 'Unlimited garden', sub: 'Grow without a ceiling' },
+                { icon: 'circle-multiple' as const, title: '2x coins & XP', sub: 'Progress twice as fast' },
+                { icon: 'tree' as const, title: 'Exclusive premium trees', sub: 'Golden Tree & Ancient Cedar' },
+                { icon: 'book-open-page-variant' as const, title: "Qur'an & Hadith library", sub: "Full Qur'an, Nawawi's 40 - read, save & annotate" },
+                { icon: 'chart-line' as const, title: 'Advanced insights', sub: 'See your prayer habits & trends' },
+                { icon: 'snowflake' as const, title: 'Free streak freezes', sub: 'Every month, life-proof your streak' },
+              ].map((b) => (
+                <View key={b.title} style={styles.premiumBenefitRow}>
+                  <View style={styles.premiumBenefitIcon}>
+                    <MaterialCommunityIcons name={b.icon} size={20} color="#d9a75f" />
+                  </View>
+                  <View style={{ flex: 1, minWidth: 0 }}>
+                    <Text style={styles.premiumBenefitTitle}>{b.title}</Text>
+                    <Text style={styles.premiumBenefitSub}>{b.sub}</Text>
+                  </View>
                 </View>
               ))}
             </View>
@@ -1997,6 +2002,37 @@ const styles = StyleSheet.create({
     color: '#e8c97e',
     fontSize: 12,
     fontWeight: '600',
+  },
+  // Card 19 (premiumIntro) benefits - icon-led rows so each perk has a visual
+  // anchor, mirroring how the pillar cards pair copy with a clear icon.
+  premiumBenefits: {
+    gap: 12,
+    marginBottom: 22,
+  },
+  premiumBenefitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+  },
+  premiumBenefitIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(217,167,95,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(217,167,95,0.24)',
+  },
+  premiumBenefitTitle: {
+    color: '#f7f1e8',
+    fontSize: 15,
+    fontWeight: '700',
+  },
+  premiumBenefitSub: {
+    color: 'rgba(247,241,232,0.55)',
+    fontSize: 12.5,
+    marginTop: 1,
   },
   quoteImageWrap: {
     alignSelf: 'center',
