@@ -44,17 +44,16 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
   const [hubOpen, setHubOpen] = useState(false);
   const [hubTab, setHubTab] = useState<'quran' | 'saved'>('quran');
 
+  // Reading the Qur'an and hadith is FREE for everyone - the hub opens for any
+  // user. Premium gates the personal layer only: saving a verse and annotating
+  // it (enforced inside ReflectionsHub).
   const openHub = useCallback(
     (tab: 'quran' | 'saved') => {
       Haptics.selectionAsync();
-      if (!isPremium) {
-        onOpenPaywall?.('reflection_archive');
-        return;
-      }
       setHubTab(tab);
       setHubOpen(true);
     },
-    [isPremium, onOpenPaywall],
+    [],
   );
 
   const onHeartToday = useCallback(() => {
@@ -69,7 +68,8 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
 
   if (!today) return null;
 
-  const todayHearted = isPremium && isSaved(today.id);
+  // Reflect the real saved state (a lapsed subscriber's existing saves still show).
+  const todayHearted = isSaved(today.id);
 
   return (
     <View style={styles.wrap}>
@@ -78,16 +78,12 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
           and copy, not a small pill tucked into a header row. */}
       <TouchableOpacity style={styles.hero} onPress={() => openHub('quran')} activeOpacity={0.88}>
         <View style={styles.heroIconRing}>
-          <MaterialCommunityIcons
-            name={isPremium ? 'book-open-page-variant' : 'lock'}
-            size={26}
-            color={ACCENT}
-          />
+          <MaterialCommunityIcons name="book-open-page-variant" size={26} color={ACCENT} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={styles.heroTitle}>Qur'an & Hadith</Text>
           <Text style={styles.heroSubtitle}>
-            114 surahs · Nawawi's 40 · read, save & annotate
+            114 surahs · Nawawi's 40 · free to read
           </Text>
         </View>
         <MaterialCommunityIcons name="chevron-right" size={22} color="rgba(232,224,214,0.5)" />
@@ -96,13 +92,9 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
       <View style={styles.labelRow}>
         <Text style={styles.sectionLabel}>Reflection of the day</Text>
         <TouchableOpacity onPress={() => openHub('saved')} activeOpacity={0.8} style={styles.entryBtn}>
-          <MaterialCommunityIcons
-            name={isPremium ? 'heart-outline' : 'lock'}
-            size={13}
-            color="rgba(232,224,214,0.7)"
-          />
+          <MaterialCommunityIcons name="heart-outline" size={13} color="rgba(232,224,214,0.7)" />
           <Text style={styles.entryText}>
-            Saved{isPremium && savedCount > 0 ? ` · ${savedCount}` : ''}
+            Saved{savedCount > 0 ? ` · ${savedCount}` : ''}
           </Text>
         </TouchableOpacity>
       </View>
@@ -159,6 +151,8 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
         isSaved={isSaved}
         toggleSave={toggleSave}
         saveAnnotation={saveAnnotation}
+        isPremium={isPremium}
+        onOpenPaywall={onOpenPaywall}
       />
     </View>
   );

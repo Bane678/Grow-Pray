@@ -41,6 +41,9 @@ interface ReflectionsHubProps {
   isSaved: (id: string) => boolean;
   toggleSave: (id: string) => void;
   saveAnnotation: (id: string, note: string, annotation?: Annotation) => void;
+  /** Reading is free; saving + annotating are the premium features. */
+  isPremium?: boolean;
+  onOpenPaywall?: (reason: 'reflection_archive') => void;
 }
 
 function kindLabel(kind: Reflection['kind']) {
@@ -138,6 +141,8 @@ export function ReflectionsHub({
   isSaved,
   toggleSave,
   saveAnnotation,
+  isPremium = false,
+  onOpenPaywall,
 }: ReflectionsHubProps) {
   const [tab, setTab] = useState<HubTab>(initialTab);
   const [filter, setFilter] = useState<KindFilter>('all');
@@ -153,29 +158,46 @@ export function ReflectionsHub({
     [filter, savedReflections],
   );
 
+  // Saving is premium. Reading stays free, so the paywall fires here rather
+  // than at the door.
   const onToggleSave = useCallback(
     (id: string) => {
       Haptics.selectionAsync();
+      if (!isPremium) {
+        onOpenPaywall?.('reflection_archive');
+        return;
+      }
       toggleSave(id);
     },
-    [toggleSave],
+    [isPremium, onOpenPaywall, toggleSave],
   );
 
-  const openEditor = useCallback((entry: SavedReflectionEntry) => {
-    Haptics.selectionAsync();
-    setEditorEntry(entry);
-  }, []);
+  // Annotating is premium too.
+  const openEditor = useCallback(
+    (entry: SavedReflectionEntry) => {
+      Haptics.selectionAsync();
+      if (!isPremium) {
+        onOpenPaywall?.('reflection_archive');
+        return;
+      }
+      setEditorEntry(entry);
+    },
+    [isPremium, onOpenPaywall],
+  );
 
   // From the Qur'an reader: open the annotation editor for a saved ayah.
   const openAnnotateById = useCallback(
     (id: string) => {
       const entry = savedReflections.find((e) => e.id === id);
-      if (entry) {
-        Haptics.selectionAsync();
-        setEditorEntry(entry);
+      if (!entry) return;
+      Haptics.selectionAsync();
+      if (!isPremium) {
+        onOpenPaywall?.('reflection_archive');
+        return;
       }
+      setEditorEntry(entry);
     },
-    [savedReflections],
+    [savedReflections, isPremium, onOpenPaywall],
   );
 
   const savedCount = savedReflections.length;
@@ -278,16 +300,34 @@ export function ReflectionsHub({
           ) : filteredSaved.length === 0 ? (
             <View style={styles.emptyWrap}>
               <View style={styles.emptyRing}>
-                <MaterialCommunityIcons name="heart-outline" size={30} color={ACCENT} />
+                <MaterialCommunityIcons
+                  name={!isPremium && savedCount === 0 ? 'lock-outline' : 'heart-outline'}
+                  size={30}
+                  color={ACCENT}
+                />
               </View>
               <Text style={styles.emptyTitle}>
-                {savedCount === 0 ? 'No saved reflections yet' : `No ${filter === 'ayah' ? "Qur'an" : 'hadith'} saved`}
+                {savedCount === 0
+                  ? (!isPremium ? 'Keep the verses that move you' : 'No saved reflections yet')
+                  : `No ${filter === 'ayah' ? "Qur'an" : 'hadith'} saved`}
               </Text>
               <Text style={styles.emptyBody}>
                 {savedCount === 0
-                  ? "Heart any ayah in the Qur'an tab (or the daily reflection) to keep it here - then draw, highlight and write on it."
+                  ? (!isPremium
+                      ? "Reading is always free. Premium lets you save any ayah or hadith here, then draw, highlight and write your own reflections on it."
+                      : "Heart any ayah in the Qur'an tab (or the daily reflection) to keep it here - then draw, highlight and write on it.")
                   : "Try a different filter, or save more from the Qur'an tab."}
               </Text>
+              {!isPremium && savedCount === 0 && (
+                <TouchableOpacity
+                  style={styles.upsellBtn}
+                  onPressIn={() => { Haptics.selectionAsync(); onOpenPaywall?.('reflection_archive'); }}
+                  activeOpacity={0.85}
+                >
+                  <MaterialCommunityIcons name="star-four-points" size={15} color="#0f1526" />
+                  <Text style={styles.upsellBtnText}>Unlock saving</Text>
+                </TouchableOpacity>
+              )}
             </View>
           ) : (
             <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -442,4 +482,15 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 17, fontWeight: '700', color: '#e8e0d6', marginBottom: 8, fontFamily: FONTS.display },
   emptyBody: { fontSize: 13, color: 'rgba(232,224,214,0.55)', textAlign: 'center', lineHeight: 20 },
+  upsellBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginTop: 18,
+    paddingVertical: 11,
+    paddingHorizontal: 20,
+    borderRadius: 999,
+    backgroundColor: ACCENT,
+  },
+  upsellBtnText: { fontSize: 14, fontWeight: '800', color: '#0f1526' },
 });
