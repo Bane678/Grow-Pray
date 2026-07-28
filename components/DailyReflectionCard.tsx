@@ -6,6 +6,7 @@ import { FONTS } from '../theme/typography';
 import { useReflections } from '../hooks/useReflections';
 import { Reflection } from '../data/reflections';
 import { ReflectionsHub } from './ReflectionsHub';
+import { useVerseShare } from './VerseShareCard';
 
 const ACCENT = '#e8a87c';
 
@@ -43,6 +44,7 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
 
   const [hubOpen, setHubOpen] = useState(false);
   const [hubTab, setHubTab] = useState<'quran' | 'saved'>('quran');
+  const { shareVerse, shareSurface } = useVerseShare();
 
   // Reading the Qur'an and hadith is FREE for everyone - the hub opens for any
   // user. Premium gates the personal layer only: saving a verse and annotating
@@ -65,6 +67,17 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     toggleSave(today!.id);
   }, [isPremium, onOpenPaywall, toggleSave, today]);
+
+  const onShareToday = useCallback(() => {
+    if (!today) return;
+    Haptics.selectionAsync();
+    shareVerse({
+      kind: today.kind,
+      arabic: today.arabic,
+      translation: today.translation,
+      source: today.source,
+    });
+  }, [today, shareVerse]);
 
   if (!today) return null;
 
@@ -105,13 +118,23 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
           <View style={styles.kindPill}>
             <Text style={styles.kindText}>{today.kind === 'ayah' ? "Qur'an" : 'Hadith'}</Text>
           </View>
-          <TouchableOpacity onPress={onHeartToday} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-            <MaterialCommunityIcons
-              name={todayHearted ? 'heart' : 'heart-outline'}
-              size={19}
-              color={todayHearted ? '#f87171' : 'rgba(232,224,214,0.45)'}
-            />
-          </TouchableOpacity>
+          <View style={styles.kindActions}>
+            {/* Sharing is free for everyone - it's how the app spreads. */}
+            <TouchableOpacity onPress={onShareToday} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialCommunityIcons
+                name="share-variant"
+                size={18}
+                color="rgba(232,224,214,0.45)"
+              />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onHeartToday} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <MaterialCommunityIcons
+                name={todayHearted ? 'heart' : 'heart-outline'}
+                size={19}
+                color={todayHearted ? '#f87171' : 'rgba(232,224,214,0.45)'}
+              />
+            </TouchableOpacity>
+          </View>
         </View>
         <ReflectionBody item={today} />
       </View>
@@ -154,6 +177,9 @@ export const DailyReflectionCard = React.memo(function DailyReflectionCard({
         isPremium={isPremium}
         onOpenPaywall={onOpenPaywall}
       />
+
+      {/* Off-screen render surface for the exported share image */}
+      {shareSurface}
     </View>
   );
 });
@@ -212,6 +238,7 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.06)',
   },
   kindRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 },
+  kindActions: { flexDirection: 'row', alignItems: 'center', gap: 16 },
   kindPill: { backgroundColor: 'rgba(232,168,124,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
   kindText: { fontSize: 11, fontWeight: '700', color: ACCENT },
 

@@ -16,6 +16,7 @@ import { SavedReflectionEntry, Annotation } from '../hooks/useReflections';
 import { AnnotationEditor, AnnotationPreview, VersePaper } from './AnnotationEditor';
 import { QuranReader } from './QuranReader';
 import { HadithReader } from './HadithReader';
+import { useVerseShare } from './VerseShareCard';
 
 const ACCENT = '#e8a87c';
 // Per-kind accent so Qur'an vs Hadith read distinctly throughout the hub.
@@ -55,10 +56,12 @@ function SavedCard({
   item,
   onOpen,
   onUnsave,
+  onShare,
 }: {
   item: SavedReflectionEntry;
   onOpen: () => void;
   onUnsave: () => void;
+  onShare: () => void;
 }) {
   const kindColor = KIND_ACCENT[item.kind];
   const [pageW, setPageW] = useState(0);
@@ -125,6 +128,15 @@ function SavedCard({
       )}
 
       <View style={styles.savedFooter}>
+        <TouchableOpacity
+          onPress={onShare}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          activeOpacity={0.7}
+          style={styles.shareBtn}
+        >
+          <MaterialCommunityIcons name="share-variant" size={15} color="rgba(232,224,214,0.5)" />
+        </TouchableOpacity>
+        <View style={{ flex: 1 }} />
         {hasMarks && <MaterialCommunityIcons name="draw" size={13} color="rgba(232,224,214,0.5)" />}
         <Text style={styles.openHint}>{hasNote || hasMarks ? 'Open' : 'Add notes'}</Text>
         <MaterialCommunityIcons name="chevron-right" size={15} color="rgba(232,224,214,0.5)" />
@@ -147,6 +159,23 @@ export function ReflectionsHub({
   const [tab, setTab] = useState<HubTab>(initialTab);
   const [filter, setFilter] = useState<KindFilter>('all');
   const [editorEntry, setEditorEntry] = useState<SavedReflectionEntry | null>(null);
+  const { shareVerse, shareSurface } = useVerseShare();
+
+  // Sharing is free for everyone - no premium gate. A shared card carries the
+  // user's annotation, which is the part nobody else's app produces.
+  const onShareEntry = useCallback(
+    (entry: SavedReflectionEntry) => {
+      Haptics.selectionAsync();
+      shareVerse({
+        kind: entry.kind,
+        arabic: entry.arabic,
+        translation: entry.translation,
+        source: entry.source,
+        annotation: entry.annotation,
+      });
+    },
+    [shareVerse],
+  );
 
   // Sync to the requested tab each time the hub opens.
   useEffect(() => {
@@ -337,12 +366,16 @@ export function ReflectionsHub({
                   item={item}
                   onOpen={() => openEditor(item)}
                   onUnsave={() => onToggleSave(item.id)}
+                  onShare={() => onShareEntry(item)}
                 />
               ))}
             </ScrollView>
           )}
         </View>
       </View>
+
+      {/* Off-screen render surface for the exported share image */}
+      {shareSurface}
 
       {/* Full-screen annotation editor */}
       <AnnotationEditor
@@ -468,7 +501,8 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     fontFamily: FONTS.display,
   },
-  savedFooter: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, marginTop: 14 },
+  savedFooter: { flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 14 },
+  shareBtn: { paddingRight: 4 },
   savedFooterRight: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   openHint: { fontSize: 12, fontWeight: '600', color: 'rgba(232,224,214,0.5)' },
 
