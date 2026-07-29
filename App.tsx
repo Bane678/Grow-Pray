@@ -5,7 +5,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { GardenScene } from './components/GardenScene';
-import { useGardenState, TileState } from './hooks/useGardenState';
+import { useGardenState, TileState, MAX_GRID_SIZE } from './hooks/useGardenState';
 import { OnboardingScreen } from './components/OnboardingScreen';
 import { ShopModal, TREE_CATALOG } from './components/ShopModal';
 import { PaywallModal } from './components/PaywallModal';
@@ -3278,6 +3278,57 @@ function AppInner() {
     setShowOnboarding(false);
     setShowPreparing(true);
   }, []);
+
+  // ── Onboarding hand-off: plant the niyyah seed ─────────────────────────────
+  // Onboarding writes a pending flag when the user "plants" their intention;
+  // we consume it here through the REAL gardenState.plantTree path so the seed
+  // exists as an actual sapling when the garden first paints. Tries the four
+  // starting cardinal tiles (all recovered from day one) until one takes.
+  const niyyahSeedConsumed = useRef(false);
+  useEffect(() => {
+    if (niyyahSeedConsumed.current) return;
+    if (showOnboarding !== false || gardenState.loading) return;
+    niyyahSeedConsumed.current = true;
+    (async () => {
+      try {
+        const pending = await AsyncStorage.getItem('@GrowPray:niyyahSeedPending');
+        if (pending !== '1') return;
+        const c = Math.floor(MAX_GRID_SIZE / 2);
+        const spots: [number, number][] = [[c, c + 1], [c + 1, c], [c, c - 1], [c - 1, c]];
+        for (const [r, col] of spots) {
+          // eslint-disable-next-line no-await-in-loop
+          const ok = await gardenState.plantTree(r, col, 'Basic', prayerState.xp);
+          if (ok) break;
+        }
+        await AsyncStorage.removeItem('@GrowPray:niyyahSeedPending');
+      } catch {
+        // Non-critical: the niyyah record itself is already saved.
+      }
+    })();
+  }, [showOnboarding, gardenState.loading]);
+
+  // ── Onboarding hand-off: mark the first prayer ─────────────────────────────
+  // If the user answered "Yes, alhamdulillah" during onboarding, mark that
+  // prayer through the real togglePrayerCompleted path (XP, coins, streaks,
+  // reward toast) once prayer times have loaded. If the window closed in the
+  // meantime (rare), drop the flag quietly - never fake a completion.
+  const [pendingFirstPrayer, setPendingFirstPrayer] = useState<string | null>(null);
+  useEffect(() => {
+    if (showOnboarding !== false) return;
+    AsyncStorage.getItem('@GrowPray:onboardingPrayerMarked')
+      .then((v) => { if (v) setPendingFirstPrayer(v); })
+      .catch(() => {});
+  }, [showOnboarding]);
+  useEffect(() => {
+    if (!pendingFirstPrayer) return;
+    if (!prayerState.stateLoaded || !prayerState.timings) return;
+    const p = pendingFirstPrayer;
+    setPendingFirstPrayer(null);
+    AsyncStorage.removeItem('@GrowPray:onboardingPrayerMarked').catch(() => {});
+    if (prayerState.completedPrayers.has(p)) return;
+    if (!prayerState.canCompletePrayer(p)) return;
+    prayerState.togglePrayerCompleted(p);
+  }, [pendingFirstPrayer, prayerState.stateLoaded, prayerState.timings, prayerState.completedPrayers]);
 
   const handleGardenRenderReady = useCallback(() => {
     setGardenRendered(true);
