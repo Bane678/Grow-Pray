@@ -17,12 +17,17 @@ const REVENUECAT_API_KEY_ANDROID = '';
 const ENTITLEMENT_ID = 'premium';
 
 // Premium plan IDs (must match App Store Connect / Google Play Console)
+//
+// ⚠️ trialDays is DISPLAY COPY ONLY - the real trial length is the introductory
+// offer configured on each subscription in App Store Connect. These must match
+// or the paywall lies to the user. Currently 14 days on both plans; if you
+// change it here, change the ASC intro offer too (and vice versa).
 export const PREMIUM_PLANS = {
   monthly: {
     id: 'growpray_premium_monthly',
     price: '$6.99',
     period: 'month',
-    trialDays: 7,
+    trialDays: 14,
   },
   yearly: {
     id: 'growpray_premium_yearly',
@@ -30,7 +35,7 @@ export const PREMIUM_PLANS = {
     originalPrice: '$83.88',
     monthlyEquivalent: '$3.75',
     period: 'year',
-    trialDays: 7,
+    trialDays: 14,
     savings: '46%',
   },
 } as const;

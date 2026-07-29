@@ -26,6 +26,7 @@ import { PREMIUM_PLANS } from '../hooks/usePremium';
 import { usePrayerTimes, Timings } from '../hooks/usePrayerTimes';
 import { FONTS } from '../theme/typography';
 import { GardenGrowthPreview } from './GardenGrowthPreview';
+import { GardenScaleShowcase } from './GardenScaleShowcase';
 
 const ICON_LOCATION = require('../assets/Garden Assets/Icons/Icon_Location.png');
 const ICON_BELL = require('../assets/Garden Assets/Icons/Icon_Bell.png');
@@ -33,7 +34,8 @@ const ICON_SPARKLE = require('../assets/Garden Assets/Icons/Icon_Sparkle.png');
 // Onboarding hero images
 const OB_AYAH     = require('../assets/Garden Assets/Icons/Onboarding_Ayah.png');
 const OB_PLAN     = require('../assets/Garden Assets/Icons/Onboarding_Plan.png');
-const OB_PAYWALL  = require('../assets/Garden Assets/Icons/Onboarding_Paywall.png');
+// (The old AI-generated paywall hero is gone - the paywall now uses the
+//  GardenScaleShowcase animation instead. Asset kept on disk, unused here.)
 // The seed the user plants during onboarding sprouts into the Basic sapling.
 const SAPLING_BASIC = require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png');
 
@@ -496,6 +498,18 @@ function PlantingHold({ planted, onPlanted, children }: {
     Animated.timing(fill, { toValue: 0, duration: 220, useNativeDriver: false }).start();
   };
 
+  // Reset the ring whenever the planted state flips back to false (e.g. the
+  // user navigated back and is re-planting), and clear any in-flight timers on
+  // unmount so a pending hold can't fire after the screen is gone.
+  useEffect(() => {
+    if (!planted) fill.setValue(0);
+  }, [planted]);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+    if (midHaptic.current) clearTimeout(midHaptic.current);
+    anim.current?.stop();
+  }, []);
+
   return (
     <Pressable onPressIn={start} onPressOut={cancel} disabled={planted}>
       <View style={{ width: PLANT_RING_SIZE, height: PLANT_RING_SIZE, alignItems: 'center', justifyContent: 'center' }}>
@@ -795,6 +809,14 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       return;
     }
     if (step === 0) return;
+    // Leaving the planting step backwards un-plants the seed, so the user can
+    // change their niyyah and plant again. Without this the tile stays in its
+    // planted state and the hold gesture is permanently disabled.
+    if (currentStep.kind === 'niyyahPlanting' && planted) {
+      setPlanted(false);
+      AsyncStorage.removeItem(SEED_PENDING_KEY).catch(() => {});
+      AsyncStorage.removeItem(NIYYAH_KEY).catch(() => {});
+    }
     const prevStep = step - 1;
     // If the previous step generated an insight going forward, re-show it going backward
     if (INSIGHT_STEP_INDICES.includes(prevStep)) {
@@ -1045,7 +1067,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               {selectedMadhab === 'hanafi' ? <MaterialCommunityIcons name="check-circle" size={18} color="#e6bf81" /> : null}
             </TouchableOpacity>
           </View>
-          <Text style={styles.caption}>Not sure? Pick either - you can change it anytime in Settings.</Text>
+          <Text style={nstyles.madhabCaption}>Not sure? Pick either - you can change it anytime in Settings.</Text>
           <TouchableOpacity disabled={!canContinue} onPress={goNext} style={[styles.primaryButton, !canContinue && styles.disabled]}>
             <Text style={styles.primaryButtonText}>Next</Text>
           </TouchableOpacity>
@@ -1290,164 +1312,143 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
 
     if (currentStep.kind === 'paywall') {
       const trialDays = PREMIUM_PLANS.yearly.trialDays;
+      // Deliberately compact: everything must fit one screen with no scrolling.
+      // Scrolling a paywall buries the CTA and kills conversion.
       return (
-        <>
-          {/* Hero - golden tree on starry night */}
-          <View style={styles.paywallHero}>
-            <Image source={OB_PAYWALL} style={styles.paywallHeroImg} resizeMode="contain" />
-            {/* Bottom gradient fade into panel - only the lowest sliver fades, so the
-                full artwork stays visible. */}
-            <LinearGradient
-              colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0)', 'rgba(9,14,22,0.85)']}
-              locations={[0, 0.7, 1]}
-              style={styles.paywallHeroFade}
-            />
+        <View style={nstyles.paywallCompact}>
+          {/* Hero - the garden growing, small to flourishing. Swap in real
+              screenshots via GARDEN_STAGES in components/GardenScaleShowcase.tsx */}
+          <GardenScaleShowcase height={SCREEN_HEIGHT * 0.19} />
+
+          {/* What's free comes FIRST - the Qur'an is never behind a lock, and
+              saying so is the strongest trust move on this screen. */}
+          <View style={nstyles.freeStripTight}>
+            <Text style={nstyles.freeStripLabel}>YOURS FREE, ALWAYS</Text>
+            <Text style={nstyles.freeStripTextTight}>
+              Full Qur'an · Nawawi's 40 · Prayer times · Duas · Your garden
+            </Text>
           </View>
 
-          <View style={styles.paywallPanel}>
-            {/* What's free comes FIRST - the Qur'an is never behind a lock,
-                and saying so is the strongest trust move on this screen. */}
-            <View style={nstyles.freeStrip}>
-              <Text style={nstyles.freeStripLabel}>YOURS FREE, ALWAYS</Text>
-              <Text style={nstyles.freeStripText}>
-                Full Qur'an · Nawawi's 40 Hadith · Prayer times · Duas & tasbih · Your garden
-              </Text>
-            </View>
+          {/* Title - references the garden (a game object), never the niyyah */}
+          <Text style={nstyles.paywallTitleTight}>Help it flourish.</Text>
 
-            {/* Title - references the garden (a game object), never the niyyah */}
-            <Text style={styles.paywallTitle}>Help it flourish.</Text>
-            <Text style={styles.paywallSubtitle}>
-              Premium removes the ceilings - and keeps Grow Pray ad-free, built by one Muslim developer.
-            </Text>
+          {/* Benefits - conveniences and the personal layer only */}
+          <View style={nstyles.benefitsTight}>
+            {[
+              { icon: 'grid' as const, text: 'Unlimited garden' },
+              { icon: 'circle-multiple' as const, text: '2x coins & XP' },
+              { icon: 'tree' as const, text: 'Golden Tree & Cedar' },
+              { icon: 'snowflake' as const, text: '3 freezes monthly' },
+              { icon: 'chart-line' as const, text: 'Advanced insights' },
+              { icon: 'pencil-plus-outline' as const, text: 'Margin notes' },
+            ].map((b, i) => (
+              <View key={i} style={nstyles.benefitPillTight}>
+                <MaterialCommunityIcons name={b.icon} size={13} color="#d9a75f" />
+                <Text style={nstyles.benefitPillTextTight}>{b.text}</Text>
+              </View>
+            ))}
+          </View>
 
-            {/* Benefits - conveniences and the personal layer only */}
-            <View style={styles.benefitsGrid}>
-              {[
-                { icon: 'grid' as const, text: 'Unlimited garden' },
-                { icon: 'circle-multiple' as const, text: '2x coins and XP' },
-                { icon: 'tree' as const, text: 'Golden Tree & Ancient Cedar' },
-                { icon: 'snowflake' as const, text: '3 streak freezes monthly' },
-                { icon: 'chart-line' as const, text: 'Advanced insights' },
-                { icon: 'pencil-plus-outline' as const, text: 'Margin notes on any verse' },
-              ].map((b, i) => (
-                <View key={i} style={styles.benefitPill}>
-                  <MaterialCommunityIcons name={b.icon} size={15} color="#d9a75f" />
-                  <Text style={styles.benefitPillText}>{b.text}</Text>
-                </View>
-              ))}
-            </View>
-
-            {/* Plan selector - side by side */}
-            <View style={styles.planRow}>
-              <TouchableOpacity
-                onPress={() => setSelectedPlan('yearly')}
-                style={[styles.planCard, selectedPlan === 'yearly' && styles.planCardSelected]}
-                activeOpacity={0.7}
-              >
-                {/* Best value badge */}
-                <View style={styles.planBadge}>
-                  <Text style={styles.planBadgeText}>BEST VALUE</Text>
-                </View>
-                <Text style={styles.planTitle}>Yearly</Text>
-                <Text style={styles.planPriceLarge}>
-                  $3.75<Text style={styles.planPeriod}>/mo</Text>
-                </Text>
-                <Text style={styles.planStrikethrough}>$83.88</Text>
-                <Text style={styles.planSub}>$44.99 billed yearly</Text>
-                {selectedPlan === 'yearly' && (
-                  <View style={styles.planRadio}>
-                    <View style={styles.planRadioInner} />
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                onPress={() => setSelectedPlan('monthly')}
-                style={[styles.planCard, selectedPlan === 'monthly' && styles.planCardSelected, { paddingTop: 16 }]}
-                activeOpacity={0.7}
-              >
-                <Text style={styles.planTitle}>Monthly</Text>
-                <Text style={styles.planPriceLarge}>
-                  $6.99<Text style={styles.planPeriod}>/mo</Text>
-                </Text>
-                {selectedPlan === 'monthly' && (
-                  <View style={styles.planRadio}>
-                    <View style={styles.planRadioInner} />
-                  </View>
-                )}
-              </TouchableOpacity>
-            </View>
-
-            {/* CTA */}
+          {/* Plan selector - side by side */}
+          <View style={nstyles.planRowTight}>
             <TouchableOpacity
-              onPress={handlePremiumPurchase}
-              disabled={purchasing}
-              style={styles.premiumButton}
-              activeOpacity={0.8}
+              onPress={() => setSelectedPlan('yearly')}
+              style={[nstyles.planCardTight, selectedPlan === 'yearly' && styles.planCardSelected]}
+              activeOpacity={0.7}
             >
-              <MaterialCommunityIcons name="lock-open-outline" size={18} color="#1a0f00" style={{ marginRight: 6 }} />
-              <Text style={styles.premiumButtonText}>
-                {purchasing ? 'Processing…' : `Start ${trialDays} days free`}
+              <View style={nstyles.planBadgeTight}>
+                <Text style={styles.planBadgeText}>BEST VALUE</Text>
+              </View>
+              <Text style={nstyles.planTitleTight}>Yearly</Text>
+              <Text style={nstyles.planPriceTight}>
+                $3.75<Text style={styles.planPeriod}>/mo</Text>
               </Text>
+              <Text style={nstyles.planSubTight}>$44.99 billed yearly</Text>
             </TouchableOpacity>
-            <Text style={styles.trialNote}>
-              {trialDays} days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · Cancel anytime in two taps
-            </Text>
-            <Text style={styles.trustNote}>
-              No ads, ever · Private by design
-            </Text>
 
-            {/* Decline - a visible ghost button, not a buried link. In this
-                category a findable exit IS the brand. */}
-            <TouchableOpacity onPress={goNext} style={nstyles.ghostButton}>
-              <Text style={nstyles.ghostButtonText}>Continue with the free garden</Text>
+            <TouchableOpacity
+              onPress={() => setSelectedPlan('monthly')}
+              style={[nstyles.planCardTight, selectedPlan === 'monthly' && styles.planCardSelected]}
+              activeOpacity={0.7}
+            >
+              <Text style={nstyles.planTitleTight}>Monthly</Text>
+              <Text style={nstyles.planPriceTight}>
+                $6.99<Text style={styles.planPeriod}>/mo</Text>
+              </Text>
+              <Text style={nstyles.planSubTight}>billed monthly</Text>
             </TouchableOpacity>
           </View>
-        </>
+
+          {/* CTA */}
+          <TouchableOpacity
+            onPress={handlePremiumPurchase}
+            disabled={purchasing}
+            style={nstyles.premiumButtonTight}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="lock-open-outline" size={17} color="#1a0f00" style={{ marginRight: 6 }} />
+            <Text style={styles.premiumButtonText}>
+              {purchasing ? 'Processing…' : `Start ${trialDays} days free`}
+            </Text>
+          </TouchableOpacity>
+          <Text style={nstyles.trialNoteTight}>
+            {trialDays} days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · cancel in two taps
+          </Text>
+
+          {/* Decline - a visible ghost button, not a buried link. In this
+              category a findable exit IS the brand. */}
+          <TouchableOpacity onPress={goNext} style={nstyles.ghostButtonTight}>
+            <Text style={nstyles.ghostButtonText}>Continue with the free garden</Text>
+          </TouchableOpacity>
+        </View>
       );
     }
 
     if (currentStep.kind === 'freeWarning') {
-      // ── The honest second look ────────────────────────────────────────────────
-      // Leads with what free INCLUDES (confidence, not desperation), lists only
-      // convenience ceilings in neutral styling, and offers an equal-weight exit.
-      // HARD RULE: no religious content ever appears on this screen - the Qur'an
-      // is never something you "lose".
+      // ── The second ask ────────────────────────────────────────────────────────
+      // Pushes harder than the paywall: names the ceiling in the headline, makes
+      // the free trial the obvious move, and asks directly. Competitors run
+      // far harsher versions of this screen (red danger framing, demoted exits).
+      // HARD RULE that still holds: every item below is a CONVENIENCE. No
+      // religious content is ever framed as something the user "loses" - the
+      // Qur'an, hadith, prayer times and duas are free forever and never appear
+      // on this list. That's the line Pillars never crosses either.
       const trialDays = PREMIUM_PLANS.yearly.trialDays;
       const ceilings = [
-        { icon: 'grid-off' as const, text: 'Garden capped at 7×7' },
-        { icon: 'speedometer-slow' as const, text: 'Coins & XP at standard pace' },
-        { icon: 'snowflake-off' as const, text: 'No streak freezes when life gets hard' },
-        { icon: 'tree-outline' as const, text: 'Golden Tree & Ancient Cedar stay in the shop window' },
-        { icon: 'chart-line' as const, text: 'Insights stay basic' },
+        { icon: 'grid-off' as const, text: 'Your garden stops at 7×7 - permanently' },
+        { icon: 'speedometer-slow' as const, text: 'Coins & XP earn at half the rate' },
+        { icon: 'snowflake-off' as const, text: 'No streak freezes - one bad week resets you' },
+        { icon: 'tree-outline' as const, text: 'Golden Tree & Ancient Cedar stay locked' },
+        { icon: 'chart-line' as const, text: 'No insights into your prayer patterns' },
       ];
       return (
         <View style={styles.freeWarnNew}>
-          {/* Animated transformation hero - the visual argument is aspiration
-              (what it becomes), not fear (what you lose). */}
+          {/* Animated transformation hero - what the garden becomes */}
           <View style={styles.freeWarnHero}>
             <StarRow />
-            <FreePremiumTransform size={170} />
+            <FreePremiumTransform size={150} />
           </View>
 
           <View style={styles.freeWarnBody}>
-            <Text style={styles.insightTitle}>The free garden is complete.</Text>
+            <Text style={styles.insightTitle}>This is where the free garden stops.</Text>
             <Text style={styles.insightBodyText}>
-              Every prayer, every surah, every dua - free, always. Premium only removes the ceilings:
+              Prayer times, the full Qur'an, hadith and duas stay free forever. But the garden itself hits a ceiling:
             </Text>
 
             <View style={styles.insightChecklist}>
               {ceilings.map((l, i) => (
                 <View key={l.text} style={[styles.freeWarnLossRow, i > 0 && styles.insightCheckDivider]}>
-                  <MaterialCommunityIcons name={l.icon} size={18} color="#d9a75f" />
+                  <MaterialCommunityIcons name={l.icon} size={17} color="rgba(232,168,124,0.9)" />
                   <Text style={styles.freeWarnLossText}>{l.text}</Text>
                 </View>
               ))}
             </View>
 
-            <Text style={nstyles.supportLine}>
-              Premium is also what keeps Grow Pray ad-free - one developer, no investors, no data sold.
-            </Text>
+            <View style={nstyles.askBox}>
+              <Text style={nstyles.askText}>
+                Try Premium free for {trialDays} days. Nothing is charged until day {trialDays + 1}, and cancelling takes two taps.
+              </Text>
+            </View>
 
             <TouchableOpacity
               onPress={handlePremiumPurchase}
@@ -1457,11 +1458,11 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             >
               <MaterialCommunityIcons name="star-four-points" size={18} color="#1a0f00" style={{ marginRight: 6 }} />
               <Text style={styles.premiumButtonText}>
-                {purchasing ? 'Processing…' : `Try ${trialDays} days free`}
+                {purchasing ? 'Processing…' : `Start my ${trialDays} free days`}
               </Text>
             </TouchableOpacity>
             <Text style={styles.trialNote}>
-              {trialDays} days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · Cancel anytime in two taps
+              {trialDays} days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · cancel anytime
             </Text>
 
             <TouchableOpacity onPress={finishOnboarding} style={nstyles.ghostButton}>
@@ -2730,6 +2731,140 @@ const nstyles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 14,
     marginBottom: 4,
+  },
+
+  // Madhab caption - balanced above/below so it reads as centred between the
+  // last option and the Next button (the options wrap already adds 18 below).
+  madhabCaption: {
+    textAlign: 'center',
+    color: 'rgba(247,241,232,0.56)',
+    fontSize: 12,
+    lineHeight: 17,
+    marginTop: 0,
+    marginBottom: 18,
+    paddingHorizontal: 8,
+  },
+
+  // ── Compact paywall - must fit one screen, never scroll ──────────────────
+  paywallCompact: {
+    backgroundColor: 'rgba(7,13,22,0.92)',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 16,
+    paddingTop: 10,
+    paddingBottom: 14,
+  },
+  freeStripTight: {
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(240,194,122,0.35)',
+    backgroundColor: 'rgba(240,194,122,0.08)',
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    marginTop: 6,
+    marginBottom: 10,
+  },
+  freeStripTextTight: { color: 'rgba(247,241,232,0.82)', fontSize: 11.5, lineHeight: 16 },
+  paywallTitleTight: {
+    color: '#ffffff',
+    fontSize: 25,
+    lineHeight: 30,
+    fontWeight: '800',
+    fontFamily: FONTS.display,
+    textAlign: 'center',
+    marginBottom: 10,
+  },
+  benefitsTight: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+    marginBottom: 12,
+  },
+  benefitPillTight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 999,
+    backgroundColor: 'rgba(217,167,95,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(217,167,95,0.22)',
+  },
+  benefitPillTextTight: { color: '#e8c97e', fontSize: 11, fontWeight: '600' },
+  planRowTight: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  planCardTight: {
+    flex: 1,
+    borderRadius: 16,
+    borderWidth: 1.5,
+    borderColor: 'rgba(247,241,232,0.16)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingTop: 16,
+    paddingBottom: 10,
+    paddingHorizontal: 10,
+    alignItems: 'center',
+  },
+  planBadgeTight: {
+    position: 'absolute',
+    top: -9,
+    alignSelf: 'center',
+    backgroundColor: '#d9a75f',
+    borderRadius: 999,
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+  },
+  planTitleTight: { color: 'rgba(247,241,232,0.75)', fontSize: 12, fontWeight: '700' },
+  planPriceTight: {
+    color: '#ffffff',
+    fontSize: 21,
+    fontWeight: '800',
+    fontFamily: FONTS.display,
+    marginTop: 2,
+  },
+  planSubTight: { color: 'rgba(247,241,232,0.45)', fontSize: 10, marginTop: 2 },
+  premiumButtonTight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#d9a75f',
+    borderRadius: 16,
+    paddingVertical: 15,
+  },
+  trialNoteTight: {
+    color: 'rgba(247,241,232,0.45)',
+    fontSize: 10.5,
+    textAlign: 'center',
+    marginTop: 7,
+  },
+  ghostButtonTight: {
+    marginTop: 10,
+    height: 42,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(247,241,232,0.20)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  // Second-ask direct request box
+  askBox: {
+    marginTop: 14,
+    marginBottom: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(217,167,95,0.10)',
+    borderWidth: 1,
+    borderColor: 'rgba(217,167,95,0.30)',
+    paddingVertical: 11,
+    paddingHorizontal: 14,
+  },
+  askText: {
+    color: '#f4e9d8',
+    fontSize: 13.5,
+    lineHeight: 19,
+    textAlign: 'center',
+    fontWeight: '600',
   },
 });
 
