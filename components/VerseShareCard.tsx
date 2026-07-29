@@ -1,12 +1,41 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { View, Text, StyleSheet, LayoutChangeEvent } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { captureRef } from 'react-native-view-shot';
-import * as Sharing from 'expo-sharing';
 import { FONTS } from '../theme/typography';
 import { Reflection } from '../data/reflections';
 import { Annotation } from '../hooks/useReflections';
 import { AnnotationPreview } from './AnnotationEditor';
+
+// react-native-view-shot and expo-sharing are both native modules (expo-sharing
+// calls requireNativeModule at import time). A statically-imported native module
+// that isn't compiled into the currently-installed build crashes the ENTIRE app
+// at JS-bundle-load time (before anything renders) - not just the feature using
+// it. Require both lazily and guard every call, so an old build degrades to
+// "share unavailable" instead of crashing on launch. (Same pattern as the
+// Magnetometer fallback in hooks/useQibla.ts.)
+let captureRefFn: ((ref: any, opts: any) => Promise<string>) | null = null;
+function getCaptureRef() {
+  if (captureRefFn) return captureRefFn;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    captureRefFn = require('react-native-view-shot').captureRef;
+    return captureRefFn;
+  } catch {
+    return null;
+  }
+}
+
+let SharingModule: typeof import('expo-sharing') | null = null;
+function getSharing() {
+  if (SharingModule) return SharingModule;
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    SharingModule = require('expo-sharing');
+    return SharingModule;
+  } catch {
+    return null;
+  }
+}
 
 const ACCENT = '#e8a87c';
 const KIND_ACCENT: Record<Reflection['kind'], string> = {
@@ -95,10 +124,13 @@ export function useVerseShare() {
     setBusy(true);
     setPending(verse);
     try {
+      const capture = getCaptureRef();
+      const Sharing = getSharing();
+      if (!capture || !Sharing) return; // native module not in this build - no-op, no crash
       // Let the off-screen card mount and lay out before capturing it.
       await new Promise((r) => setTimeout(r, 90));
       if (!(await Sharing.isAvailableAsync())) return;
-      const uri = await captureRef(shotRef, { format: 'png', quality: 1, result: 'tmpfile' });
+      const uri = await capture(shotRef, { format: 'png', quality: 1, result: 'tmpfile' });
       await Sharing.shareAsync(uri, {
         mimeType: 'image/png',
         dialogTitle: 'Share this reflection',
