@@ -11,7 +11,7 @@ import {
     PolarCircleResolution,
 } from 'adhan';
 
-type Timings = {
+export type Timings = {
     Fajr: string;
     Dhuhr: string;
     Asr: string;

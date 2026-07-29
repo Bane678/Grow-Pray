@@ -3,9 +3,7 @@ import {
   Animated,
   Dimensions,
   Image,
-  ImageBackground,
   KeyboardAvoidingView,
-  Linking,
   Platform,
   Pressable,
   ScrollView,
@@ -23,31 +21,21 @@ import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Svg, { Circle } from 'react-native-svg';
 import { PREMIUM_PLANS } from '../hooks/usePremium';
+import { usePrayerTimes, Timings } from '../hooks/usePrayerTimes';
 import { FONTS } from '../theme/typography';
 import { GardenGrowthPreview } from './GardenGrowthPreview';
-import { SignaturePad } from './SignaturePad';
 
-const APP_LOGO = require('../assets/Garden Assets/Icons/App_Logo.png');
-const ICON_HANDS = require('../assets/Garden Assets/Icons/Icon_Hands.png');
 const ICON_LOCATION = require('../assets/Garden Assets/Icons/Icon_Location.png');
 const ICON_BELL = require('../assets/Garden Assets/Icons/Icon_Bell.png');
-const HERO_GARDEN = require('../assets/Garden Assets/Icons/Loading_Screen2.png');
-const HERO_DAWN = require('../assets/Garden Assets/Icons/Loading_Screen.png');
-const HERO_NIGHT = require('../assets/Garden Assets/Icons/Starry_Night_Sky.png');
-const DEMO_IMAGE = require('../assets/Garden Assets/Icons/Demo_Image.png');
 const ICON_SPARKLE = require('../assets/Garden Assets/Icons/Icon_Sparkle.png');
-// New onboarding hero images
-const OB_WELCOME  = require('../assets/Garden Assets/Icons/Onboarding_Welcome.png');
+// Onboarding hero images
 const OB_AYAH     = require('../assets/Garden Assets/Icons/Onboarding_Ayah.png');
-const OB_REFRAME  = require('../assets/Garden Assets/Icons/Onboarding_Refreame.png'); // note typo in filename
 const OB_PLAN     = require('../assets/Garden Assets/Icons/Onboarding_Plan.png');
-const OB_PLEDGE   = require('../assets/Garden Assets/Icons/Onboarding_Pledge.png');
 const OB_PAYWALL  = require('../assets/Garden Assets/Icons/Onboarding_Paywall.png');
-// Card 19 (premium showcase) gets its own image, distinct from the paywall art, so two
-// back-to-back premium cards don't repeat the same picture. Until the user supplies
-// Onboarding_Premium.png, this falls back to OB_PAYWALL (see the swap note below).
-const OB_PREMIUM  = OB_PAYWALL;
+// The seed the user plants during onboarding sprouts into the Basic sapling.
+const SAPLING_BASIC = require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png');
 
 // Tree sprites + tiles for the redesigned free-warning animated transformation (card 21).
 // The whole sequence uses the premium Golden Tree across its real growth stages, so the
@@ -59,14 +47,6 @@ const GOLD_FLOURISH  = require('../assets/Garden Assets/Tree Types/Golden Trees/
 const TILE_DEAD       = require('../assets/Garden Assets/Ground Tiles/Dead_Tile.png');
 const TILE_RECOVERING = require('../assets/Garden Assets/Ground Tiles/Recovering_Tile.png');
 const TILE_RECOVERED  = require('../assets/Garden Assets/Ground Tiles/Recovered_Tile.png');
-
-// ── Reversible redesign flags ───────────────────────────────────────────────────
-// Flip any of these back to `false` to instantly restore that card's previous design.
-// Each redesigned render path keeps its original ("legacy") branch intact behind the flag,
-// so reversal is a one-line edit and no assets are removed.
-const REDESIGN_INSIGHT        = true; // cards 4 & 8 - the empathy insight card
-const REDESIGN_PILLAR_PRIVACY = true; // card 11 - "Your spiritual life is private" pillar
-const REDESIGN_FREE_WARNING   = true; // card 21 - the "Are you sure?" free-version warning
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -80,6 +60,16 @@ const GOAL_KEY = '@GrowPray:onboardingGoal';
 const BLOCKERS_KEY = '@GrowPray:onboardingBlockers';
 const ROUTINE_KEY = '@GrowPray:onboardingRoutine';
 const SOURCE_KEY = '@GrowPray:onboardingSource';
+const SUPPORT_KEY = '@GrowPray:onboardingSupportStyle';
+// The planted niyyah: { goalId, text, name, plantedAt }
+const NIYYAH_KEY = '@GrowPray:niyyah';
+// Set when the user plants their seed - App.tsx consumes it after onboarding
+// and plants a real Basic sapling into the garden state.
+const SEED_PENDING_KEY = '@GrowPray:niyyahSeedPending';
+// Set when the user answers "Yes, alhamdulillah" on the first-prayer step -
+// App.tsx consumes it once prayer times load and marks the prayer through the
+// real togglePrayerCompleted path (real XP, coins, streak).
+const FIRST_PRAYER_KEY = '@GrowPray:onboardingPrayerMarked';
 
 type OnboardingScreenProps = {
   onComplete: () => void;
@@ -98,33 +88,27 @@ type SelectOption = {
 };
 
 type Step =
-  | { kind: 'welcome'; title: string; body: string; cta: string; image: any }
+  | { kind: 'welcome'; title: string; body: string; cta: string }
   | { kind: 'singleSelect'; key: string; title: string; subtitle: string; cta: string; options: SelectOption[] }
   | { kind: 'multiSelect'; key: string; title: string; subtitle: string; cta: string; options: SelectOption[] }
-  | { kind: 'pillar'; title: string; body: string; cta: string; icon?: IconName; iconImage?: any; imagePreview?: any; highlights?: string[] }
-  | { kind: 'support'; title: string; body: string; cta: string }
-  | { kind: 'transition'; title: string; subtitle: string; cta: string; icon?: IconName; iconImage?: any }
-  | { kind: 'reframe'; title: string; body: string; cta: string }
-  | { kind: 'quote'; source: string; quote: string; cta: string; image?: any }
   | { kind: 'nameInput'; title: string; body: string; cta: string; placeholder: string }
   | { kind: 'madhab' }
   | { kind: 'locationPermission' }
   | { kind: 'notificationPermission' }
   | { kind: 'paywall' }
   | { kind: 'freeWarning' }
-  // ── New card kinds ──────────────────────────────────────────────────────────
   /** Full-bleed background image with a centred quote/ayah overlay */
   | { kind: 'ayah'; quote: string; source: string; cta: string; image: any }
-  /** Animated garden growth preview pillar */
-  | { kind: 'growthPillar'; title: string; body: string; cta: string }
   /** Empathy select - like singleSelect but with a soft reframe response built in */
   | { kind: 'empathySelect'; key: string; title: string; subtitle: string; cta: string; options: SelectOption[] }
   /** Personalised plan summary - derives copy from earlier answers */
   | { kind: 'summary'; cta: string }
-  /** Aspirational premium showcase shown right before the pledge + paywall */
-  | { kind: 'premiumIntro' }
-  /** Signed pledge / niyyah contract */
-  | { kind: 'pledge' };
+  /** Plant your niyyah - the commitment moment. Hold the earth to plant the
+      intention chosen on the goal step. Replaces the old signature pledge. */
+  | { kind: 'niyyahPlanting' }
+  /** Adaptive first-prayer step - runs the core loop once, for real, before
+      the paywall: "Have you prayed X today?" */
+  | { kind: 'firstPrayer' };
 
 type InsightCard = {
   title: string;
@@ -133,18 +117,9 @@ type InsightCard = {
   bullets?: string[];
 };
 
-// Maps each factor option value to its corresponding pillar step index in STEPS
-const FACTOR_TO_PILLAR_INDEX: Record<string, number> = {
-  privacy:    2,  // 'Private by default'
-  no_ads:     3,  // 'Built for focus'
-  accuracy:   4,  // 'Prayer times that stay accurate'
-  tracking:   5,  // 'A garden that grows with your salah'
-  challenges: 6,  // 'Built-in challenges and rewards'
-};
-
 const STEPS: Step[] = [
-  // 0 - Welcome
-  { kind: 'welcome', title: 'Salaam', body: 'Every prayer you keep grows your garden. Every one you miss, it shows. A peaceful, honest companion for your daily worship.', cta: 'Bismillah', image: OB_WELCOME },
+  // 0 - Opening: the promise, with the loop shown live
+  { kind: 'welcome', title: 'Salaam.', body: 'Five daily prayers. One living garden. Every salah you keep is planted - and everything you grow stays on this phone.', cta: 'Bismillah' },
 
   // 1 - Ayah (Qur'an 29:45)
   {
@@ -155,19 +130,19 @@ const STEPS: Step[] = [
     image: OB_AYAH,
   },
 
-  // 2 - Relationship with salah (empathetic select)
+  // 2 - Where you are (empathetic select) -> insight card A
   {
     kind: 'empathySelect',
     key: ROUTINE_KEY,
     title: 'How is your relationship with salah right now?',
-    subtitle: "Be honest. We're here to support, not judge.",
+    subtitle: 'Wherever you are is where we start.',
     cta: 'Next',
     options: [
       { value: 'on_time',           label: 'I pray all 5 on time',           icon: 'check-circle-outline' },
       { value: 'daily_not_on_time', label: 'I pray daily, not always on time', icon: 'clock-alert-outline' },
       { value: 'most_days',         label: 'Most days, but I miss some',      icon: 'calendar-check-outline' },
-      { value: 'occasionally',      label: 'Occasionally, trying to improve', icon: 'calendar-blank-outline' },
-      { value: 'starting',          label: "I want to start or restart",       icon: 'seed-outline' },
+      { value: 'occasionally',      label: "Occasionally - I'm working on it", icon: 'calendar-blank-outline' },
+      { value: 'starting',          label: 'I want to start, or start again',  icon: 'seed-outline' },
     ],
   },
 
@@ -175,8 +150,8 @@ const STEPS: Step[] = [
   {
     kind: 'singleSelect',
     key: '@GrowPray:hardestPrayer',
-    title: 'Which prayer is hardest for you to keep?',
-    subtitle: "Everyone has one. There's no wrong answer.",
+    title: 'Which prayer is hardest to keep?',
+    subtitle: 'Everyone has one.',
     cta: 'Next',
     options: [
       { value: 'Fajr',    label: 'Fajr (the early morning prayer)', icon: 'weather-sunset-up' },
@@ -192,8 +167,8 @@ const STEPS: Step[] = [
   {
     kind: 'multiSelect',
     key: BLOCKERS_KEY,
-    title: 'What usually makes it difficult?',
-    subtitle: 'Select all that apply.',
+    title: 'What usually gets in the way?',
+    subtitle: 'Choose all that apply.',
     cta: 'Next',
     options: [
       { value: 'waking_up',    label: 'Waking up for Fajr',         icon: 'alarm' },
@@ -205,83 +180,71 @@ const STEPS: Step[] = [
     ],
   },
 
-  // 5 - How you feel after missing (emotional empathy)
+  // 5 - What would help (forward-framed; replaces the old "how do you feel
+  //     when you miss a prayer" confession question) -> insight card B
   {
     kind: 'empathySelect',
-    key: '@GrowPray:missedFeeling',
-    title: 'How do you feel when you miss a prayer?',
-    subtitle: 'We ask so we can support you, not judge you.',
+    key: SUPPORT_KEY,
+    title: 'When you do miss one - what would actually help?',
+    subtitle: "We'll build your support around this.",
     cta: 'Next',
     options: [
-      { value: 'guilty',      label: 'Guilty, I carry it',       icon: 'heart-broken' },
-      { value: 'disconnected',label: 'Disconnected from Allah',   icon: 'link-off' },
-      { value: 'restart',     label: 'Motivated to get back on track', icon: 'refresh' },
-      { value: 'numb',        label: "Numb, I've normalised it", icon: 'emoticon-neutral-outline' },
+      { value: 'nudge',      label: 'A nudge to pray it as soon as I can', icon: 'refresh' },
+      { value: 'freshstart', label: 'Knowing the next one is a fresh start', icon: 'weather-sunset-up' },
+      { value: 'progress',   label: 'Seeing my progress, not my failures', icon: 'sprout-outline' },
+      { value: 'noguilt',    label: 'Less guilt, more encouragement',      icon: 'heart-outline' },
     ],
   },
 
-  // 6 - Reframe: every prayer is a fresh start
-  {
-    kind: 'reframe',
-    title: 'Every prayer is a fresh start.',
-    body: "The Prophet ﷺ said: 'The most beloved deeds to Allah are the most consistent ones, even if small.' Missing a prayer doesn't close the door. Turning back is always possible.",
-    cta: 'That gives me hope',
-  },
+  // 6 - Name input (privacy reassurance folded in, where the anxiety lives)
+  { kind: 'nameInput', title: 'What should we call you?', body: 'Your name appears in one place that matters - your intention.', cta: 'Next', placeholder: 'Your name' },
 
-  // 7 - Garden growth pillar
-  { kind: 'growthPillar', title: 'Your prayers build something real.', body: 'Every salah you keep grows your garden. Miss days and it begins to wither. Grow Pray makes your consistency visible.', cta: 'Let\'s grow' },
-
-  // 8 - Privacy pillar
-  { kind: 'pillar', title: 'Your spiritual life is private.', body: 'No accounts. No servers. Your prayers, streaks, and garden never leave your device.', cta: 'Next', icon: 'shield-check-outline', highlights: ['On-device only', 'No login required', 'Zero data sharing'] },
-
-  // 9 - Name input
-  { kind: 'nameInput', title: 'What should we call you?', body: 'We use your name in a few places to make the experience feel personal.', cta: 'Next', placeholder: 'Enter your name' },
-
-  // 10 - Goal (single select)
+  // 7 - Niyyah (goal select; pays off at the planting step)
   {
     kind: 'singleSelect',
     key: GOAL_KEY,
-    title: 'What is your intention for the next 30 days?',
-    subtitle: 'Set one clear goal to anchor your journey.',
+    title: 'Set your niyyah for the next 30 days.',
+    subtitle: "One intention. In a moment, you'll plant it.",
     cta: 'Next',
     options: [
-      { value: '5_on_time',   label: 'Pray all 5 on time',           icon: 'clock-check-outline' },
-      { value: 'fajr',        label: 'Consistently wake for Fajr',   icon: 'weather-sunset-up' },
-      { value: 'consistency', label: 'Build a stable daily routine', icon: 'repeat' },
-      { value: 'focus',       label: 'Improve my focus in salah',    icon: 'bullseye' },
-      { value: 'character',   label: 'Become a better Muslim overall', icon: 'diamond-stone' },
+      { value: '5_on_time',   label: 'I intend to pray all five on time',      icon: 'clock-check-outline' },
+      { value: 'fajr',        label: 'I intend to wake for Fajr, consistently', icon: 'weather-sunset-up' },
+      { value: 'consistency', label: 'I intend to build a routine that lasts',  icon: 'repeat' },
+      { value: 'focus',       label: 'I intend to be more present in salah',    icon: 'bullseye' },
+      { value: 'character',   label: 'I intend to come back to my prayers',     icon: 'diamond-stone' },
     ],
   },
 
-  // 11 - Personalised summary (pulls from answers)
-  { kind: 'summary', cta: 'Let\'s set up your prayer times' },
+  // 8 - Personalised summary (pulls from answers)
+  { kind: 'summary', cta: 'Set up my prayer times' },
 
-  // 12 - Madhab
+  // 9 - Madhab (must precede showing times - changes Asr calculation)
   { kind: 'madhab' },
 
-  // 13 - Location
+  // 10 - Location (priming kept; on grant the same card shows live times)
   { kind: 'locationPermission' },
 
-  // 14 - Notifications
+  // 11 - Notifications (primed with the user's actual next prayer)
   { kind: 'notificationPermission' },
 
-  // 15 - Pledge (signed niyyah) - the sincere commitment comes first, with no
-  //       premium messaging beforehand.
-  { kind: 'pledge' },
+  // 12 - Plant your niyyah (the commitment moment - no premium messaging
+  //      before it, and no commercial screen may ever reference it)
+  { kind: 'niyyahPlanting' },
 
-  // 16 - Premium showcase - desire-building immediately after the pledge
-  { kind: 'premiumIntro' },
+  // 13 - First prayer (adaptive: runs the core loop once, for real)
+  { kind: 'firstPrayer' },
 
-  // 17 - Paywall
+  // 14 - The offer (single paywall; opens with what's free forever)
   { kind: 'paywall' },
 
-  // 18 - Free warning fallback
+  // 15 - The honest second look (soft decline screen; conveniences only,
+  //      never religious content)
   { kind: 'freeWarning' },
 ];
 const TOTAL_STEPS = STEPS.length;
 // Empathy select steps that produce an insight card (indices 2 and 5)
 const INSIGHT_STEP_INDICES = [2, 5];
-const TRUE_TOTAL = STEPS.length + INSIGHT_STEP_INDICES.length; // 20 steps + 2 insights = 20
+const TRUE_TOTAL = STEPS.length + INSIGHT_STEP_INDICES.length; // 16 steps + 2 insights = 18
 
 // Common profanity/slur blocklist - word-boundary matched, case-insensitive.
 // This is a client-side first pass; not exhaustive but catches obvious cases.
@@ -491,76 +454,112 @@ const transformStyles = StyleSheet.create({
   },
 });
 
-// ── Hold-to-confirm button ─────────────────────────────────────────────────────
-// Press and hold for ~1.1s to confirm - an intentional, deliberate gesture that
-// suits "locking in" a sincere pledge (inspired by similar habit apps).
-function HoldToConfirmButton({ disabled, onConfirm, label }: {
-  disabled: boolean;
-  onConfirm: () => void;
-  label: string;
+// ── Hold-to-plant ───────────────────────────────────────────────────────────────
+// The commitment gesture, rebuilt inside the garden metaphor: press and hold the
+// earth for ~1.2s and a gold ring draws around the tile as the seed goes in.
+// Haptics ramp mid-hold; releasing early rewinds. The tile itself is the button.
+const AnimatedRingCircle = Animated.createAnimatedComponent(Circle);
+const PLANT_HOLD_MS = 1200;
+const PLANT_RING_SIZE = 220;
+const PLANT_RING_R = 102;
+const PLANT_RING_C = 2 * Math.PI * PLANT_RING_R;
+
+function PlantingHold({ planted, onPlanted, children }: {
+  planted: boolean;
+  onPlanted: () => void;
+  children: React.ReactNode;
 }) {
-  const HOLD_MS = 1100;
   const fill = useRef(new Animated.Value(0)).current;
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const midHaptic = useRef<ReturnType<typeof setTimeout> | null>(null);
   const anim = useRef<Animated.CompositeAnimation | null>(null);
 
   const start = () => {
-    if (disabled) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    anim.current = Animated.timing(fill, { toValue: 1, duration: HOLD_MS, useNativeDriver: false });
+    if (planted) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    anim.current = Animated.timing(fill, { toValue: 1, duration: PLANT_HOLD_MS, useNativeDriver: false });
     anim.current.start();
+    midHaptic.current = setTimeout(() => {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }, PLANT_HOLD_MS / 2);
     timer.current = setTimeout(() => {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onConfirm();
-    }, HOLD_MS);
+      onPlanted();
+    }, PLANT_HOLD_MS);
   };
 
   const cancel = () => {
+    if (planted) return;
     if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    if (midHaptic.current) { clearTimeout(midHaptic.current); midHaptic.current = null; }
     anim.current?.stop();
     Animated.timing(fill, { toValue: 0, duration: 220, useNativeDriver: false }).start();
   };
 
   return (
-    <Pressable onPressIn={start} onPressOut={cancel} disabled={disabled}>
-      <View style={[holdStyles.btn, disabled && holdStyles.btnDisabled]}>
-        <Animated.View
-          style={[
-            holdStyles.fill,
-            { width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }) },
-          ]}
-        />
-        <Text style={holdStyles.label}>{label}</Text>
+    <Pressable onPressIn={start} onPressOut={cancel} disabled={planted}>
+      <View style={{ width: PLANT_RING_SIZE, height: PLANT_RING_SIZE, alignItems: 'center', justifyContent: 'center' }}>
+        <Svg width={PLANT_RING_SIZE} height={PLANT_RING_SIZE} style={StyleSheet.absoluteFill}>
+          <Circle
+            cx={PLANT_RING_SIZE / 2} cy={PLANT_RING_SIZE / 2} r={PLANT_RING_R}
+            stroke="rgba(217,167,95,0.18)" strokeWidth={3} fill="none"
+          />
+          <AnimatedRingCircle
+            cx={PLANT_RING_SIZE / 2} cy={PLANT_RING_SIZE / 2} r={PLANT_RING_R}
+            stroke="#d9a75f" strokeWidth={3} fill="none" strokeLinecap="round"
+            strokeDasharray={`${PLANT_RING_C} ${PLANT_RING_C}`}
+            strokeDashoffset={fill.interpolate({ inputRange: [0, 1], outputRange: [PLANT_RING_C, 0] })}
+            transform={`rotate(-90 ${PLANT_RING_SIZE / 2} ${PLANT_RING_SIZE / 2})`}
+          />
+        </Svg>
+        {children}
       </View>
     </Pressable>
   );
 }
 
-const holdStyles = StyleSheet.create({
-  btn: {
-    height: 56,
-    borderRadius: 16,
-    backgroundColor: 'rgba(217,167,95,0.18)',
-    borderWidth: 1,
-    borderColor: 'rgba(217,167,95,0.5)',
-    overflow: 'hidden',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  btnDisabled: { opacity: 0.4 },
-  fill: {
-    position: 'absolute',
-    left: 0,
-    top: 0,
-    bottom: 0,
-    backgroundColor: '#d9a75f',
-  },
-  label: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '800',
-  },
-});
+// ── Prayer-time helpers for the payoff screens ─────────────────────────────────
+const PRAYER_SEQ = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
+type PrayerName = typeof PRAYER_SEQ[number];
+
+function hhmmToMins(v?: string): number | null {
+  if (!v || !/^\d{1,2}:\d{2}/.test(v)) return null;
+  const [h, m] = v.split(':').map(Number);
+  return h * 60 + m;
+}
+
+function fmt12(v?: string): string {
+  const mins = hhmmToMins(v);
+  if (mins == null) return '--:--';
+  const h24 = Math.floor(mins / 60);
+  const m = mins % 60;
+  const ap = h24 >= 12 ? 'PM' : 'AM';
+  const h = h24 % 12 === 0 ? 12 : h24 % 12;
+  return `${h}:${String(m).padStart(2, '0')} ${ap}`;
+}
+
+/** First prayer later than now today; wraps to tomorrow's Fajr after Isha. */
+function nextPrayerOf(timings: Timings): { name: PrayerName; time: string; tomorrow: boolean } {
+  const now = new Date();
+  const nowM = now.getHours() * 60 + now.getMinutes();
+  for (const p of PRAYER_SEQ) {
+    const t = hhmmToMins(timings[p]);
+    if (t != null && t > nowM) return { name: p, time: timings[p], tomorrow: false };
+  }
+  return { name: 'Fajr', time: timings.Fajr, tomorrow: true };
+}
+
+/** Most recent prayer whose window has begun (before Fajr -> last night's Isha). */
+function lastBegunPrayerOf(timings: Timings): PrayerName {
+  const now = new Date();
+  const nowM = now.getHours() * 60 + now.getMinutes();
+  let last: PrayerName = 'Isha';
+  for (const p of PRAYER_SEQ) {
+    const t = hhmmToMins(timings[p]);
+    if (t != null && t <= nowM) last = p;
+  }
+  return last;
+}
 
 
 export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly, onPurchaseYearly }: OnboardingScreenProps) {
@@ -570,17 +569,32 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
   const [selectedMadhab, setSelectedMadhab] = useState<'hanafi' | 'standard' | null>(null);
   const [singleSelections, setSingleSelections] = useState<Record<string, string | null>>({});
   const [multiSelections, setMultiSelections] = useState<Record<string, string[]>>({});
-  const [selectedStars, setSelectedStars] = useState(0);
   const [locationDenied, setLocationDenied] = useState(false);
   const [notifDenied, setNotifDenied] = useState(false);
   const [insightCard, setInsightCard] = useState<InsightCard | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [purchasing, setPurchasing] = useState(false);
-  const [dynamicSteps, setDynamicSteps] = useState<Step[]>(() => [...STEPS]);
-  const [pledgeSigned, setPledgeSigned] = useState(false);
+  // New-flow state: location grant (drives the live-times payoff), the planted
+  // niyyah, and the adaptive first-prayer answer.
+  const [locGranted, setLocGranted] = useState(false);
+  const [planted, setPlanted] = useState(false);
+  const [firstPrayerAnswer, setFirstPrayerAnswer] = useState<'yes' | 'no' | null>(null);
+
+  const dynamicSteps = STEPS;
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
+
+  // Live prayer times for the payoff screens (live-times card, notification
+  // priming, adaptive first prayer). locationReady stays false until the user
+  // grants location on the priming screen, so there is no permission race and
+  // no fallback-city times are ever shown as if they were the user's own.
+  const prayerLive = usePrayerTimes({
+    madhab: selectedMadhab ?? 'standard',
+    methodKey: null,
+    locationReady: locGranted,
+  });
+  const liveTimings: Timings | null = locGranted ? prayerLive.timings : null;
 
   const currentStep = dynamicSteps[step];
   if (!currentStep) return null;
@@ -690,40 +704,42 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
         };
       }
       return {
-        title: 'Start small, then grow',
-        body: 'Your garden gives visible progress from each prayer, so motivation comes from momentum instead of pressure.',
+        title: 'Then this is a beginning, not a comeback.',
+        body: "You don't owe this app an explanation. From your first salah, your garden starts growing - momentum you can see, from day one.",
         icon: 'sprout-outline',
-        bullets: ['Each prayer grows your garden', 'Missed prayers show where to recover', 'Challenges keep your week on track'],
+        bullets: ['Each prayer grows something real', 'Missed days show recovery, not ruin', 'Streak freezes for the hard weeks'],
       };
     }
 
-    // ── How you feel when you miss ────────────────────────────────────────────
-    if ((targetStep.kind === 'singleSelect' || targetStep.kind === 'empathySelect') && targetStep.key === '@GrowPray:missedFeeling') {
-      const selected = singleSelections['@GrowPray:missedFeeling'];
+    // ── What would help when you miss one ─────────────────────────────────────
+    // Answers the user's chosen support style. The consistency hadith lives here
+    // as a RESPONSE to what they asked for, not a lecture on its own screen.
+    if ((targetStep.kind === 'singleSelect' || targetStep.kind === 'empathySelect') && targetStep.key === SUPPORT_KEY) {
+      const selected = singleSelections[SUPPORT_KEY];
       const responses: Record<string, InsightCard> = {
-        guilty: {
-          title: 'Guilt can be a sign of iman',
-          body: 'Feeling the weight of a missed prayer shows you care. Grow Pray helps you channel that into action rather than shame.',
-          icon: 'heart-outline',
-          bullets: ['No punitive language, just encouragement', 'Rest periods for hard seasons', 'Streak freezes for life\'s obstacles'],
-        },
-        disconnected: {
-          title: 'Prayer is the connection',
-          body: 'The garden is a reminder that each salah is a thread back to Allah. Every new prayer re-weaves it.',
-          icon: 'link-variant',
-          bullets: ['Visual link between prayer and growth', 'Daily reminders to return', 'Each prayer counts, even one'],
-        },
-        restart: {
-          title: 'That drive is your greatest asset',
-          body: 'Grow Pray is built for people who want to restart. Streak freezes, rest periods, and weekly challenges all support recovery.',
+        nudge: {
+          title: "We'll help you catch it",
+          body: 'A gentle make-up reminder and deadline warnings before each window closes - so a missed prayer becomes a prayed one, not a lost one.',
           icon: 'refresh',
-          bullets: ['Streak freezes protect your progress', 'Rest period mode for tough times', 'No permanent penalty for missing'],
+          bullets: ['Quiet make-up nudges', 'Deadline warnings before each window closes', 'A countdown to the next prayer, always visible'],
         },
-        numb: {
-          title: 'Small steps restore feeling',
-          body: 'Sometimes the goal isn\'t khushu. It\'s just showing up. Your garden grows from presence, not perfection.',
+        freshstart: {
+          title: "That's how this garden works.",
+          body: 'The Prophet صلى الله عليه وسلم said: "The most beloved of deeds to Allah are the most consistent, even if they are few." (Bukhari & Muslim). Every prayer here is a fresh start - no red marks, no broken-streak sirens.',
+          icon: 'weather-sunset-up',
+          bullets: ['Every prayer is a fresh start', 'Gentle reminders, never alarms', 'Streak freezes for life\'s harder days'],
+        },
+        progress: {
+          title: 'Progress you can stand in',
+          body: 'Your garden shows what you\'ve built, not what you\'ve broken. Streaks, history, and growth stay visible - the gaps just show where to grow next.',
           icon: 'sprout-outline',
-          bullets: ['Progress from any prayer completed', 'Challenges rebuild routine gently', 'History shows how far you\'ve come'],
+          bullets: ['Each prayer grows something real', 'Per-prayer streaks and history', 'Missed days show recovery, not ruin'],
+        },
+        noguilt: {
+          title: 'No guilt. That\'s a promise.',
+          body: 'The Prophet صلى الله عليه وسلم said: "The most beloved of deeds to Allah are the most consistent, even if they are few." (Bukhari & Muslim). Grow Pray never shames a missed prayer.',
+          icon: 'heart-outline',
+          bullets: ['No punitive language, ever', 'Your garden shows recovery, not ruin', 'Encouragement built around your answers'],
         },
       };
       return selected ? (responses[selected] ?? null) : null;
@@ -737,9 +753,8 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     if (currentStep.kind === 'multiSelect') return (multiSelections[currentStep.key] ?? []).length > 0;
     if (currentStep.kind === 'nameInput') return name.trim().length > 0 && !containsProfanity(name);
     if (currentStep.kind === 'madhab') return selectedMadhab !== null;
-    if (currentStep.kind === 'pledge') return pledgeSigned;
     return true;
-  }, [currentStep, multiSelections, name, selectedMadhab, singleSelections, pledgeSigned]);
+  }, [currentStep, multiSelections, name, selectedMadhab, singleSelections]);
 
   const finishOnboarding = async () => {
     await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
@@ -833,17 +848,28 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
   };
 
   const handleLocation = async (request: boolean) => {
-    let granted = false;
     if (request) {
+      let granted = false;
       try {
         const { status } = await Location.requestForegroundPermissionsAsync();
         granted = status === 'granted';
       } catch {
         granted = false;
       }
+      await AsyncStorage.setItem('@GrowPray:locationPrompted', 'true');
+      if (granted) {
+        // Don't advance - this card morphs into the "Your times are live"
+        // payoff state, and the user continues from there.
+        setLocationDenied(false);
+        setLocGranted(true);
+        return;
+      }
+      // Hard OS-level denial: show the settings caption; the skip button
+      // remains as the way forward.
+      setLocationDenied(true);
+      return;
     }
-    setLocationDenied(!granted);
-    await AsyncStorage.setItem('@GrowPray:locationPrompted', request ? 'true' : 'skipped');
+    await AsyncStorage.setItem('@GrowPray:locationPrompted', 'skipped');
     goNext();
   };
 
@@ -903,35 +929,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
 
   const renderCard = () => {
     if (insightCard) {
-      if (!REDESIGN_INSIGHT) {
-        // ── Legacy insight card (flip REDESIGN_INSIGHT to false to restore) ──────
-        return (
-          <View style={styles.pillarCard}>
-            <View style={styles.pillarHero}>
-              <View style={styles.pillarGlow} />
-              <MaterialCommunityIcons name={insightCard.icon} size={60} color="#d9a75f" />
-            </View>
-            <View style={styles.pillarContent}>
-              <Text style={styles.pillarTitle}>{insightCard.title}</Text>
-              <Text style={styles.pillarBody}>{insightCard.body}</Text>
-              {insightCard.bullets && insightCard.bullets.length > 0 ? (
-                <View style={styles.pillarHighlights}>
-                  {insightCard.bullets.map((bullet) => (
-                    <View key={bullet} style={styles.pillarChip}>
-                      <MaterialCommunityIcons name="check" size={13} color="#d9a75f" />
-                      <Text style={styles.pillarChipText}>{bullet}</Text>
-                    </View>
-                  ))}
-                </View>
-              ) : null}
-              <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
-                <Text style={styles.primaryButtonText}>Continue</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        );
-      }
-      // ── Redesigned insight card (cards 4 & 8) ─────────────────────────────────
+      // ── Insight card - responds to what the user just told us ────────────────
       return (
         <View style={styles.insightCardNew}>
           {/* Layered hero - radial gold glow + faint starfield + glass medallion icon */}
@@ -971,13 +969,12 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     }
 
     if (currentStep.kind === 'welcome') {
+      // The loop itself is the demo: a real tile growing a real tree, live.
       return (
         <>
-          {/* Phone mockup showing the real app */}
-          <View style={styles.phoneMockupWrap}>
-            <View style={styles.phoneMockupFrame}>
-              <Image source={DEMO_IMAGE} style={styles.phoneMockupImage} resizeMode="cover" />
-            </View>
+          <View style={nstyles.welcomeHero}>
+            <StarRow />
+            <GardenGrowthPreview size={200} />
           </View>
           <View style={styles.panel}>
             <Text style={[styles.title, { fontSize: 40, lineHeight: 46 }]}>{currentStep.title}</Text>
@@ -992,189 +989,6 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
 
     if (currentStep.kind === 'singleSelect' || currentStep.kind === 'multiSelect') {
       return renderSelectCard(currentStep.kind);
-    }
-
-    // ── Redesigned privacy pillar (card 11) ───────────────────────────────────
-    // Only the "Your spiritual life is private." pillar is redesigned; any other
-    // pillar falls through to the shared renderer below. Flip REDESIGN_PILLAR_PRIVACY
-    // to false to restore the original look.
-    if (
-      currentStep.kind === 'pillar' &&
-      REDESIGN_PILLAR_PRIVACY &&
-      currentStep.title === 'Your spiritual life is private.'
-    ) {
-      const features: { icon: IconName; label: string; sub: string }[] = [
-        { icon: 'cellphone-lock', label: 'On-device only', sub: 'Your data lives on this phone, nowhere else.' },
-        { icon: 'account-off-outline', label: 'No login required', sub: 'No account, no email, no password.' },
-        { icon: 'cloud-off-outline', label: 'Zero data sharing', sub: 'Nothing is sent to us or any third party.' },
-      ];
-      return (
-        <View style={styles.insightCardNew}>
-          <View style={styles.insightHero}>
-            <View style={styles.insightGlowOuter} />
-            <View style={styles.insightGlowInner} />
-            <StarRow />
-            <View style={styles.privacyVault}>
-              <View style={styles.privacyVaultRing} />
-              <View style={styles.privacyVaultRingInner} />
-              <MaterialCommunityIcons name="shield-lock" size={42} color="#f0c27a" />
-            </View>
-          </View>
-          <View style={styles.insightBody}>
-            <Text style={styles.insightTitle}>{currentStep.title}</Text>
-            <Text style={styles.insightBodyText}>{currentStep.body}</Text>
-            <View style={styles.insightChecklist}>
-              {features.map((f, i) => (
-                <View key={f.label} style={[styles.privacyFeatureRow, i > 0 && styles.insightCheckDivider]}>
-                  <View style={styles.privacyFeatureIcon}>
-                    <MaterialCommunityIcons name={f.icon} size={18} color="#f0c27a" />
-                  </View>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.privacyFeatureLabel}>{f.label}</Text>
-                    <Text style={styles.privacyFeatureSub}>{f.sub}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
-    }
-
-    if (currentStep.kind === 'pillar') {
-      return (
-        <View style={styles.pillarCard}>
-          {/* Hero zone */}
-          {currentStep.imagePreview ? (
-            <View style={styles.pillarHeroImage}>
-              <Image source={currentStep.imagePreview} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-              <View style={styles.pillarHeroOverlay} />
-            </View>
-          ) : (
-            <View style={styles.pillarHero}>
-              <View style={styles.pillarGlow} />
-              {currentStep.iconImage ? (
-                <Image source={currentStep.iconImage} style={{ width: 64, height: 64 }} resizeMode="contain" />
-              ) : (
-                <MaterialCommunityIcons name={currentStep.icon ?? 'star-four-points-outline'} size={60} color="#d9a75f" />
-              )}
-            </View>
-          )}
-          {/* Content */}
-          <View style={styles.pillarContent}>
-            <Text style={styles.pillarTitle}>{currentStep.title}</Text>
-            <Text style={styles.pillarBody}>{currentStep.body}</Text>
-            {currentStep.highlights && currentStep.highlights.length > 0 && (
-              <View style={styles.pillarHighlights}>
-                {currentStep.highlights.map((h, i) => (
-                  <View key={i} style={styles.pillarChip}>
-                    <MaterialCommunityIcons name="check" size={13} color="#d9a75f" />
-                    <Text style={styles.pillarChipText}>{h}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
-            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
-    }
-
-    if (currentStep.kind === 'support') {
-      return (
-        <View style={styles.panelTall}>
-          <Text style={[styles.title, { textAlign: 'center' }]}>{currentStep.title}</Text>
-          <Text style={[styles.body, { textAlign: 'center' }]}>{currentStep.body}</Text>
-          <View style={styles.starRow}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <TouchableOpacity key={star} onPress={() => setSelectedStars(star)}>
-                <MaterialCommunityIcons name={star <= selectedStars ? 'star' : 'star-outline'} size={44} color={star <= selectedStars ? '#e6bf81' : 'rgba(247,241,232,0.30)'} />
-              </TouchableOpacity>
-            ))}
-          </View>
-          <TouchableOpacity
-            onPress={() => {
-              Linking.openURL('https://apps.apple.com/app/growpray').catch(() => {});
-              goNext();
-            }}
-            style={styles.primaryButton}
-          >
-            <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
-          </TouchableOpacity>
-          <TouchableOpacity onPress={goNext} style={styles.secondaryButton}>
-            <Text style={styles.secondaryText}>Maybe later</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    if (currentStep.kind === 'transition') {
-      const copy = currentStep.subtitle;
-      return (
-        <View style={styles.pillarCard}>
-          <View style={styles.pillarHero}>
-            <View style={styles.pillarGlow} />
-            {currentStep.iconImage ? (
-              <Image source={currentStep.iconImage} style={{ width: 64, height: 64 }} resizeMode="contain" />
-            ) : (
-              <MaterialCommunityIcons name={currentStep.icon ?? 'sprout-outline'} size={60} color="#d9a75f" />
-            )}
-          </View>
-          <View style={styles.pillarContent}>
-            <Text style={styles.pillarTitle}>{currentStep.title}</Text>
-            <Text style={styles.pillarBody}>{copy}</Text>
-            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
-    }
-
-    if (currentStep.kind === 'quote') {
-      return (
-        <View style={styles.panelTall}>
-          <View style={styles.quoteImageWrap}>{currentStep.image ? <Image source={currentStep.image} style={styles.quoteImage} resizeMode="cover" /> : null}</View>
-          <Text style={styles.quoteSource}>{currentStep.source}</Text>
-          <Text style={styles.quoteText}>{currentStep.quote}</Text>
-          <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
-          </TouchableOpacity>
-        </View>
-      );
-    }
-
-    if (currentStep.kind === 'reframe') {
-      return (
-        <View style={styles.panelTall}>
-          <View style={styles.reframeHero}>
-            <Image source={OB_REFRAME} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
-            <View style={styles.pillarHeroOverlay} />
-          </View>
-          <Text style={[styles.title, { textAlign: 'center' }]}>{currentStep.title}</Text>
-          <View style={styles.notifyDemo}>
-            <Text style={styles.notifyLabel}>Before</Text>
-            <View style={styles.notifyBubble}>
-              <Text style={styles.notifyTitle}>Asr</Text>
-              <Text style={styles.notifyText}>It's time to pray.</Text>
-            </View>
-            <Text style={styles.notifyLabel}>After</Text>
-            <View style={styles.notifyBubble}>
-              <Text style={styles.notifyTitle}>Asr</Text>
-              <Text style={styles.notifyText}>You have a meeting with Allah now.</Text>
-            </View>
-          </View>
-          <Text style={[styles.body, { textAlign: 'center' }]}>{currentStep.body}</Text>
-          <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
-          </TouchableOpacity>
-        </View>
-      );
     }
 
     if (currentStep.kind === 'nameInput') {
@@ -1198,6 +1012,11 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               {nameError}
             </Text>
           )}
+          {/* Privacy, whispered where the anxiety actually lives */}
+          <View style={styles.helperRow}>
+            <MaterialCommunityIcons name="shield-check-outline" size={16} color="#e6bf81" />
+            <Text style={styles.helperText}>Stays on this phone. No account. No email. Ever.</Text>
+          </View>
           <TouchableOpacity disabled={!canContinue} onPress={goNext} style={[styles.primaryButton, !canContinue && styles.disabled]}>
             <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
           </TouchableOpacity>
@@ -1208,8 +1027,8 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     if (currentStep.kind === 'madhab') {
       return (
         <View style={styles.panelTall}>
-          <Text style={styles.title}>School of thought</Text>
-          <Text style={styles.body}>Your madhab determines whether you follow earlier or later Asr times.</Text>
+          <Text style={styles.title}>One question about Asr.</Text>
+          <Text style={styles.body}>Schools of thought differ on when Asr begins. Which timing do you follow?</Text>
           <View style={styles.madhabOptionsWrap}>
             <TouchableOpacity onPress={() => setSelectedMadhab('standard')} style={[styles.optionRow, selectedMadhab === 'standard' && styles.optionRowSelected]}>
               <MaterialCommunityIcons name="clock-time-eight-outline" size={20} color="#f4efe6" />
@@ -1226,6 +1045,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               {selectedMadhab === 'hanafi' ? <MaterialCommunityIcons name="check-circle" size={18} color="#e6bf81" /> : null}
             </TouchableOpacity>
           </View>
+          <Text style={styles.caption}>Not sure? Pick either - you can change it anytime in Settings.</Text>
           <TouchableOpacity disabled={!canContinue} onPress={goNext} style={[styles.primaryButton, !canContinue && styles.disabled]}>
             <Text style={styles.primaryButtonText}>Next</Text>
           </TouchableOpacity>
@@ -1234,6 +1054,41 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     }
 
     if (currentStep.kind === 'locationPermission') {
+      // State 2: permission granted - the same card morphs into the payoff.
+      // The flow used to compute the user's times here and never show them;
+      // this is the cheapest real value in the whole funnel.
+      if (locGranted) {
+        const next = liveTimings ? nextPrayerOf(liveTimings) : null;
+        return (
+          <View style={styles.panelTall}>
+            <Text style={styles.title}>Your times are live.</Text>
+            <Text style={styles.body}>
+              {liveTimings
+                ? 'Computed on this phone, for exactly where you are.'
+                : 'Finding your local times…'}
+            </Text>
+            {liveTimings && (
+              <View style={nstyles.timesList}>
+                {PRAYER_SEQ.map((p) => {
+                  const isNext = next != null && !next.tomorrow && next.name === p;
+                  return (
+                    <View key={p} style={[nstyles.timesRow, isNext && nstyles.timesRowNext]}>
+                      <Text style={[nstyles.timesName, isNext && nstyles.timesNameNext]}>{p}</Text>
+                      <View style={{ flex: 1 }} />
+                      {isNext && <Text style={nstyles.timesNextTag}>next</Text>}
+                      <Text style={[nstyles.timesValue, isNext && nstyles.timesNameNext]}>{fmt12(liveTimings[p])}</Text>
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      // State 1: priming (kept verbatim - it's the best screen in the old flow).
       return (
         <View style={styles.panelTall}>
           <View style={styles.iconWrap}>
@@ -1257,13 +1112,20 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     }
 
     if (currentStep.kind === 'notificationPermission') {
+      // Primed with the user's actual next prayer when times are available -
+      // the strongest honest "why" for the permission.
+      const next = liveTimings ? nextPrayerOf(liveTimings) : null;
       return (
         <View style={styles.panelTall}>
           <View style={styles.iconWrap}>
             <Image source={ICON_BELL} style={styles.iconImage} />
           </View>
-          <Text style={styles.title}>Notifications</Text>
-          <Text style={styles.body}>Enable to receive prayer notifications. You can customise reminder styles later.</Text>
+          <Text style={styles.title}>Never miss the window.</Text>
+          <Text style={styles.body}>
+            {next
+              ? `${next.name} is at ${fmt12(next.time)}${next.tomorrow ? ' tomorrow' : ' today'}. Want a quiet heads-up before each prayer?`
+              : 'Enable to receive prayer notifications. You can customise reminder styles later.'}
+          </Text>
           <View style={styles.helperRow}>
             <MaterialCommunityIcons name="bell-ring-outline" size={16} color="#e6bf81" />
             <Text style={styles.helperText}>Gentle reminders, never noisy.</Text>
@@ -1279,10 +1141,158 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       );
     }
 
+    // ── Plant your niyyah (the commitment moment) ─────────────────────────────
+    if (currentStep.kind === 'niyyahPlanting') {
+      const goal = singleSelections[GOAL_KEY];
+      const intentionText: Record<string, string> = {
+        '5_on_time':   'I intend to pray all five on time.',
+        fajr:          'I intend to wake for Fajr, consistently.',
+        consistency:   'I intend to build a routine that lasts.',
+        focus:         'I intend to be more present in salah.',
+        character:     'I intend to come back to my prayers.',
+      };
+      const intention = intentionText[goal ?? 'consistency'] ?? 'I intend to care for my prayers.';
+      const displayName = name.trim() || 'My';
+      const onPlanted = async () => {
+        setPlanted(true);
+        try {
+          await AsyncStorage.setItem(NIYYAH_KEY, JSON.stringify({
+            goalId: goal ?? 'consistency',
+            text: intention,
+            name: name.trim(),
+            plantedAt: Date.now(),
+          }));
+          // App.tsx consumes this after onboarding and plants a real Basic
+          // sapling into the garden state.
+          await AsyncStorage.setItem(SEED_PENDING_KEY, '1');
+        } catch {
+          // Non-critical - the ceremony matters more than the flag.
+        }
+      };
+      return (
+        <View style={nstyles.plantWrap}>
+          <StarRow />
+          <Text style={nstyles.plantHadithLabel}>THE FIRST HADITH OF NAWAWI'S FORTY</Text>
+          <Text style={nstyles.plantHadith}>"Actions are but by intentions."</Text>
+          <Text style={nstyles.plantHadithSource}>Prophet Muhammad ﷺ · Bukhari 1 & Muslim 1907</Text>
+
+          {/* The intention, carried on a small tag above the earth */}
+          {!planted && (
+            <View style={nstyles.intentionTag}>
+              <Text style={nstyles.intentionText}>{intention}</Text>
+              <Text style={nstyles.intentionMeta}>{displayName ? `${name.trim() || 'My'} garden · Day 0` : 'Day 0'}</Text>
+            </View>
+          )}
+          {planted && (
+            <Text style={nstyles.plantedText}>Planted. May Allah let it grow.</Text>
+          )}
+
+          <View style={nstyles.plantTileArea}>
+            <PlantingHold planted={planted} onPlanted={onPlanted}>
+              <View style={nstyles.plantGlow} />
+              <Image source={TILE_RECOVERED} style={nstyles.plantTile} resizeMode="contain" />
+              {planted && (
+                <Image source={ICON_SPARKLE} style={nstyles.plantSparkle} resizeMode="contain" />
+              )}
+            </PlantingHold>
+          </View>
+
+          {!planted ? (
+            <Text style={nstyles.plantHint}>Press and hold the earth to plant your niyyah</Text>
+          ) : (
+            <TouchableOpacity onPress={goNext} style={[styles.primaryButton, { alignSelf: 'stretch' }]}>
+              <Text style={styles.primaryButtonText}>Continue</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      );
+    }
+
+    // ── First prayer (adaptive - runs the loop once, for real) ────────────────
+    if (currentStep.kind === 'firstPrayer') {
+      // No times (location skipped): no question to ask honestly - the seed
+      // simply waits for their first prayer in the app.
+      if (!liveTimings) {
+        return (
+          <View style={styles.panelTall}>
+            <Text style={styles.title}>Your seed is planted.</Text>
+            <Text style={styles.body}>It's waiting in your garden. Your first prayer is what wakes it up.</Text>
+            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      const recent = lastBegunPrayerOf(liveTimings);
+      const next = nextPrayerOf(liveTimings);
+      if (firstPrayerAnswer === 'yes') {
+        // The loop, run once for real: prayer marked, seed visibly sprouting.
+        return (
+          <View style={nstyles.plantWrap}>
+            <StarRow />
+            <View style={nstyles.plantTileArea}>
+              <View style={{ width: PLANT_RING_SIZE, height: PLANT_RING_SIZE, alignItems: 'center', justifyContent: 'center' }}>
+                <View style={nstyles.plantGlow} />
+                <Image source={TILE_RECOVERED} style={nstyles.plantTile} resizeMode="contain" />
+                <Image source={SAPLING_BASIC} style={nstyles.sproutImg} resizeMode="contain" />
+              </View>
+            </View>
+            <Text style={[styles.title, { textAlign: 'center' }]}>Your first prayer - planted.</Text>
+            <Text style={[styles.body, { textAlign: 'center' }]}>
+              This is the whole app: every salah you keep, you'll see. {recent} has been marked in your garden.
+            </Text>
+            <TouchableOpacity onPress={goNext} style={[styles.primaryButton, { alignSelf: 'stretch' }]}>
+              <Text style={styles.primaryButtonText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      if (firstPrayerAnswer === 'no') {
+        return (
+          <View style={styles.panelTall}>
+            <Text style={styles.title}>{next.name} arrives at {fmt12(next.time)}{next.tomorrow ? ' tomorrow' : ''}.</Text>
+            <Text style={styles.body}>Your seed is ready when you are.</Text>
+            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
+              <Text style={styles.primaryButtonText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      // Between midnight and Fajr the live window is last night's Isha, so
+      // "today" would be wrong - drop the word.
+      const beforeFajr =
+        hhmmToMins(liveTimings.Fajr) != null &&
+        new Date().getHours() * 60 + new Date().getMinutes() < (hhmmToMins(liveTimings.Fajr) as number);
+      return (
+        <View style={styles.panelTall}>
+          <Text style={styles.title}>Have you prayed {recent}{beforeFajr ? '' : ' today'}?</Text>
+          <Text style={styles.body}>No pressure either way - your garden starts wherever you are.</Text>
+          <TouchableOpacity
+            onPress={async () => {
+              Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+              try {
+                // Consumed by App.tsx once times load - the prayer is marked
+                // through the real togglePrayerCompleted path (XP, coins, streak).
+                await AsyncStorage.setItem(FIRST_PRAYER_KEY, recent);
+              } catch {}
+              setFirstPrayerAnswer('yes');
+            }}
+            style={styles.primaryButton}
+          >
+            <Text style={styles.primaryButtonText}>Yes, alhamdulillah</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setFirstPrayerAnswer('no')} style={styles.secondaryButton}>
+            <Text style={styles.secondaryText}>Not yet</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
+
     if (currentStep.kind === 'paywall') {
+      const trialDays = PREMIUM_PLANS.yearly.trialDays;
       return (
         <>
-          {/* Premium hero - golden tree on starry night */}
+          {/* Hero - golden tree on starry night */}
           <View style={styles.paywallHero}>
             <Image source={OB_PAYWALL} style={styles.paywallHeroImg} resizeMode="contain" />
             {/* Bottom gradient fade into panel - only the lowest sliver fades, so the
@@ -1292,29 +1302,33 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               locations={[0, 0.7, 1]}
               style={styles.paywallHeroFade}
             />
-            {/* PREMIUM badge */}
-            <View style={styles.paywallHeroBadge}>
-              <Image source={ICON_SPARKLE} style={{ width: 14, height: 14 }} resizeMode="contain" />
-              <Text style={styles.paywallHeroBadgeText}>PREMIUM ONLY</Text>
-            </View>
           </View>
 
           <View style={styles.paywallPanel}>
-            {/* Title */}
-            <Text style={styles.paywallTitle}>Honour your intention</Text>
+            {/* What's free comes FIRST - the Qur'an is never behind a lock,
+                and saying so is the strongest trust move on this screen. */}
+            <View style={nstyles.freeStrip}>
+              <Text style={nstyles.freeStripLabel}>YOURS FREE, ALWAYS</Text>
+              <Text style={nstyles.freeStripText}>
+                Full Qur'an · Nawawi's 40 Hadith · Prayer times · Duas & tasbih · Your garden
+              </Text>
+            </View>
+
+            {/* Title - references the garden (a game object), never the niyyah */}
+            <Text style={styles.paywallTitle}>Help it flourish.</Text>
             <Text style={styles.paywallSubtitle}>
-              You've made your pledge. Give it the best chance to flourish.
+              Premium removes the ceilings - and keeps Grow Pray ad-free, built by one Muslim developer.
             </Text>
 
-            {/* Benefits - pill-style with glow */}
+            {/* Benefits - conveniences and the personal layer only */}
             <View style={styles.benefitsGrid}>
               {[
                 { icon: 'grid' as const, text: 'Unlimited garden' },
                 { icon: 'circle-multiple' as const, text: '2x coins and XP' },
-                { icon: 'tree' as const, text: 'Premium trees' },
+                { icon: 'tree' as const, text: 'Golden Tree & Ancient Cedar' },
+                { icon: 'snowflake' as const, text: '3 streak freezes monthly' },
                 { icon: 'chart-line' as const, text: 'Advanced insights' },
-                { icon: 'shield-check' as const, text: 'Free streak freezes' },
-                { icon: 'book-open-page-variant' as const, text: "Full Qur'an & Hadith" },
+                { icon: 'pencil-plus-outline' as const, text: 'Margin notes on any verse' },
               ].map((b, i) => (
                 <View key={i} style={styles.benefitPill}>
                   <MaterialCommunityIcons name={b.icon} size={15} color="#d9a75f" />
@@ -1373,19 +1387,20 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             >
               <MaterialCommunityIcons name="lock-open-outline" size={18} color="#1a0f00" style={{ marginRight: 6 }} />
               <Text style={styles.premiumButtonText}>
-                {purchasing ? 'Processing…' : 'Start 7-Day Free Trial'}
+                {purchasing ? 'Processing…' : `Start ${trialDays} days free`}
               </Text>
             </TouchableOpacity>
             <Text style={styles.trialNote}>
-              7 days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · Cancel anytime
+              {trialDays} days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · Cancel anytime in two taps
             </Text>
             <Text style={styles.trustNote}>
-              No ads, ever · Private by design · Cancel in two taps
+              No ads, ever · Private by design
             </Text>
 
-            {/* Subtle skip */}
-            <TouchableOpacity onPress={goNext} style={styles.freeLink}>
-              <Text style={styles.freeLinkText}>Continue with free version</Text>
+            {/* Decline - a visible ghost button, not a buried link. In this
+                category a findable exit IS the brand. */}
+            <TouchableOpacity onPress={goNext} style={nstyles.ghostButton}>
+              <Text style={nstyles.ghostButtonText}>Continue with the free garden</Text>
             </TouchableOpacity>
           </View>
         </>
@@ -1393,140 +1408,66 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     }
 
     if (currentStep.kind === 'freeWarning') {
-      if (REDESIGN_FREE_WARNING) {
-        // ── Redesigned free-version warning (card 21) ───────────────────────────
-        // An animated free→premium transformation: one garden plot blooms from a
-        // barren free state into a flourishing premium one on a loop. The loss is
-        // then named in plain language. Same CTAs / pricing as before.
-        const losses = [
-          { icon: 'grid-off' as const, text: 'Your garden stays capped at 7×7' },
-          { icon: 'snowflake-off' as const, text: 'No streak freezes when life gets hard' },
-          { icon: 'tree-outline' as const, text: 'Premium trees stay locked away' },
-          { icon: 'speedometer-slow' as const, text: 'Coins and XP grow at half speed' },
-          { icon: 'book-lock-outline' as const, text: "The full Qur'an & Hadith library stays locked" },
-        ];
-        return (
-          <View style={styles.freeWarnNew}>
-            {/* Animated transformation hero */}
-            <View style={styles.freeWarnHero}>
-              <StarRow />
-              <FreePremiumTransform size={170} />
-            </View>
-
-            <View style={styles.freeWarnBody}>
-              <Text style={styles.insightTitle}>Your garden could flourish.</Text>
-              <Text style={styles.insightBodyText}>
-                Continuing free is completely okay - but here's what stays out of reach:
-              </Text>
-
-              <View style={styles.insightChecklist}>
-                {losses.map((l, i) => (
-                  <View key={l.text} style={[styles.freeWarnLossRow, i > 0 && styles.insightCheckDivider]}>
-                    <MaterialCommunityIcons name={l.icon} size={18} color="rgba(239,68,68,0.85)" />
-                    <Text style={styles.freeWarnLossText}>{l.text}</Text>
-                  </View>
-                ))}
-              </View>
-
-              <TouchableOpacity
-                onPress={handlePremiumPurchase}
-                disabled={purchasing}
-                style={styles.premiumButton}
-                activeOpacity={0.8}
-              >
-                <MaterialCommunityIcons name="star-four-points" size={18} color="#1a0f00" style={{ marginRight: 6 }} />
-                <Text style={styles.premiumButtonText}>
-                  {purchasing ? 'Processing…' : 'Unlock Premium'}
-                </Text>
-              </TouchableOpacity>
-              <Text style={styles.trialNote}>
-                7 days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · Cancel anytime
-              </Text>
-
-              <TouchableOpacity onPress={finishOnboarding} style={styles.freeLink}>
-                <Text style={styles.freeLinkText}>No thanks, continue for free</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        );
-      }
-      // ── Legacy free-warning comparison table (flip REDESIGN_FREE_WARNING off) ──
-      const rows = [
-        { label: 'Garden size',    free: '7×7 max',       premium: 'Unlimited',      freeOk: false },
-        { label: 'Coin earning',   free: '1×',            premium: '2×',             freeOk: true },
-        { label: 'Streak freezes', free: 'None',          premium: '2 / month',      freeOk: false },
-        { label: 'Premium trees',  free: 'Locked',        premium: 'All unlocked',   freeOk: false },
+      // ── The honest second look ────────────────────────────────────────────────
+      // Leads with what free INCLUDES (confidence, not desperation), lists only
+      // convenience ceilings in neutral styling, and offers an equal-weight exit.
+      // HARD RULE: no religious content ever appears on this screen - the Qur'an
+      // is never something you "lose".
+      const trialDays = PREMIUM_PLANS.yearly.trialDays;
+      const ceilings = [
+        { icon: 'grid-off' as const, text: 'Garden capped at 7×7' },
+        { icon: 'speedometer-slow' as const, text: 'Coins & XP at standard pace' },
+        { icon: 'snowflake-off' as const, text: 'No streak freezes when life gets hard' },
+        { icon: 'tree-outline' as const, text: 'Golden Tree & Ancient Cedar stay in the shop window' },
+        { icon: 'chart-line' as const, text: 'Insights stay basic' },
       ];
       return (
-        <View style={[styles.freeWarningPanel, { overflow: 'hidden' }]}>
-          {/* Hero zone */}
-          <View style={styles.pillarHero}>
-            <View style={styles.pillarGlow} />
-            <MaterialCommunityIcons name="lock-outline" size={60} color="#d9a75f" />
+        <View style={styles.freeWarnNew}>
+          {/* Animated transformation hero - the visual argument is aspiration
+              (what it becomes), not fear (what you lose). */}
+          <View style={styles.freeWarnHero}>
+            <StarRow />
+            <FreePremiumTransform size={170} />
           </View>
 
-          {/* Title */}
-          <View style={{ paddingHorizontal: 22, paddingTop: 20, paddingBottom: 4 }}>
-            <Text style={styles.pillarTitle}>Are you sure?</Text>
-            <Text style={styles.pillarBody}>Here's what you'll miss with the free version</Text>
-          </View>
+          <View style={styles.freeWarnBody}>
+            <Text style={styles.insightTitle}>The free garden is complete.</Text>
+            <Text style={styles.insightBodyText}>
+              Every prayer, every surah, every dua - free, always. Premium only removes the ceilings:
+            </Text>
 
-          {/* Comparison table */}
-          <View style={styles.comparisonTable}>
-            {/* Header row */}
-            <View style={styles.compHeaderRow}>
-              <View style={{ flex: 2.2 }} />
-              <View style={styles.compHeaderFree}>
-                <Text style={styles.compHeaderFreeText}>Free</Text>
-              </View>
-              <View style={styles.compHeaderPremium}>
-                <Image source={ICON_SPARKLE} style={{ width: 12, height: 12, marginRight: 3 }} resizeMode="contain" />
-                <Text style={styles.compHeaderPremiumText}>Pro</Text>
-              </View>
+            <View style={styles.insightChecklist}>
+              {ceilings.map((l, i) => (
+                <View key={l.text} style={[styles.freeWarnLossRow, i > 0 && styles.insightCheckDivider]}>
+                  <MaterialCommunityIcons name={l.icon} size={18} color="#d9a75f" />
+                  <Text style={styles.freeWarnLossText}>{l.text}</Text>
+                </View>
+              ))}
             </View>
 
-            {/* Data rows */}
-            {rows.map((row, i) => (
-              <View key={i} style={[styles.compRow, i % 2 === 0 && styles.compRowAlt]}>
-                <Text style={styles.compLabel}>{row.label}</Text>
-                <View style={styles.compFreeCell}>
-                  <MaterialCommunityIcons
-                    name={row.freeOk ? 'check' : 'close'}
-                    size={12}
-                    color={row.freeOk ? 'rgba(247,241,232,0.35)' : '#ef4444'}
-                  />
-                  <Text style={[styles.compFreeVal, !row.freeOk && { color: 'rgba(247,241,232,0.28)' }]}>
-                    {row.free}
-                  </Text>
-                </View>
-                <View style={styles.compPremiumCell}>
-                  <MaterialCommunityIcons name="check" size={12} color="#10b981" />
-                  <Text style={styles.compPremiumVal}>{row.premium}</Text>
-                </View>
-              </View>
-            ))}
-          </View>
-
-          {/* Upgrade CTA */}
-          <TouchableOpacity
-            onPress={handlePremiumPurchase}
-            disabled={purchasing}
-            style={styles.premiumButton}
-            activeOpacity={0.8}
-          >
-            <MaterialCommunityIcons name="star-four-points" size={18} color="#1a0f00" style={{ marginRight: 6 }} />
-            <Text style={styles.premiumButtonText}>
-              {purchasing ? 'Processing…' : 'Unlock Premium'}
+            <Text style={nstyles.supportLine}>
+              Premium is also what keeps Grow Pray ad-free - one developer, no investors, no data sold.
             </Text>
-          </TouchableOpacity>
-          <Text style={styles.trialNote}>
-            7 days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · Cancel anytime
-          </Text>
 
-          {/* Final skip */}
-          <TouchableOpacity onPress={finishOnboarding} style={styles.freeLink}>
-            <Text style={styles.freeLinkText}>No thanks, continue for free</Text>
-          </TouchableOpacity>
+            <TouchableOpacity
+              onPress={handlePremiumPurchase}
+              disabled={purchasing}
+              style={styles.premiumButton}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="star-four-points" size={18} color="#1a0f00" style={{ marginRight: 6 }} />
+              <Text style={styles.premiumButtonText}>
+                {purchasing ? 'Processing…' : `Try ${trialDays} days free`}
+              </Text>
+            </TouchableOpacity>
+            <Text style={styles.trialNote}>
+              {trialDays} days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · Cancel anytime in two taps
+            </Text>
+
+            <TouchableOpacity onPress={finishOnboarding} style={nstyles.ghostButton}>
+              <Text style={nstyles.ghostButtonText}>Keep the free garden</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       );
     }
@@ -1554,25 +1495,6 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     // ── Empathy select ────────────────────────────────────────────────────────
     if (currentStep.kind === 'empathySelect') {
       return renderSelectCard('empathySelect');
-    }
-
-    // ── Garden growth pillar ──────────────────────────────────────────────────
-    if (currentStep.kind === 'growthPillar') {
-      return (
-        <View style={styles.pillarCard}>
-          <View style={styles.pillarHero}>
-            <View style={styles.pillarGlow} />
-            <GardenGrowthPreview size={200} />
-          </View>
-          <View style={styles.pillarContent}>
-            <Text style={styles.pillarTitle}>{currentStep.title}</Text>
-            <Text style={styles.pillarBody}>{currentStep.body}</Text>
-            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      );
     }
 
     // ── Summary card ──────────────────────────────────────────────────────────
@@ -1614,6 +1536,12 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             <Text style={styles.pillarBody}>
               {`You ${routineLabel[routine ?? 'starting'] ?? 'are on a journey'} and want to ${goalLabel[goal ?? 'consistency'] ?? 'build better habits'}. Here is what Grow Pray will focus on for you:`}
             </Text>
+            {/* Pinned first, gold: the anti-lock message. The Qur'an is an
+                acquisition asset here, never a padlock. */}
+            <View style={nstyles.freeRow}>
+              <MaterialCommunityIcons name="book-open-page-variant" size={15} color="#f0c27a" />
+              <Text style={nstyles.freeRowText}>The full Qur'an & Nawawi's 40 Hadith - free, for everyone, forever.</Text>
+            </View>
             <View style={styles.pillarHighlights}>
               {features.slice(0, 4).map((f) => (
                 <View key={f} style={styles.pillarChip}>
@@ -1622,104 +1550,12 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
                 </View>
               ))}
             </View>
+            <Text style={nstyles.summaryClosing}>Everything's ready. Two minutes of setup - then you plant that intention.</Text>
             <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
               <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
             </TouchableOpacity>
           </View>
         </View>
-      );
-    }
-
-    // ── Premium showcase ──────────────────────────────────────────────────────
-    if (currentStep.kind === 'premiumIntro') {
-      const goal = singleSelections[GOAL_KEY];
-      const goalLine: Record<string, string> = {
-        '5_on_time': 'praying all five on time',
-        fajr: 'never missing Fajr again',
-        consistency: 'a routine that finally sticks',
-        focus: 'deeper focus in every salah',
-        character: 'becoming the Muslim you want to be',
-      };
-      return (
-        <>
-          <View style={[styles.paywallHero, styles.premiumHero]}>
-            <Image source={OB_PREMIUM} style={styles.paywallHeroImg} resizeMode="contain" />
-            <LinearGradient
-              colors={['rgba(9,14,22,0)', 'rgba(9,14,22,0)', 'rgba(9,14,22,0.85)']}
-              locations={[0, 0.7, 1]}
-              style={styles.paywallHeroFade}
-            />
-            <View style={styles.paywallHeroBadge}>
-              <Image source={ICON_SPARKLE} style={{ width: 14, height: 14 }} resizeMode="contain" />
-              <Text style={styles.paywallHeroBadgeText}>PREMIUM</Text>
-            </View>
-          </View>
-          <View style={styles.pillarContent}>
-            <Text style={styles.pillarTitle}>Give your journey its best chance</Text>
-            <Text style={styles.pillarBody}>
-              {`You're working toward ${goalLine[goal ?? 'consistency'] ?? 'consistency'}. Premium removes every limit, grows your garden twice as fast, and shows you exactly how your salah is improving.`}
-            </Text>
-            <View style={styles.premiumBenefits}>
-              {[
-                { icon: 'grid' as const, title: 'Unlimited garden', sub: 'Grow without a ceiling' },
-                { icon: 'circle-multiple' as const, title: '2x coins & XP', sub: 'Progress twice as fast' },
-                { icon: 'tree' as const, title: 'Exclusive premium trees', sub: 'Golden Tree & Ancient Cedar' },
-                { icon: 'book-open-page-variant' as const, title: "Qur'an & Hadith library", sub: "Full Qur'an, Nawawi's 40 - read, save & annotate" },
-                { icon: 'chart-line' as const, title: 'Advanced insights', sub: 'See your prayer habits & trends' },
-                { icon: 'snowflake' as const, title: 'Free streak freezes', sub: 'Every month, life-proof your streak' },
-              ].map((b) => (
-                <View key={b.title} style={styles.premiumBenefitRow}>
-                  <View style={styles.premiumBenefitIcon}>
-                    <MaterialCommunityIcons name={b.icon} size={20} color="#d9a75f" />
-                  </View>
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    <Text style={styles.premiumBenefitTitle}>{b.title}</Text>
-                    <Text style={styles.premiumBenefitSub}>{b.sub}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
-            <TouchableOpacity onPress={goNext} style={styles.primaryButton}>
-              <Text style={styles.primaryButtonText}>Continue</Text>
-            </TouchableOpacity>
-          </View>
-        </>
-      );
-    }
-
-    // ── Pledge / niyyah card ──────────────────────────────────────────────────
-    if (currentStep.kind === 'pledge') {
-      const displayName = name.trim() || 'I';
-      return (
-        <ImageBackground source={OB_PLEDGE} style={styles.pledgeWrap} imageStyle={styles.pledgeBgImage} resizeMode="cover">
-          <View style={styles.pledgeOverlay} />
-          {/* Hadith Qudsi */}
-          <Text style={styles.pledgeHadithLabel}>Allah ﷻ says:</Text>
-          <Text style={styles.pledgeHadith}>
-            "I am as My servant thinks of Me, and I am with him when he <Text style={styles.pledgeAccent}>remembers Me</Text>."
-          </Text>
-          <Text style={styles.pledgeSource}>Sahih al-Bukhari 7405</Text>
-
-          {/* Personal promise */}
-          <Text style={styles.pledgePromise}>
-            I, <Text style={styles.pledgeAccent}>{displayName}</Text>, intend to try my best to draw closer to <Text style={styles.pledgeAccent}>Allah</Text> and care for my prayers.
-          </Text>
-          <Text style={styles.pledgePromiseSub}>
-            May <Text style={styles.pledgeAccent}>Allah</Text> guide me, and all of us, on this journey.
-          </Text>
-
-          {/* Signature */}
-          <View style={styles.pledgeSignWrap}>
-            <SignaturePad height={150} onSignedChange={(s) => setPledgeSigned(s)} />
-          </View>
-
-          {/* Hold to confirm */}
-          <HoldToConfirmButton
-            disabled={!pledgeSigned}
-            onConfirm={goNext}
-            label={pledgeSigned ? 'Hold to seal your intention' : 'Sign above first'}
-          />
-        </ImageBackground>
       );
     }
 
@@ -2720,6 +2556,180 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: 'center',
     marginTop: 6,
+  },
+});
+
+// ── Styles for the redesigned flow (welcome hero, live times, planting,
+//    free-forever strip, ghost decline buttons) ────────────────────────────────
+const nstyles = StyleSheet.create({
+  // S1 welcome hero - the growth loop, live, under a starfield
+  welcomeHero: {
+    height: SCREEN_HEIGHT * 0.32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
+
+  // Live prayer times payoff (location card, state 2)
+  timesList: {
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: 'rgba(247,241,232,0.10)',
+    backgroundColor: 'rgba(7,13,22,0.55)',
+    overflow: 'hidden',
+    marginBottom: 18,
+  },
+  timesRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(247,241,232,0.08)',
+  },
+  timesRowNext: {
+    backgroundColor: 'rgba(217,167,95,0.12)',
+  },
+  timesName: { color: 'rgba(247,241,232,0.85)', fontSize: 15, fontWeight: '700' },
+  timesNameNext: { color: '#f0c27a' },
+  timesValue: { color: 'rgba(247,241,232,0.7)', fontSize: 15, fontWeight: '600' },
+  timesNextTag: {
+    color: '#f0c27a',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    marginRight: 10,
+  },
+
+  // Plant-your-niyyah screen
+  plantWrap: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 20,
+  },
+  plantHadithLabel: {
+    color: 'rgba(240,194,122,0.75)',
+    fontSize: 11,
+    fontWeight: '800',
+    letterSpacing: 1.6,
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  plantHadith: {
+    color: '#f7f1e8',
+    fontSize: 26,
+    lineHeight: 34,
+    fontWeight: '800',
+    fontFamily: FONTS.display,
+    textAlign: 'center',
+    paddingHorizontal: 12,
+  },
+  plantHadithSource: {
+    color: 'rgba(247,241,232,0.5)',
+    fontSize: 12,
+    marginTop: 8,
+    marginBottom: 22,
+    textAlign: 'center',
+  },
+  intentionTag: {
+    backgroundColor: 'rgba(217,167,95,0.12)',
+    borderColor: 'rgba(217,167,95,0.45)',
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  intentionText: { color: '#f4e9d8', fontSize: 16, fontWeight: '700', textAlign: 'center' },
+  intentionMeta: { color: 'rgba(247,241,232,0.5)', fontSize: 12, marginTop: 4 },
+  plantedText: {
+    color: '#e8c97e',
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  plantTileArea: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
+  plantGlow: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: 'rgba(217,167,95,0.14)',
+  },
+  plantTile: { width: 140, height: 70 },
+  plantSparkle: { position: 'absolute', width: 34, height: 34, top: 44 },
+  sproutImg: { position: 'absolute', width: 92, height: 92, top: 24 },
+  plantHint: {
+    color: 'rgba(247,241,232,0.55)',
+    fontSize: 14,
+    textAlign: 'center',
+    marginTop: 10,
+  },
+
+  // Paywall free-forever strip - what's free comes before what's for sale
+  freeStrip: {
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(240,194,122,0.35)',
+    backgroundColor: 'rgba(240,194,122,0.08)',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginBottom: 16,
+  },
+  freeStripLabel: {
+    color: '#f0c27a',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.4,
+    marginBottom: 3,
+  },
+  freeStripText: { color: 'rgba(247,241,232,0.8)', fontSize: 12.5, lineHeight: 18 },
+
+  // Summary additions
+  freeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(240,194,122,0.10)',
+    borderColor: 'rgba(240,194,122,0.35)',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 9,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+  },
+  freeRowText: { flex: 1, color: '#f4e9d8', fontSize: 13, fontWeight: '600', lineHeight: 18 },
+  summaryClosing: {
+    color: 'rgba(247,241,232,0.6)',
+    fontSize: 13,
+    marginBottom: 14,
+    lineHeight: 19,
+  },
+
+  // Decline path - a visible ghost button, not a buried link
+  ghostButton: {
+    marginTop: 14,
+    height: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(247,241,232,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  ghostButtonText: { color: 'rgba(247,241,232,0.6)', fontSize: 14, fontWeight: '700' },
+
+  // Second-ask support line
+  supportLine: {
+    color: 'rgba(247,241,232,0.5)',
+    fontSize: 12.5,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 14,
+    marginBottom: 4,
   },
 });
 
