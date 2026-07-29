@@ -5,7 +5,6 @@ import {
   Image,
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -21,16 +20,15 @@ import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import Svg, { Circle } from 'react-native-svg';
 import { PREMIUM_PLANS } from '../hooks/usePremium';
 import { usePrayerTimes, Timings } from '../hooks/usePrayerTimes';
 import { FONTS } from '../theme/typography';
 import { GardenGrowthPreview } from './GardenGrowthPreview';
 import { GardenScaleShowcase } from './GardenScaleShowcase';
+import { NiyyahPlanting } from './NiyyahPlanting';
 
 const ICON_LOCATION = require('../assets/Garden Assets/Icons/Icon_Location.png');
 const ICON_BELL = require('../assets/Garden Assets/Icons/Icon_Bell.png');
-const ICON_SPARKLE = require('../assets/Garden Assets/Icons/Icon_Sparkle.png');
 // Onboarding hero images
 const OB_AYAH     = require('../assets/Garden Assets/Icons/Onboarding_Ayah.png');
 const OB_PLAN     = require('../assets/Garden Assets/Icons/Onboarding_Plan.png');
@@ -456,81 +454,9 @@ const transformStyles = StyleSheet.create({
   },
 });
 
-// ── Hold-to-plant ───────────────────────────────────────────────────────────────
-// The commitment gesture, rebuilt inside the garden metaphor: press and hold the
-// earth for ~1.2s and a gold ring draws around the tile as the seed goes in.
-// Haptics ramp mid-hold; releasing early rewinds. The tile itself is the button.
-const AnimatedRingCircle = Animated.createAnimatedComponent(Circle);
-const PLANT_HOLD_MS = 1200;
-const PLANT_RING_SIZE = 220;
-const PLANT_RING_R = 102;
-const PLANT_RING_C = 2 * Math.PI * PLANT_RING_R;
-
-function PlantingHold({ planted, onPlanted, children }: {
-  planted: boolean;
-  onPlanted: () => void;
-  children: React.ReactNode;
-}) {
-  const fill = useRef(new Animated.Value(0)).current;
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const midHaptic = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const anim = useRef<Animated.CompositeAnimation | null>(null);
-
-  const start = () => {
-    if (planted) return;
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    anim.current = Animated.timing(fill, { toValue: 1, duration: PLANT_HOLD_MS, useNativeDriver: false });
-    anim.current.start();
-    midHaptic.current = setTimeout(() => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }, PLANT_HOLD_MS / 2);
-    timer.current = setTimeout(() => {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      onPlanted();
-    }, PLANT_HOLD_MS);
-  };
-
-  const cancel = () => {
-    if (planted) return;
-    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
-    if (midHaptic.current) { clearTimeout(midHaptic.current); midHaptic.current = null; }
-    anim.current?.stop();
-    Animated.timing(fill, { toValue: 0, duration: 220, useNativeDriver: false }).start();
-  };
-
-  // Reset the ring whenever the planted state flips back to false (e.g. the
-  // user navigated back and is re-planting), and clear any in-flight timers on
-  // unmount so a pending hold can't fire after the screen is gone.
-  useEffect(() => {
-    if (!planted) fill.setValue(0);
-  }, [planted]);
-  useEffect(() => () => {
-    if (timer.current) clearTimeout(timer.current);
-    if (midHaptic.current) clearTimeout(midHaptic.current);
-    anim.current?.stop();
-  }, []);
-
-  return (
-    <Pressable onPressIn={start} onPressOut={cancel} disabled={planted}>
-      <View style={{ width: PLANT_RING_SIZE, height: PLANT_RING_SIZE, alignItems: 'center', justifyContent: 'center' }}>
-        <Svg width={PLANT_RING_SIZE} height={PLANT_RING_SIZE} style={StyleSheet.absoluteFill}>
-          <Circle
-            cx={PLANT_RING_SIZE / 2} cy={PLANT_RING_SIZE / 2} r={PLANT_RING_R}
-            stroke="rgba(217,167,95,0.18)" strokeWidth={3} fill="none"
-          />
-          <AnimatedRingCircle
-            cx={PLANT_RING_SIZE / 2} cy={PLANT_RING_SIZE / 2} r={PLANT_RING_R}
-            stroke="#d9a75f" strokeWidth={3} fill="none" strokeLinecap="round"
-            strokeDasharray={`${PLANT_RING_C} ${PLANT_RING_C}`}
-            strokeDashoffset={fill.interpolate({ inputRange: [0, 1], outputRange: [PLANT_RING_C, 0] })}
-            transform={`rotate(-90 ${PLANT_RING_SIZE / 2} ${PLANT_RING_SIZE / 2})`}
-          />
-        </Svg>
-        {children}
-      </View>
-    </Pressable>
-  );
-}
+// Canvas size shared by the planting ceremony and the first-prayer sprout beat,
+// so the tile sits in exactly the same place across both screens.
+const PLANT_STAGE_SIZE = 230;
 
 // ── Prayer-time helpers for the payoff screens ─────────────────────────────────
 const PRAYER_SEQ = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
@@ -1210,13 +1136,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           )}
 
           <View style={nstyles.plantTileArea}>
-            <PlantingHold planted={planted} onPlanted={onPlanted}>
-              <View style={nstyles.plantGlow} />
-              <Image source={TILE_RECOVERED} style={nstyles.plantTile} resizeMode="contain" />
-              {planted && (
-                <Image source={ICON_SPARKLE} style={nstyles.plantSparkle} resizeMode="contain" />
-              )}
-            </PlantingHold>
+            <NiyyahPlanting planted={planted} onPlanted={onPlanted} />
           </View>
 
           {!planted ? (
@@ -1253,7 +1173,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <View style={nstyles.plantWrap}>
             <StarRow />
             <View style={nstyles.plantTileArea}>
-              <View style={{ width: PLANT_RING_SIZE, height: PLANT_RING_SIZE, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: PLANT_STAGE_SIZE, height: PLANT_STAGE_SIZE, alignItems: 'center', justifyContent: 'center' }}>
                 <View style={nstyles.plantGlow} />
                 <Image source={TILE_RECOVERED} style={nstyles.plantTile} resizeMode="contain" />
                 <Image source={SAPLING_BASIC} style={nstyles.sproutImg} resizeMode="contain" />
@@ -1415,60 +1335,58 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       // on this list. That's the line Pillars never crosses either.
       const trialDays = PREMIUM_PLANS.yearly.trialDays;
       const ceilings = [
-        { icon: 'grid-off' as const, text: 'Your garden stops at 7×7 - permanently' },
+        { icon: 'grid-off' as const, text: 'Garden stops at 7×7, permanently' },
         { icon: 'speedometer-slow' as const, text: 'Coins & XP earn at half the rate' },
         { icon: 'snowflake-off' as const, text: 'No streak freezes - one bad week resets you' },
         { icon: 'tree-outline' as const, text: 'Golden Tree & Ancient Cedar stay locked' },
-        { icon: 'chart-line' as const, text: 'No insights into your prayer patterns' },
+        { icon: 'chart-line' as const, text: 'No insight into your prayer patterns' },
       ];
       return (
-        <View style={styles.freeWarnNew}>
-          {/* Animated transformation hero - what the garden becomes */}
-          <View style={styles.freeWarnHero}>
+        <View style={nstyles.declineCompact}>
+          {/* Animated transformation - what the garden becomes with Premium */}
+          <View style={nstyles.declineHero}>
             <StarRow />
-            <FreePremiumTransform size={150} />
+            <FreePremiumTransform size={118} />
           </View>
 
-          <View style={styles.freeWarnBody}>
-            <Text style={styles.insightTitle}>This is where the free garden stops.</Text>
-            <Text style={styles.insightBodyText}>
-              Prayer times, the full Qur'an, hadith and duas stay free forever. But the garden itself hits a ceiling:
-            </Text>
+          <Text style={nstyles.declineTitle}>Are you sure?</Text>
+          <Text style={nstyles.declineBody}>
+            You're about to skip {trialDays} days of Premium, free. Here's what stays out of reach:
+          </Text>
 
-            <View style={styles.insightChecklist}>
-              {ceilings.map((l, i) => (
-                <View key={l.text} style={[styles.freeWarnLossRow, i > 0 && styles.insightCheckDivider]}>
-                  <MaterialCommunityIcons name={l.icon} size={17} color="rgba(232,168,124,0.9)" />
-                  <Text style={styles.freeWarnLossText}>{l.text}</Text>
-                </View>
-              ))}
-            </View>
-
-            <View style={nstyles.askBox}>
-              <Text style={nstyles.askText}>
-                Try Premium free for {trialDays} days. Nothing is charged until day {trialDays + 1}, and cancelling takes two taps.
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              onPress={handlePremiumPurchase}
-              disabled={purchasing}
-              style={styles.premiumButton}
-              activeOpacity={0.8}
-            >
-              <MaterialCommunityIcons name="star-four-points" size={18} color="#1a0f00" style={{ marginRight: 6 }} />
-              <Text style={styles.premiumButtonText}>
-                {purchasing ? 'Processing…' : `Start my ${trialDays} free days`}
-              </Text>
-            </TouchableOpacity>
-            <Text style={styles.trialNote}>
-              {trialDays} days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · cancel anytime
-            </Text>
-
-            <TouchableOpacity onPress={finishOnboarding} style={nstyles.ghostButton}>
-              <Text style={nstyles.ghostButtonText}>Keep the free garden</Text>
-            </TouchableOpacity>
+          <View style={nstyles.declineList}>
+            {ceilings.map((l, i) => (
+              <View key={l.text} style={[nstyles.declineRow, i > 0 && nstyles.declineDivider]}>
+                <MaterialCommunityIcons name={l.icon} size={16} color="rgba(232,168,124,0.9)" />
+                <Text style={nstyles.declineRowText}>{l.text}</Text>
+              </View>
+            ))}
           </View>
+
+          <View style={nstyles.askBoxTight}>
+            <Text style={nstyles.askTextTight}>
+              Nothing is charged until day {trialDays + 1}. Cancelling takes two taps.
+            </Text>
+          </View>
+
+          <TouchableOpacity
+            onPress={handlePremiumPurchase}
+            disabled={purchasing}
+            style={nstyles.premiumButtonTight}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="star-four-points" size={17} color="#1a0f00" style={{ marginRight: 6 }} />
+            <Text style={styles.premiumButtonText}>
+              {purchasing ? 'Processing…' : `Try Premium free for ${trialDays} days`}
+            </Text>
+          </TouchableOpacity>
+          <Text style={nstyles.trialNoteTight}>
+            then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · cancel anytime
+          </Text>
+
+          <TouchableOpacity onPress={finishOnboarding} style={nstyles.ghostButtonTight}>
+            <Text style={nstyles.ghostButtonText}>No thanks, keep the free garden</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -2662,7 +2580,6 @@ const nstyles = StyleSheet.create({
     backgroundColor: 'rgba(217,167,95,0.14)',
   },
   plantTile: { width: 140, height: 70 },
-  plantSparkle: { position: 'absolute', width: 34, height: 34, top: 44 },
   sproutImg: { position: 'absolute', width: 92, height: 92, top: 24 },
   plantHint: {
     color: 'rgba(247,241,232,0.55)',
@@ -2848,21 +2765,76 @@ const nstyles = StyleSheet.create({
     justifyContent: 'center',
   },
 
-  // Second-ask direct request box
-  askBox: {
-    marginTop: 14,
+  // ── Compact decline screen - "Are you sure?", one screen, no scroll ───────
+  declineCompact: {
+    backgroundColor: 'rgba(7,13,22,0.92)',
+    borderRadius: 28,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+    paddingBottom: 14,
+  },
+  declineHero: {
+    height: 132,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  declineTitle: {
+    color: '#ffffff',
+    fontSize: 26,
+    lineHeight: 31,
+    fontWeight: '800',
+    fontFamily: FONTS.display,
+    textAlign: 'center',
+  },
+  declineBody: {
+    color: 'rgba(247,241,232,0.66)',
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: 'center',
+    marginTop: 6,
     marginBottom: 12,
-    borderRadius: 14,
+    paddingHorizontal: 6,
+  },
+  declineList: {
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingHorizontal: 12,
+  },
+  declineRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 9,
+  },
+  declineDivider: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: 'rgba(255,255,255,0.07)',
+  },
+  declineRowText: {
+    flex: 1,
+    color: 'rgba(247,241,232,0.82)',
+    fontSize: 12.5,
+    lineHeight: 17,
+  },
+  askBoxTight: {
+    marginTop: 11,
+    marginBottom: 11,
+    borderRadius: 12,
     backgroundColor: 'rgba(217,167,95,0.10)',
     borderWidth: 1,
     borderColor: 'rgba(217,167,95,0.30)',
-    paddingVertical: 11,
-    paddingHorizontal: 14,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
-  askText: {
+  askTextTight: {
     color: '#f4e9d8',
-    fontSize: 13.5,
-    lineHeight: 19,
+    fontSize: 12.5,
+    lineHeight: 17,
     textAlign: 'center',
     fontWeight: '600',
   },

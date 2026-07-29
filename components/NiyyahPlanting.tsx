@@ -1,0 +1,291 @@
+import React, { useCallback, useEffect, useRef } from 'react';
+import { View, Image, Animated, StyleSheet, Pressable, Easing } from 'react-native';
+import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
+import * as Haptics from 'expo-haptics';
+
+const TILE_RECOVERED = require('../assets/Garden Assets/Ground Tiles/Recovered_Tile.png');
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+// ─── Tuning ──────────────────────────────────────────────────────────────────
+const HOLD_MS = 1400;        // how long the user must hold to plant
+const STAGE = 230;           // overall square canvas
+const RING_R = 104;
+const RING_C = 2 * Math.PI * RING_R;
+const TILE_W = 148;
+const TILE_H = 74;
+const SEED_SIZE = 26;
+// How far the seed travels from its floating rest position into the soil.
+const SEED_TRAVEL = 74;
+
+// ─── The seed ────────────────────────────────────────────────────────────────
+// Drawn procedurally so it costs no art asset. To swap in a real sprite later,
+// replace the body of this component with an <Image source={require(...)} />
+// at the same size - nothing else needs to change.
+function Seed({ size = SEED_SIZE }: { size?: number }) {
+  return (
+    <Svg width={size} height={size} viewBox="0 0 24 24">
+      {/* Body */}
+      <Ellipse cx="12" cy="13" rx="7" ry="9" fill="#6b4423" />
+      {/* Lit edge */}
+      <Ellipse cx="10" cy="11" rx="4.2" ry="6" fill="#8a5a2f" />
+      {/* Highlight */}
+      <Ellipse cx="9.2" cy="9.6" rx="1.6" ry="2.4" fill="#a97544" opacity={0.9} />
+      {/* Shoot scar at the tip */}
+      <Path d="M12 4.2 Q13.2 2.4 14.6 2.2" stroke="#4e3018" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+// Dirt specks that burst outward as the seed lands.
+const PARTICLES = [
+  { dx: -34, dy: -16, size: 4.5, delay: 0 },
+  { dx: -18, dy: -26, size: 3.5, delay: 30 },
+  { dx: 4,   dy: -30, size: 5,   delay: 10 },
+  { dx: 24,  dy: -24, size: 3.5, delay: 45 },
+  { dx: 38,  dy: -12, size: 4,   delay: 20 },
+  { dx: -28, dy: -4,  size: 3,   delay: 60 },
+  { dx: 30,  dy: -2,  size: 3,   delay: 55 },
+];
+
+interface NiyyahPlantingProps {
+  planted: boolean;
+  onPlanted: () => void;
+}
+
+/**
+ * The niyyah planting ceremony: a seed floats above a garden tile, and the user
+ * presses and holds the earth to plant it. During the hold a gold ring draws
+ * around the tile while the seed descends; on completion the seed sinks in,
+ * dirt bursts outward, the soil settles, and a sparkle blooms.
+ *
+ * Deliberately plants a SEED, not a sapling - the sapling is the payoff for the
+ * user's first real prayer on the next screen.
+ */
+export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
+  // Hold progress 0..1 - drives the ring and the seed's descent.
+  const hold = useRef(new Animated.Value(0)).current;
+  // Idle float, runs until the seed is planted.
+  const bob = useRef(new Animated.Value(0)).current;
+  // Post-plant beats.
+  const burst = useRef(new Animated.Value(0)).current;
+  const settle = useRef(new Animated.Value(0)).current;
+  const sparkle = useRef(new Animated.Value(0)).current;
+  const seedGone = useRef(new Animated.Value(0)).current; // 1 = fully buried
+
+  const holdAnim = useRef<Animated.CompositeAnimation | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const midHaptic = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const bobLoop = useRef<Animated.CompositeAnimation | null>(null);
+
+  // Idle bobbing while the seed is still in the air.
+  useEffect(() => {
+    if (planted) { bobLoop.current?.stop(); return; }
+    bobLoop.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(bob, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(bob, { toValue: 0, duration: 1500, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    bobLoop.current.start();
+    return () => bobLoop.current?.stop();
+  }, [planted]);
+
+  // Reset everything if the user navigates back and re-plants.
+  useEffect(() => {
+    if (planted) return;
+    hold.setValue(0);
+    burst.setValue(0);
+    settle.setValue(0);
+    sparkle.setValue(0);
+    seedGone.setValue(0);
+  }, [planted]);
+
+  const clearTimers = useCallback(() => {
+    if (timer.current) { clearTimeout(timer.current); timer.current = null; }
+    if (midHaptic.current) { clearTimeout(midHaptic.current); midHaptic.current = null; }
+  }, []);
+
+  useEffect(() => () => { clearTimers(); holdAnim.current?.stop(); bobLoop.current?.stop(); }, []);
+
+  const finish = useCallback(() => {
+    bobLoop.current?.stop();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Seed sinks the last of the way and vanishes into the soil, dirt bursts,
+    // the ground settles, then the sparkle blooms.
+    Animated.sequence([
+      Animated.timing(seedGone, { toValue: 1, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      Animated.parallel([
+        Animated.timing(burst, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.sequence([
+          Animated.timing(settle, { toValue: 1, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.spring(settle, { toValue: 0, friction: 4, tension: 90, useNativeDriver: true }),
+        ]),
+      ]),
+      Animated.timing(sparkle, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start();
+    onPlanted();
+  }, [onPlanted]);
+
+  const start = () => {
+    if (planted) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    holdAnim.current = Animated.timing(hold, {
+      toValue: 1,
+      duration: HOLD_MS,
+      easing: Easing.linear,
+      useNativeDriver: false, // drives an SVG prop
+    });
+    holdAnim.current.start();
+    midHaptic.current = setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), HOLD_MS * 0.55);
+    timer.current = setTimeout(finish, HOLD_MS);
+  };
+
+  const cancel = () => {
+    if (planted) return;
+    clearTimers();
+    holdAnim.current?.stop();
+    Animated.timing(hold, { toValue: 0, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
+  };
+
+  // Seed: floats, then descends as the hold progresses, then buries.
+  const seedTranslate = Animated.add(
+    bob.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }),
+    Animated.add(
+      hold.interpolate({ inputRange: [0, 1], outputRange: [0, SEED_TRAVEL] }),
+      seedGone.interpolate({ inputRange: [0, 1], outputRange: [0, 14] }),
+    ),
+  );
+  const seedScale = seedGone.interpolate({ inputRange: [0, 1], outputRange: [1, 0.5] });
+  const seedOpacity = seedGone.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.6, 0] });
+  const seedTilt = hold.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '22deg'] });
+
+  return (
+    <Pressable onPressIn={start} onPressOut={cancel} disabled={planted}>
+      <View style={styles.stage}>
+        {/* Glow beneath, brightening as the hold progresses and on success */}
+        <Animated.View
+          style={[
+            styles.glow,
+            {
+              opacity: planted
+                ? sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.6] })
+                : hold.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.45] }),
+              transform: [{
+                scale: planted
+                  ? sparkle.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] })
+                  : hold.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.1] }),
+              }],
+            },
+          ]}
+        />
+
+        {/* Progress ring around the earth */}
+        <Svg width={STAGE} height={STAGE} style={StyleSheet.absoluteFill} pointerEvents="none">
+          <Circle cx={STAGE / 2} cy={STAGE / 2} r={RING_R} stroke="rgba(217,167,95,0.16)" strokeWidth={3} fill="none" />
+          <AnimatedCircle
+            cx={STAGE / 2}
+            cy={STAGE / 2}
+            r={RING_R}
+            stroke="#d9a75f"
+            strokeWidth={3}
+            fill="none"
+            strokeLinecap="round"
+            strokeDasharray={`${RING_C} ${RING_C}`}
+            strokeDashoffset={hold.interpolate({ inputRange: [0, 1], outputRange: [RING_C, 0] })}
+            transform={`rotate(-90 ${STAGE / 2} ${STAGE / 2})`}
+          />
+        </Svg>
+
+        {/* The earth. Squashes briefly as the seed lands. */}
+        <Animated.Image
+          source={TILE_RECOVERED}
+          resizeMode="contain"
+          style={[
+            styles.tile,
+            {
+              transform: [
+                { scaleX: settle.interpolate({ inputRange: [0, 1], outputRange: [1, 1.05] }) },
+                { scaleY: settle.interpolate({ inputRange: [0, 1], outputRange: [1, 0.93] }) },
+              ],
+            },
+          ]}
+        />
+
+        {/* Dirt specks kicked up on landing */}
+        {PARTICLES.map((p, i) => (
+          <Animated.View
+            key={i}
+            pointerEvents="none"
+            style={[
+              styles.particle,
+              {
+                width: p.size,
+                height: p.size,
+                borderRadius: p.size,
+                opacity: burst.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.9, 0] }),
+                transform: [
+                  { translateX: burst.interpolate({ inputRange: [0, 1], outputRange: [0, p.dx] }) },
+                  { translateY: burst.interpolate({ inputRange: [0, 0.45, 1], outputRange: [0, p.dy, p.dy + 22] }) },
+                ],
+              },
+            ]}
+          />
+        ))}
+
+        {/* The seed itself */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.seed,
+            {
+              opacity: seedOpacity,
+              transform: [
+                { translateY: seedTranslate },
+                { scale: seedScale },
+                { rotate: seedTilt },
+              ],
+            },
+          ]}
+        >
+          <Seed />
+        </Animated.View>
+
+        {/* Bloom of light where the seed went in */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.sparkle,
+            {
+              opacity: sparkle.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 0.55] }),
+              transform: [{ scale: sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }],
+            },
+          ]}
+        />
+      </View>
+    </Pressable>
+  );
+}
+
+const styles = StyleSheet.create({
+  stage: { width: STAGE, height: STAGE, alignItems: 'center', justifyContent: 'center' },
+  glow: {
+    position: 'absolute',
+    width: 150,
+    height: 150,
+    borderRadius: 75,
+    backgroundColor: '#d9a75f',
+    top: STAGE / 2 - 60,
+  },
+  tile: { position: 'absolute', width: TILE_W, height: TILE_H, top: STAGE / 2 - 12 },
+  seed: { position: 'absolute', top: STAGE / 2 - 78 },
+  particle: { position: 'absolute', backgroundColor: '#7a5230', top: STAGE / 2 - 4 },
+  sparkle: {
+    position: 'absolute',
+    width: 46,
+    height: 46,
+    borderRadius: 23,
+    backgroundColor: 'rgba(248,222,178,0.55)',
+    top: STAGE / 2 - 16,
+  },
+});
