@@ -25,7 +25,7 @@ import { usePrayerTimes, Timings } from '../hooks/usePrayerTimes';
 import { FONTS } from '../theme/typography';
 import { GardenGrowthPreview } from './GardenGrowthPreview';
 import { GardenScaleShowcase } from './GardenScaleShowcase';
-import { NiyyahPlanting } from './NiyyahPlanting';
+import { NiyyahPlanting, Seed } from './NiyyahPlanting';
 
 const ICON_LOCATION = require('../assets/Garden Assets/Icons/Icon_Location.png');
 const ICON_BELL = require('../assets/Garden Assets/Icons/Icon_Bell.png');
@@ -1123,19 +1123,30 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <Text style={nstyles.plantHadith}>"Actions are but by intentions."</Text>
           <Text style={nstyles.plantHadithSource}>Prophet Muhammad ﷺ · Bukhari 1 & Muslim 1907</Text>
 
-          {/* Explains the mechanic plainly, before the user has to act on it.
-              Deliberately modest - it should be readable at a glance without
-              competing with the hadith or the seed for attention. */}
-          {!planted ? (
-            <Text style={nstyles.plantExplainer}>
-              Your niyyah becomes a seed. Plant it here, and your first prayer is what brings it up.
+          {/* The niyyah block.
+              The text is tied to the seed WITHOUT a physical connector: it is
+              headed by the same seed glyph that's in the scene below (a visual
+              rhyme), labelled as the user's own intention rather than app copy,
+              and the closing line names the seed explicitly. Every line here
+              keeps the same height before and after planting, so the layout
+              never shifts and no gap ever opens. */}
+          <View style={nstyles.niyyahBlock}>
+            <View style={nstyles.niyyahLabelRow}>
+              <Seed size={15} />
+              <Text style={nstyles.niyyahLabel}>
+                {planted ? 'YOUR NIYYAH · PLANTED' : 'YOUR NIYYAH · NEXT 30 DAYS'}
+              </Text>
+            </View>
+            <Text style={nstyles.niyyahQuote}>{intention}</Text>
+            <Text style={nstyles.niyyahExplainer}>
+              {planted
+                ? "It's in the ground now. Your first prayer is what brings it up."
+                : 'This seed carries it into your garden. Your first prayer is what brings it up.'}
             </Text>
-          ) : (
-            <Text style={nstyles.plantedText}>Planted. May Allah let it grow.</Text>
-          )}
+          </View>
 
           <View style={nstyles.plantTileArea}>
-            <NiyyahPlanting planted={planted} onPlanted={onPlanted} intention={intention} />
+            <NiyyahPlanting planted={planted} onPlanted={onPlanted} />
           </View>
 
           {!planted ? (
@@ -2551,22 +2562,44 @@ const nstyles = StyleSheet.create({
     marginBottom: 22,
     textAlign: 'center',
   },
-  // Plain-language explanation of the mechanic. Readable, but a step below the
-  // hadith in weight so it informs without becoming the focus.
-  plantExplainer: {
-    color: 'rgba(247,241,232,0.72)',
-    fontSize: 14,
-    lineHeight: 20,
-    textAlign: 'center',
-    paddingHorizontal: 18,
+  // ── The niyyah block ──
+  // Headed by the same seed glyph used in the scene below, so the text reads as
+  // belonging to that seed without needing a line drawn between them.
+  niyyahBlock: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    marginTop: 14,
     marginBottom: 2,
   },
-  plantedText: {
-    color: '#e8c97e',
-    fontSize: 17,
+  niyyahLabelRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    marginBottom: 8,
+  },
+  niyyahLabel: {
+    color: 'rgba(240,194,122,0.85)',
+    fontSize: 11,
     fontWeight: '800',
-    marginBottom: 6,
+    letterSpacing: 1.4,
+  },
+  // The user's own words - the hero of the block, set as a quote so it reads as
+  // theirs rather than as app copy.
+  niyyahQuote: {
+    color: '#f7f1e8',
+    fontSize: 19,
+    lineHeight: 26,
+    fontWeight: '700',
     textAlign: 'center',
+    fontFamily: FONTS.display,
+  },
+  niyyahExplainer: {
+    color: 'rgba(247,241,232,0.62)',
+    fontSize: 13.5,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 9,
+    paddingHorizontal: 6,
   },
   plantTileArea: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
   plantGlow: {

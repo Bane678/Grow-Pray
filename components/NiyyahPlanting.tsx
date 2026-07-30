@@ -9,10 +9,12 @@ const TILE_RECOVERED = require('../assets/Garden Assets/Ground Tiles/Recovered_T
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 // ─── Layout ──────────────────────────────────────────────────────────────────
-// Laid out top-to-bottom: the intention tag, a thread down to the seed, and the
-// earth below. Everything above the earth descends into it together.
+// The ring frames the whole ceremony: the seed floats inside it, above the
+// earth at its centre. Keeping everything within the ring means that once the
+// seed is buried the remaining space reads as a framed scene rather than an
+// empty gap - so nothing has to collapse afterwards.
 const STAGE_W = 264;
-const TILE_CY = 222;          // centre of the tile (and of the ring) within the stage
+const TILE_CY = 112;          // centre of the tile (and of the ring) within the stage
 const RING_R = 92;
 const RING_STROKE = 3;
 const RING_C = 2 * Math.PI * RING_R;
@@ -21,10 +23,9 @@ const RING_C = 2 * Math.PI * RING_R;
 const STAGE_H = TILE_CY + RING_R + RING_STROKE + 8;
 const TILE_W = 148;
 const TILE_H = 74;
-const SEED_SIZE = 26;
-const SEED_REST_CY = 128;     // seed centre at rest
-const SEED_TRAVEL = TILE_CY - SEED_REST_CY - 6;
-const THREAD_TOP = 74;        // where the thread leaves the tag
+export const SEED_SIZE = 26;
+const SEED_REST_CY = 44;      // seed centre at rest - inside the ring, above the earth
+const SEED_TRAVEL = TILE_CY - SEED_REST_CY - 8;
 const GLOW_SIZE = 208;
 const BLOOM_SIZE = 108;
 
@@ -34,7 +35,7 @@ const HOLD_MS = 1400;
 // Drawn procedurally so it costs no art asset. To swap in a real sprite later,
 // replace this component's body with an <Image source={require(...)} /> at the
 // same size - nothing else needs to change.
-function Seed({ size = SEED_SIZE }: { size?: number }) {
+export function Seed({ size = SEED_SIZE }: { size?: number }) {
   return (
     <Svg width={size} height={size} viewBox="0 0 24 24">
       <Ellipse cx="12" cy="13" rx="7" ry="9" fill="#6b4423" />
@@ -79,23 +80,23 @@ const PARTICLES = [
 interface NiyyahPlantingProps {
   planted: boolean;
   onPlanted: () => void;
-  /** The user's chosen intention - carried by the seed and buried with it. */
-  intention: string;
 }
 
 /**
  * The niyyah planting ceremony.
  *
- * The user's intention hangs on a tag, threaded down to a seed above the earth.
- * Holding the earth draws a gold ring while the tag, thread and seed descend
- * together - so the intention is visibly what goes into the ground, not a
- * caption sitting nearby. On completion the seed sinks, dirt bursts, the soil
- * settles, and light blooms where it went in.
+ * A seed floats inside a gold ring, above the earth. Holding the earth draws
+ * the ring closed while the seed descends; on completion it sinks, dirt bursts,
+ * the soil settles and light blooms where it went in.
+ *
+ * The intention itself is stated in the text above this component, marked with
+ * the same seed glyph - the connection is made by that visual rhyme and by the
+ * copy, rather than by physically tethering the words to the seed.
  *
  * Plants a SEED, never a sapling: the sapling is the payoff for the user's
  * first real prayer on the next screen.
  */
-export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlantingProps) {
+export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
   // Hold progress is split across two values animated in parallel: the ring is
   // an SVG prop (JS driver only), while the transforms run natively. Composing
   // one value across both drivers moves the node graph to native and throws.
@@ -180,20 +181,14 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
     ]).start();
   };
 
-  // Everything above the earth shares one descent, so the tag, the thread and
-  // the seed read as a single object going into the ground.
-  const descend = Animated.add(
-    bob.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }),
-    holdSeed.interpolate({ inputRange: [0, 1], outputRange: [0, SEED_TRAVEL] }),
-  );
+  // The seed idles with a gentle bob, descends as the hold progresses, then
+  // sinks the last of the way as it's buried.
   const seedTranslate = Animated.add(
-    descend,
+    Animated.add(
+      bob.interpolate({ inputRange: [0, 1], outputRange: [0, -5] }),
+      holdSeed.interpolate({ inputRange: [0, 1], outputRange: [0, SEED_TRAVEL] }),
+    ),
     seedGone.interpolate({ inputRange: [0, 1], outputRange: [0, 14] }),
-  );
-  // The tag fades out as it nears the soil - the words go in with the seed.
-  const carrierFade = Animated.multiply(
-    holdSeed.interpolate({ inputRange: [0, 0.55, 1], outputRange: [1, 0.85, 0] }),
-    seedGone.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
   );
 
   return (
@@ -272,29 +267,6 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
           />
         ))}
 
-        {/* The intention, hanging on a tag and threaded down to the seed.
-            This is the whole point: the words ARE the seed. */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.tagWrap,
-            { opacity: carrierFade, transform: [{ translateY: descend }] },
-          ]}
-        >
-          <View style={styles.tag}>
-            <Text style={styles.tagText}>{intention}</Text>
-          </View>
-        </Animated.View>
-
-        {/* Thread from the tag down to the seed */}
-        <Animated.View
-          pointerEvents="none"
-          style={[
-            styles.thread,
-            { opacity: carrierFade, transform: [{ translateY: descend }] },
-          ]}
-        />
-
         {/* The seed */}
         <Animated.View
           pointerEvents="none"
@@ -342,32 +314,6 @@ const styles = StyleSheet.create({
   },
   tile: { position: 'absolute', width: TILE_W, height: TILE_H, top: TILE_CY - TILE_H / 2 },
   particle: { position: 'absolute', backgroundColor: '#7a5230', top: TILE_CY - 8 },
-
-  tagWrap: { position: 'absolute', top: 8, alignItems: 'center', paddingHorizontal: 6 },
-  tag: {
-    maxWidth: STAGE_W - 24,
-    backgroundColor: 'rgba(217,167,95,0.13)',
-    borderColor: 'rgba(217,167,95,0.5)',
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-  },
-  tagText: {
-    color: '#f4e9d8',
-    fontSize: 14.5,
-    lineHeight: 20,
-    fontWeight: '700',
-    textAlign: 'center',
-    fontFamily: FONTS.displayMedium,
-  },
-  thread: {
-    position: 'absolute',
-    top: THREAD_TOP,
-    width: 1,
-    height: SEED_REST_CY - THREAD_TOP - SEED_SIZE / 2 - 2,
-    backgroundColor: 'rgba(217,167,95,0.45)',
-  },
 
   seed: { position: 'absolute', top: SEED_REST_CY - SEED_SIZE / 2 },
 
