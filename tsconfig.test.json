@@ -1,0 +1,15 @@
+{
+  // Typechecks the Node-side test suite, which Metro never sees. Kept separate
+  // from tsconfig.json because Node's type stripping needs explicit .ts import
+  // specifiers while the Expo bundler config forbids them.
+  "extends": "expo/tsconfig.base",
+  "compilerOptions": {
+    "strict": true,
+    "noEmit": true,
+    "types": ["node"],
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true
+  },
+  "include": ["lib/**/*.ts"]
+}

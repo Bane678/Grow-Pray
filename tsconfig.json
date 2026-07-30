@@ -2,5 +2,9 @@
   "extends": "expo/tsconfig.base",
   "compilerOptions": {
     "strict": true
-  }
+  },
+  // *.test.ts files run under plain Node (`npm test`), not Metro. Node's built-in
+  // type stripping requires explicit .ts import specifiers, which Expo's bundler
+  // config disallows, so they are typechecked by tsconfig.test.json instead.
+  "exclude": ["node_modules", "**/*.test.ts"]
 }
