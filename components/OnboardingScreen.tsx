@@ -1124,13 +1124,15 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <Text style={nstyles.plantHadithSource}>Prophet Muhammad ﷺ · Bukhari 1 & Muslim 1907</Text>
 
           {/* Explains the mechanic plainly, before the user has to act on it.
-              Deliberately modest - readable at a glance without competing with
-              the hadith or the seed. Worded to hold true both before and after
-              planting, so this line never swaps and never shifts the layout;
-              the "Planted." confirmation appears inside the stage instead. */}
-          <Text style={nstyles.plantExplainer}>
-            Your niyyah becomes a seed. Your first prayer is what brings it up.
-          </Text>
+              Deliberately modest - it should be readable at a glance without
+              competing with the hadith or the seed for attention. */}
+          {!planted ? (
+            <Text style={nstyles.plantExplainer}>
+              Your niyyah becomes a seed. Plant it here, and your first prayer is what brings it up.
+            </Text>
+          ) : (
+            <Text style={nstyles.plantedText}>Planted. May Allah let it grow.</Text>
+          )}
 
           <View style={nstyles.plantTileArea}>
             <NiyyahPlanting planted={planted} onPlanted={onPlanted} intention={intention} />
@@ -2558,6 +2560,13 @@ const nstyles = StyleSheet.create({
     textAlign: 'center',
     paddingHorizontal: 18,
     marginBottom: 2,
+  },
+  plantedText: {
+    color: '#e8c97e',
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 6,
+    textAlign: 'center',
   },
   plantTileArea: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
   plantGlow: {

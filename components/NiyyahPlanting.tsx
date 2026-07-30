@@ -106,9 +106,6 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
   const settle = useRef(new Animated.Value(0)).current;
   const sparkle = useRef(new Animated.Value(0)).current;
   const seedGone = useRef(new Animated.Value(0)).current;
-  // The confirmation fades in exactly where the intention tag was, so the top
-  // of the stage is never empty and nothing has to move.
-  const msgFade = useRef(new Animated.Value(0)).current;
 
   const holdAnim = useRef<Animated.CompositeAnimation | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -135,7 +132,6 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
     settle.setValue(0);
     sparkle.setValue(0);
     seedGone.setValue(0);
-    msgFade.setValue(0);
   }, [planted]);
 
   const clearTimers = useCallback(() => {
@@ -148,25 +144,16 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
   const finish = useCallback(() => {
     bobLoop.current?.stop();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Animated.parallel([
-      // The confirmation takes the tag's place as the seed goes in, so the eye
-      // stays where it already was and the layout never moves.
-      Animated.timing(msgFade, {
-        toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true,
-      }),
-      // Burial beats: seed sinks, dirt bursts and the soil settles, then light
-      // blooms where it went in.
-      Animated.sequence([
-        Animated.timing(seedGone, { toValue: 1, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-        Animated.parallel([
-          Animated.timing(burst, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.sequence([
-            Animated.timing(settle, { toValue: 1, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-            Animated.spring(settle, { toValue: 0, friction: 4, tension: 90, useNativeDriver: true }),
-          ]),
+    Animated.sequence([
+      Animated.timing(seedGone, { toValue: 1, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      Animated.parallel([
+        Animated.timing(burst, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.sequence([
+          Animated.timing(settle, { toValue: 1, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.spring(settle, { toValue: 0, friction: 4, tension: 90, useNativeDriver: true }),
         ]),
-        Animated.timing(sparkle, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
       ]),
+      Animated.timing(sparkle, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
     ]).start();
     onPlanted();
   }, [onPlanted]);
@@ -299,14 +286,6 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
           </View>
         </Animated.View>
 
-        {/* The confirmation, occupying the tag's exact slot. Because it fades
-            in where the tag faded out, the top of the stage is never empty -
-            so there's no gap to collapse and nothing shifts. */}
-        <Animated.View pointerEvents="none" style={[styles.plantedWrap, { opacity: msgFade }]}>
-          <Text style={styles.plantedText}>Planted.</Text>
-          <Text style={styles.plantedSub}>May Allah let it grow.</Text>
-        </Animated.View>
-
         {/* Thread from the tag down to the seed */}
         <Animated.View
           pointerEvents="none"
@@ -379,29 +358,6 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     lineHeight: 20,
     fontWeight: '700',
-    textAlign: 'center',
-    fontFamily: FONTS.displayMedium,
-  },
-  // Sits lower than the tag's slot: the tag is a bordered box with its own
-  // padding, so plain text at the same offset reads noticeably higher. This
-  // also leaves a more even gap down to the ring.
-  plantedWrap: {
-    position: 'absolute',
-    top: 34,
-    alignItems: 'center',
-    paddingHorizontal: 6,
-  },
-  plantedText: {
-    color: '#e8c97e',
-    fontSize: 21,
-    fontWeight: '800',
-    textAlign: 'center',
-    fontFamily: FONTS.display,
-  },
-  plantedSub: {
-    color: 'rgba(247,241,232,0.7)',
-    fontSize: 14.5,
-    marginTop: 3,
     textAlign: 'center',
     fontFamily: FONTS.displayMedium,
   },
