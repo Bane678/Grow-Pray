@@ -1100,7 +1100,6 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
         character:     'I intend to come back to my prayers.',
       };
       const intention = intentionText[goal ?? 'consistency'] ?? 'I intend to care for my prayers.';
-      const displayName = name.trim() || 'My';
       const onPlanted = async () => {
         setPlanted(true);
         try {
@@ -1124,23 +1123,23 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <Text style={nstyles.plantHadith}>"Actions are but by intentions."</Text>
           <Text style={nstyles.plantHadithSource}>Prophet Muhammad ﷺ · Bukhari 1 & Muslim 1907</Text>
 
-          {/* The intention, carried on a small tag above the earth */}
-          {!planted && (
-            <View style={nstyles.intentionTag}>
-              <Text style={nstyles.intentionText}>{intention}</Text>
-              <Text style={nstyles.intentionMeta}>{displayName ? `${name.trim() || 'My'} garden · Day 0` : 'Day 0'}</Text>
-            </View>
-          )}
-          {planted && (
+          {/* Explains the mechanic plainly, before the user has to act on it.
+              Deliberately modest - it should be readable at a glance without
+              competing with the hadith or the seed for attention. */}
+          {!planted ? (
+            <Text style={nstyles.plantExplainer}>
+              Your niyyah becomes a seed. Plant it here, and your first prayer is what brings it up.
+            </Text>
+          ) : (
             <Text style={nstyles.plantedText}>Planted. May Allah let it grow.</Text>
           )}
 
           <View style={nstyles.plantTileArea}>
-            <NiyyahPlanting planted={planted} onPlanted={onPlanted} />
+            <NiyyahPlanting planted={planted} onPlanted={onPlanted} intention={intention} />
           </View>
 
           {!planted ? (
-            <Text style={nstyles.plantHint}>Press and hold the earth to plant your niyyah</Text>
+            <Text style={nstyles.plantHint}>Press and hold the earth to plant it</Text>
           ) : (
             <TouchableOpacity onPress={goNext} style={[styles.primaryButton, { alignSelf: 'stretch' }]}>
               <Text style={styles.primaryButtonText}>Continue</Text>
@@ -2552,18 +2551,16 @@ const nstyles = StyleSheet.create({
     marginBottom: 22,
     textAlign: 'center',
   },
-  intentionTag: {
-    backgroundColor: 'rgba(217,167,95,0.12)',
-    borderColor: 'rgba(217,167,95,0.45)',
-    borderWidth: 1,
-    borderRadius: 16,
+  // Plain-language explanation of the mechanic. Readable, but a step below the
+  // hadith in weight so it informs without becoming the focus.
+  plantExplainer: {
+    color: 'rgba(247,241,232,0.72)',
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: 'center',
     paddingHorizontal: 18,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: 2,
   },
-  intentionText: { color: '#f4e9d8', fontSize: 16, fontWeight: '700', textAlign: 'center' },
-  intentionMeta: { color: 'rgba(247,241,232,0.5)', fontSize: 12, marginTop: 4 },
   plantedText: {
     color: '#e8c97e',
     fontSize: 17,
