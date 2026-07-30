@@ -29,11 +29,6 @@ const GLOW_SIZE = 208;
 const BLOOM_SIZE = 108;
 
 const HOLD_MS = 1400;
-// Once planted, the tag, thread and seed are all gone, leaving the top of the
-// stage empty. The remaining content settles up by this much (and the stage
-// shrinks to match) so the tile sits close under "Planted." instead of
-// stranded below a block of dead space.
-const PLANTED_LIFT = 118;
 
 // ─── The seed ────────────────────────────────────────────────────────────────
 // Drawn procedurally so it costs no art asset. To swap in a real sprite later,
@@ -111,11 +106,9 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
   const settle = useRef(new Animated.Value(0)).current;
   const sparkle = useRef(new Animated.Value(0)).current;
   const seedGone = useRef(new Animated.Value(0)).current;
-  // Collapsing the empty top half after planting. Two values again, for the
-  // same reason as the hold: height is a layout prop (JS driver only) while the
-  // lift is a transform (native).
-  const lift = useRef(new Animated.Value(0)).current;              // native
-  const stageH = useRef(new Animated.Value(STAGE_H)).current;      // JS
+  // The confirmation fades in exactly where the intention tag was, so the top
+  // of the stage is never empty and nothing has to move.
+  const msgFade = useRef(new Animated.Value(0)).current;
 
   const holdAnim = useRef<Animated.CompositeAnimation | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -142,8 +135,7 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
     settle.setValue(0);
     sparkle.setValue(0);
     seedGone.setValue(0);
-    lift.setValue(0);
-    stageH.setValue(STAGE_H);
+    msgFade.setValue(0);
   }, [planted]);
 
   const clearTimers = useCallback(() => {
@@ -157,14 +149,10 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
     bobLoop.current?.stop();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     Animated.parallel([
-      // The collapse runs from the very first frame, alongside the burial - not
-      // after it. Sequencing it last meant ~700ms of visible dead space above
-      // the tile before anything moved.
-      Animated.timing(lift, {
-        toValue: -PLANTED_LIFT, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-      }),
-      Animated.timing(stageH, {
-        toValue: STAGE_H - PLANTED_LIFT, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+      // The confirmation takes the tag's place as the seed goes in, so the eye
+      // stays where it already was and the layout never moves.
+      Animated.timing(msgFade, {
+        toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true,
       }),
       // Burial beats: seed sinks, dirt bursts and the soil settles, then light
       // blooms where it went in.
@@ -223,11 +211,7 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
 
   return (
     <Pressable onPressIn={start} onPressOut={cancel} disabled={planted}>
-      {/* Outer shrinks after planting; inner keeps its full height so the
-          absolutely-positioned children stay put relative to each other, and
-          simply rides upward. */}
-      <Animated.View style={[styles.stageOuter, { height: stageH }]}>
-      <Animated.View style={[styles.stage, { transform: [{ translateY: lift }] }]}>
+      <View style={styles.stage}>
         {/* Warm light pooling on the earth */}
         <Animated.View
           pointerEvents="none"
@@ -315,6 +299,14 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
           </View>
         </Animated.View>
 
+        {/* The confirmation, occupying the tag's exact slot. Because it fades
+            in where the tag faded out, the top of the stage is never empty -
+            so there's no gap to collapse and nothing shifts. */}
+        <Animated.View pointerEvents="none" style={[styles.tagWrap, { opacity: msgFade }]}>
+          <Text style={styles.plantedText}>Planted.</Text>
+          <Text style={styles.plantedSub}>May Allah let it grow.</Text>
+        </Animated.View>
+
         {/* Thread from the tag down to the seed */}
         <Animated.View
           pointerEvents="none"
@@ -355,14 +347,12 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
         >
           <RadialGlow size={BLOOM_SIZE} color="#f8deb2" intensity={0.62} id="niyyahBloom" />
         </Animated.View>
-      </Animated.View>
-      </Animated.View>
+      </View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
-  stageOuter: { width: STAGE_W, alignItems: 'center' },
   stage: { width: STAGE_W, height: STAGE_H, alignItems: 'center' },
 
   glowWrap: {
@@ -389,6 +379,20 @@ const styles = StyleSheet.create({
     fontSize: 14.5,
     lineHeight: 20,
     fontWeight: '700',
+    textAlign: 'center',
+    fontFamily: FONTS.displayMedium,
+  },
+  plantedText: {
+    color: '#e8c97e',
+    fontSize: 21,
+    fontWeight: '800',
+    textAlign: 'center',
+    fontFamily: FONTS.display,
+  },
+  plantedSub: {
+    color: 'rgba(247,241,232,0.7)',
+    fontSize: 14.5,
+    marginTop: 3,
     textAlign: 'center',
     fontFamily: FONTS.displayMedium,
   },
