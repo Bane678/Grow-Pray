@@ -156,25 +156,28 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
   const finish = useCallback(() => {
     bobLoop.current?.stop();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    Animated.sequence([
-      Animated.timing(seedGone, { toValue: 1, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-      Animated.parallel([
-        Animated.timing(burst, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.sequence([
-          Animated.timing(settle, { toValue: 1, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-          Animated.spring(settle, { toValue: 0, friction: 4, tension: 90, useNativeDriver: true }),
+    Animated.parallel([
+      // The collapse runs from the very first frame, alongside the burial - not
+      // after it. Sequencing it last meant ~700ms of visible dead space above
+      // the tile before anything moved.
+      Animated.timing(lift, {
+        toValue: -PLANTED_LIFT, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+      }),
+      Animated.timing(stageH, {
+        toValue: STAGE_H - PLANTED_LIFT, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+      }),
+      // Burial beats: seed sinks, dirt bursts and the soil settles, then light
+      // blooms where it went in.
+      Animated.sequence([
+        Animated.timing(seedGone, { toValue: 1, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        Animated.parallel([
+          Animated.timing(burst, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+          Animated.sequence([
+            Animated.timing(settle, { toValue: 1, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+            Animated.spring(settle, { toValue: 0, friction: 4, tension: 90, useNativeDriver: true }),
+          ]),
         ]),
-      ]),
-      // The bloom rises as the scene settles upward into the space the tag,
-      // thread and seed have vacated.
-      Animated.parallel([
         Animated.timing(sparkle, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(lift, {
-          toValue: -PLANTED_LIFT, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: true,
-        }),
-        Animated.timing(stageH, {
-          toValue: STAGE_H - PLANTED_LIFT, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: false,
-        }),
       ]),
     ]).start();
     onPlanted();
