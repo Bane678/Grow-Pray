@@ -1141,7 +1141,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             <Text style={nstyles.niyyahExplainer}>
               {planted
                 ? "It's in the ground now. Your first prayer is what brings it up."
-                : 'This seed carries it into your garden. Your first prayer is what brings it up.'}
+                : 'This seed carries your niyyah into your garden. Your prayers are what helps it grow.'}
             </Text>
           </View>
 
