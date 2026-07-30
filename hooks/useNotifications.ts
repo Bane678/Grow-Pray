@@ -73,7 +73,7 @@ const PRAYER_MESSAGES: Record<string, { title: string; body: string }> = {
   },
   Asr: {
     title: 'Time for Asr',
-    body: 'The Prophet ﷺ warned us not to neglect this prayer. Answer the call.',
+    body: 'The Prophet ﷺ warned you not to neglect this prayer. Answer the call.',
   },
   Maghrib: {
     title: 'Time for Maghrib',
