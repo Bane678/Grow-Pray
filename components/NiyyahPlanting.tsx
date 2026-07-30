@@ -12,10 +12,13 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 // Laid out top-to-bottom: the intention tag, a thread down to the seed, and the
 // earth below. Everything above the earth descends into it together.
 const STAGE_W = 264;
-const STAGE_H = 312;
-const TILE_CY = 224;          // centre of the tile within the stage
-const RING_R = 96;
+const TILE_CY = 222;          // centre of the tile (and of the ring) within the stage
+const RING_R = 92;
+const RING_STROKE = 3;
 const RING_C = 2 * Math.PI * RING_R;
+// Derived, never hand-tuned: the stage must be tall enough to contain the
+// ring's lowest point plus its stroke, or the ring clips at the bottom.
+const STAGE_H = TILE_CY + RING_R + RING_STROKE + 8;
 const TILE_W = 148;
 const TILE_H = 74;
 const SEED_SIZE = 26;
@@ -218,13 +221,13 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
 
         {/* Progress ring around the earth */}
         <Svg width={STAGE_W} height={STAGE_H} style={StyleSheet.absoluteFill} pointerEvents="none">
-          <Circle cx={STAGE_W / 2} cy={TILE_CY} r={RING_R} stroke="rgba(217,167,95,0.16)" strokeWidth={3} fill="none" />
+          <Circle cx={STAGE_W / 2} cy={TILE_CY} r={RING_R} stroke="rgba(217,167,95,0.16)" strokeWidth={RING_STROKE} fill="none" />
           <AnimatedCircle
             cx={STAGE_W / 2}
             cy={TILE_CY}
             r={RING_R}
             stroke="#d9a75f"
-            strokeWidth={3}
+            strokeWidth={RING_STROKE}
             fill="none"
             strokeLinecap="round"
             strokeDasharray={`${RING_C} ${RING_C}`}
