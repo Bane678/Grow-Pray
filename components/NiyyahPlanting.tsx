@@ -63,8 +63,15 @@ interface NiyyahPlantingProps {
  * user's first real prayer on the next screen.
  */
 export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
-  // Hold progress 0..1 - drives the ring and the seed's descent.
-  const hold = useRef(new Animated.Value(0)).current;
+  // Hold progress 0..1, split across TWO values that animate in parallel.
+  //
+  // They can't be one value: the ring is an SVG prop (strokeDashoffset), which
+  // react-native-svg can only animate on the JS driver, while the seed's
+  // transform and the glow run on the native driver alongside bob/seedGone.
+  // Composing a JS-driven node into a native-driven transform moves the whole
+  // graph to native and then throws on the next JS animation.
+  const holdRing = useRef(new Animated.Value(0)).current;  // JS driver - SVG only
+  const holdSeed = useRef(new Animated.Value(0)).current;  // native driver - transforms/opacity
   // Idle float, runs until the seed is planted.
   const bob = useRef(new Animated.Value(0)).current;
   // Post-plant beats.
@@ -94,7 +101,8 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
   // Reset everything if the user navigates back and re-plants.
   useEffect(() => {
     if (planted) return;
-    hold.setValue(0);
+    holdRing.setValue(0);
+    holdSeed.setValue(0);
     burst.setValue(0);
     settle.setValue(0);
     sparkle.setValue(0);
@@ -130,12 +138,14 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
   const start = () => {
     if (planted) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    holdAnim.current = Animated.timing(hold, {
-      toValue: 1,
-      duration: HOLD_MS,
-      easing: Easing.linear,
-      useNativeDriver: false, // drives an SVG prop
-    });
+    holdAnim.current = Animated.parallel([
+      Animated.timing(holdRing, {
+        toValue: 1, duration: HOLD_MS, easing: Easing.linear, useNativeDriver: false,
+      }),
+      Animated.timing(holdSeed, {
+        toValue: 1, duration: HOLD_MS, easing: Easing.linear, useNativeDriver: true,
+      }),
+    ]);
     holdAnim.current.start();
     midHaptic.current = setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium), HOLD_MS * 0.55);
     timer.current = setTimeout(finish, HOLD_MS);
@@ -145,20 +155,24 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
     if (planted) return;
     clearTimers();
     holdAnim.current?.stop();
-    Animated.timing(hold, { toValue: 0, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: false }).start();
+    Animated.parallel([
+      Animated.timing(holdRing, { toValue: 0, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: false }),
+      Animated.timing(holdSeed, { toValue: 0, duration: 260, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+    ]).start();
   };
 
   // Seed: floats, then descends as the hold progresses, then buries.
+  // Every value composed here is native-driven (bob, holdSeed, seedGone).
   const seedTranslate = Animated.add(
     bob.interpolate({ inputRange: [0, 1], outputRange: [0, -6] }),
     Animated.add(
-      hold.interpolate({ inputRange: [0, 1], outputRange: [0, SEED_TRAVEL] }),
+      holdSeed.interpolate({ inputRange: [0, 1], outputRange: [0, SEED_TRAVEL] }),
       seedGone.interpolate({ inputRange: [0, 1], outputRange: [0, 14] }),
     ),
   );
   const seedScale = seedGone.interpolate({ inputRange: [0, 1], outputRange: [1, 0.5] });
   const seedOpacity = seedGone.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 0.6, 0] });
-  const seedTilt = hold.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '22deg'] });
+  const seedTilt = holdSeed.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '22deg'] });
 
   return (
     <Pressable onPressIn={start} onPressOut={cancel} disabled={planted}>
@@ -170,11 +184,11 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
             {
               opacity: planted
                 ? sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.6] })
-                : hold.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.45] }),
+                : holdSeed.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.45] }),
               transform: [{
                 scale: planted
                   ? sparkle.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] })
-                  : hold.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.1] }),
+                  : holdSeed.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.1] }),
               }],
             },
           ]}
@@ -192,7 +206,7 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
             fill="none"
             strokeLinecap="round"
             strokeDasharray={`${RING_C} ${RING_C}`}
-            strokeDashoffset={hold.interpolate({ inputRange: [0, 1], outputRange: [RING_C, 0] })}
+            strokeDashoffset={holdRing.interpolate({ inputRange: [0, 1], outputRange: [RING_C, 0] })}
             transform={`rotate(-90 ${STAGE / 2} ${STAGE / 2})`}
           />
         </Svg>
