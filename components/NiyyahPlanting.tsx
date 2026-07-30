@@ -302,7 +302,7 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
         {/* The confirmation, occupying the tag's exact slot. Because it fades
             in where the tag faded out, the top of the stage is never empty -
             so there's no gap to collapse and nothing shifts. */}
-        <Animated.View pointerEvents="none" style={[styles.tagWrap, { opacity: msgFade }]}>
+        <Animated.View pointerEvents="none" style={[styles.plantedWrap, { opacity: msgFade }]}>
           <Text style={styles.plantedText}>Planted.</Text>
           <Text style={styles.plantedSub}>May Allah let it grow.</Text>
         </Animated.View>
@@ -381,6 +381,15 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     textAlign: 'center',
     fontFamily: FONTS.displayMedium,
+  },
+  // Sits lower than the tag's slot: the tag is a bordered box with its own
+  // padding, so plain text at the same offset reads noticeably higher. This
+  // also leaves a more even gap down to the ring.
+  plantedWrap: {
+    position: 'absolute',
+    top: 34,
+    alignItems: 'center',
+    paddingHorizontal: 6,
   },
   plantedText: {
     color: '#e8c97e',
