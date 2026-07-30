@@ -29,6 +29,11 @@ const GLOW_SIZE = 208;
 const BLOOM_SIZE = 108;
 
 const HOLD_MS = 1400;
+// Once planted, the tag, thread and seed are all gone, leaving the top of the
+// stage empty. The remaining content settles up by this much (and the stage
+// shrinks to match) so the tile sits close under "Planted." instead of
+// stranded below a block of dead space.
+const PLANTED_LIFT = 118;
 
 // ─── The seed ────────────────────────────────────────────────────────────────
 // Drawn procedurally so it costs no art asset. To swap in a real sprite later,
@@ -106,6 +111,11 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
   const settle = useRef(new Animated.Value(0)).current;
   const sparkle = useRef(new Animated.Value(0)).current;
   const seedGone = useRef(new Animated.Value(0)).current;
+  // Collapsing the empty top half after planting. Two values again, for the
+  // same reason as the hold: height is a layout prop (JS driver only) while the
+  // lift is a transform (native).
+  const lift = useRef(new Animated.Value(0)).current;              // native
+  const stageH = useRef(new Animated.Value(STAGE_H)).current;      // JS
 
   const holdAnim = useRef<Animated.CompositeAnimation | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -132,6 +142,8 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
     settle.setValue(0);
     sparkle.setValue(0);
     seedGone.setValue(0);
+    lift.setValue(0);
+    stageH.setValue(STAGE_H);
   }, [planted]);
 
   const clearTimers = useCallback(() => {
@@ -153,7 +165,17 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
           Animated.spring(settle, { toValue: 0, friction: 4, tension: 90, useNativeDriver: true }),
         ]),
       ]),
-      Animated.timing(sparkle, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      // The bloom rises as the scene settles upward into the space the tag,
+      // thread and seed have vacated.
+      Animated.parallel([
+        Animated.timing(sparkle, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(lift, {
+          toValue: -PLANTED_LIFT, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: true,
+        }),
+        Animated.timing(stageH, {
+          toValue: STAGE_H - PLANTED_LIFT, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: false,
+        }),
+      ]),
     ]).start();
     onPlanted();
   }, [onPlanted]);
@@ -198,7 +220,11 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
 
   return (
     <Pressable onPressIn={start} onPressOut={cancel} disabled={planted}>
-      <View style={styles.stage}>
+      {/* Outer shrinks after planting; inner keeps its full height so the
+          absolutely-positioned children stay put relative to each other, and
+          simply rides upward. */}
+      <Animated.View style={[styles.stageOuter, { height: stageH }]}>
+      <Animated.View style={[styles.stage, { transform: [{ translateY: lift }] }]}>
         {/* Warm light pooling on the earth */}
         <Animated.View
           pointerEvents="none"
@@ -326,12 +352,14 @@ export function NiyyahPlanting({ planted, onPlanted, intention }: NiyyahPlanting
         >
           <RadialGlow size={BLOOM_SIZE} color="#f8deb2" intensity={0.62} id="niyyahBloom" />
         </Animated.View>
-      </View>
+      </Animated.View>
+      </Animated.View>
     </Pressable>
   );
 }
 
 const styles = StyleSheet.create({
+  stageOuter: { width: STAGE_W, alignItems: 'center' },
   stage: { width: STAGE_W, height: STAGE_H, alignItems: 'center' },
 
   glowWrap: {
