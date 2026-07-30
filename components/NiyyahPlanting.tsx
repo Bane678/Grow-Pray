@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef } from 'react';
 import { View, Image, Animated, StyleSheet, Pressable, Easing } from 'react-native';
-import Svg, { Circle, Ellipse, Path } from 'react-native-svg';
+import Svg, { Circle, Ellipse, Path, Defs, RadialGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
 const TILE_RECOVERED = require('../assets/Garden Assets/Ground Tiles/Recovered_Tile.png');
@@ -15,6 +15,10 @@ const RING_C = 2 * Math.PI * RING_R;
 const TILE_W = 148;
 const TILE_H = 74;
 const SEED_SIZE = 26;
+// Glows are drawn wider than what they light, so the falloff has room to fade
+// out completely instead of stopping abruptly at the edge.
+const GLOW_SIZE = 208;
+const BLOOM_SIZE = 108;
 // How far the seed travels from its floating rest position into the soil.
 const SEED_TRAVEL = 74;
 
@@ -33,6 +37,37 @@ function Seed({ size = SEED_SIZE }: { size?: number }) {
       <Ellipse cx="9.2" cy="9.6" rx="1.6" ry="2.4" fill="#a97544" opacity={0.9} />
       {/* Shoot scar at the tip */}
       <Path d="M12 4.2 Q13.2 2.4 14.6 2.2" stroke="#4e3018" strokeWidth="1.4" fill="none" strokeLinecap="round" />
+    </Svg>
+  );
+}
+
+// ─── Soft radial glow ────────────────────────────────────────────────────────
+// A plain View with borderRadius + a solid backgroundColor renders as a flat
+// disc with a hard edge, which reads as a coloured circle rather than light.
+// A real radial gradient falling off to fully transparent is what actually
+// looks like a glow.
+function RadialGlow({
+  size,
+  color,
+  intensity,
+  id,
+}: {
+  size: number;
+  color: string;
+  intensity: number;
+  id: string;
+}) {
+  return (
+    <Svg width={size} height={size} pointerEvents="none">
+      <Defs>
+        <RadialGradient id={id} cx="50%" cy="50%" r="50%">
+          <Stop offset="0%" stopColor={color} stopOpacity={intensity} />
+          <Stop offset="40%" stopColor={color} stopOpacity={intensity * 0.5} />
+          <Stop offset="70%" stopColor={color} stopOpacity={intensity * 0.16} />
+          <Stop offset="100%" stopColor={color} stopOpacity={0} />
+        </RadialGradient>
+      </Defs>
+      <Circle cx={size / 2} cy={size / 2} r={size / 2} fill={`url(#${id})`} />
     </Svg>
   );
 }
@@ -177,22 +212,26 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
   return (
     <Pressable onPressIn={start} onPressOut={cancel} disabled={planted}>
       <View style={styles.stage}>
-        {/* Glow beneath, brightening as the hold progresses and on success */}
+        {/* Warm light pooling on the earth, brightening as the hold progresses
+            and blooming once the seed is in. Soft radial falloff, no hard edge. */}
         <Animated.View
+          pointerEvents="none"
           style={[
-            styles.glow,
+            styles.glowWrap,
             {
               opacity: planted
-                ? sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.35, 0.6] })
-                : holdSeed.interpolate({ inputRange: [0, 1], outputRange: [0.18, 0.45] }),
+                ? sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.55, 1] })
+                : holdSeed.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0.85] }),
               transform: [{
                 scale: planted
-                  ? sparkle.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] })
-                  : holdSeed.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1.1] }),
+                  ? sparkle.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] })
+                  : holdSeed.interpolate({ inputRange: [0, 1], outputRange: [0.92, 1.06] }),
               }],
             },
           ]}
-        />
+        >
+          <RadialGlow size={GLOW_SIZE} color="#d9a75f" intensity={0.5} id="niyyahGlow" />
+        </Animated.View>
 
         {/* Progress ring around the earth */}
         <Svg width={STAGE} height={STAGE} style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -265,17 +304,19 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
           <Seed />
         </Animated.View>
 
-        {/* Bloom of light where the seed went in */}
+        {/* Bloom of light rising from where the seed went in */}
         <Animated.View
           pointerEvents="none"
           style={[
-            styles.sparkle,
+            styles.bloomWrap,
             {
-              opacity: sparkle.interpolate({ inputRange: [0, 0.5, 1], outputRange: [0, 0.9, 0.55] }),
-              transform: [{ scale: sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }],
+              opacity: sparkle.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 0.85, 0.45] }),
+              transform: [{ scale: sparkle.interpolate({ inputRange: [0, 1], outputRange: [0.35, 1] }) }],
             },
           ]}
-        />
+        >
+          <RadialGlow size={BLOOM_SIZE} color="#f8deb2" intensity={0.62} id="niyyahBloom" />
+        </Animated.View>
       </View>
     </Pressable>
   );
@@ -283,23 +324,22 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
 
 const styles = StyleSheet.create({
   stage: { width: STAGE, height: STAGE, alignItems: 'center', justifyContent: 'center' },
-  glow: {
+  glowWrap: {
     position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: '#d9a75f',
-    top: STAGE / 2 - 60,
+    width: GLOW_SIZE,
+    height: GLOW_SIZE,
+    // Centred on the tile's surface rather than the canvas, so the light pools
+    // on the earth instead of floating above it.
+    top: STAGE / 2 + 24 - GLOW_SIZE / 2,
   },
   tile: { position: 'absolute', width: TILE_W, height: TILE_H, top: STAGE / 2 - 12 },
   seed: { position: 'absolute', top: STAGE / 2 - 78 },
   particle: { position: 'absolute', backgroundColor: '#7a5230', top: STAGE / 2 - 4 },
-  sparkle: {
+  bloomWrap: {
     position: 'absolute',
-    width: 46,
-    height: 46,
-    borderRadius: 23,
-    backgroundColor: 'rgba(248,222,178,0.55)',
-    top: STAGE / 2 - 16,
+    width: BLOOM_SIZE,
+    height: BLOOM_SIZE,
+    // Sits over the point the seed entered the soil.
+    top: STAGE / 2 + 14 - BLOOM_SIZE / 2,
   },
 });
