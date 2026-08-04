@@ -3,15 +3,18 @@ import { AppState } from 'react-native';
 import * as Location from 'expo-location';
 import {
     computePrayerDay,
+    computeUpcomingDays,
     nextPrayerFrom,
     localDayKey,
     getMethodKeyForCountry,
+    PRAYER_SCHEDULE_DAYS,
     FALLBACK_TIMINGS,
     FALLBACK_DEADLINES,
     type Timings,
     type PrayerDeadlines,
     type PrayerMethodKey,
     type Madhab,
+    type ComputedDay,
 } from '../lib/prayerCalc';
 
 // The calculation core lives in lib/prayerCalc.ts so it can be unit-tested under
@@ -21,6 +24,7 @@ export {
     PRAYER_METHODS,
     DEFAULT_PRAYER_OFFSETS,
     MAX_RELIABLE_LATITUDE,
+    PRAYER_SCHEDULE_DAYS,
     getMethodKeyForCountry,
     localDayKey,
     tzMinutes,
@@ -34,6 +38,7 @@ export type {
     PrayerMethodKey,
     Madhab,
     PrayerOffsets,
+    ComputedDay,
 } from '../lib/prayerCalc';
 
 /**
@@ -72,6 +77,9 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
     const [locationError, setLocationError] = useState<string | null>(null);
     const [detectedMethodKey, setDetectedMethodKey] = useState<PrayerMethodKey>('MWL');
     const [approximatedFromLatitude, setApproximatedFromLatitude] = useState<number | null>(null);
+    // A rolling window of future days, for scheduling notifications far enough
+    // ahead that they stay correct even if the app is never reopened.
+    const [upcoming, setUpcoming] = useState<ComputedDay[] | null>(null);
 
     const { madhab, methodKey, manualCoords, locationReady = true } = config;
 
@@ -88,17 +96,23 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
     // ── Compute from an already-resolved location (cheap, synchronous) ─────────
     const computeFromLocation = useCallback((loc: ResolvedLocation) => {
         try {
-            const result = computePrayerDay({
+            const input = {
                 lat: loc.lat,
                 lng: loc.lng,
                 methodKey: loc.methodKey,
                 madhab,
                 timezone: loc.timezone,
-            });
+            };
+            // The window's first entry IS today, so there is no second computation
+            // of the same day and no chance of the two disagreeing.
+            const window = computeUpcomingDays(input, PRAYER_SCHEDULE_DAYS);
+            const result = window[0];
+
             dayKeyRef.current = result.dayKey;
             setTimings(result.timings);
             setDeadlines(result.deadlines);
             setApproximatedFromLatitude(result.approximatedFromLatitude);
+            setUpcoming(window);
             setNextPrayer(nextPrayerFrom(result.timings, new Date(), loc.timezone));
             setLoading(false);
         } catch (err) {
@@ -107,6 +121,7 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
             setTimings(FALLBACK_TIMINGS);
             setDeadlines(FALLBACK_DEADLINES);
             setApproximatedFromLatitude(null);
+            setUpcoming(null);
             setLoading(false);
         }
     }, [madhab]);
@@ -273,5 +288,11 @@ export function usePrayerTimes(config: PrayerTimesConfig = { madhab: 'standard',
         detectedMethodKey,
         /** Non-null only above 65° latitude - see MAX_RELIABLE_LATITUDE. */
         approximatedFromLatitude,
+        /**
+         * Today plus the next PRAYER_SCHEDULE_DAYS - 1 days. `upcoming[0]` is the
+         * same day as `timings`. Used to schedule notifications ahead so they stay
+         * correct without the app being reopened.
+         */
+        upcoming,
     };
 }

@@ -4,7 +4,7 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Asset } from 'expo-asset';
 
-import { type PrayerDeadlines } from './usePrayerTimes';
+import { localDayKey, type PrayerDeadlines, type ComputedDay } from './usePrayerTimes';
 
 const NOTIFICATIONS_KEY = '@GrowPray:notificationsEnabled';
 const REFLECTION_REMINDER_KEY = '@GrowPray:reflectionReminder';
@@ -92,6 +92,8 @@ export function useNotifications(
   lastXPGainTimestamp?: number,
   hasGarden?: boolean,
   notifReady: boolean = true,
+  /** Rolling window of upcoming days, so alerts stay right without the app being opened. */
+  upcoming: ComputedDay[] | null = null,
 ) {
   const [notificationsEnabled, setNotificationsEnabled] = useState(false);
   const [permissionStatus, setPermissionStatus] = useState<string | null>(null);
@@ -129,9 +131,9 @@ export function useNotifications(
   // Schedule prayer notifications whenever timings change or prayers are completed
   useEffect(() => {
     if (notificationsEnabled && timings) {
-      schedulePrayerNotifications(timings, completedPrayers, deadlines);
+      schedulePrayerNotifications(timings, completedPrayers, deadlines, upcoming);
     }
-  }, [timings, deadlines, completedPrayers, notificationsEnabled]);
+  }, [timings, deadlines, completedPrayers, notificationsEnabled, upcoming]);
 
   // Schedule / reschedule decay notifications whenever last XP timestamp changes
   useEffect(() => {
@@ -307,10 +309,94 @@ export function useNotifications(
     }
   };
 
+  /**
+   * Schedule one-off, individually-dated alerts for every prayer across the
+   * rolling window.
+   *
+   * Each alarm is pinned to an absolute instant taken straight from the
+   * calculation (`ComputedDay.instants`), so there is no wall-clock parsing here
+   * and nothing to get wrong across DST or a timezone change.
+   */
+  const schedulePrayerStarts = async (
+    window: ComputedDay[] | null,
+    timings: PrayerTimings,
+    completed: Set<string>,
+  ) => {
+    const now = Date.now();
+
+    // Icons are resolved once per prayer rather than once per prayer per day -
+    // the window is 50 alarms and getPrayerIconUri touches the filesystem.
+    const iconUris: Record<string, string | null> = {};
+    if (Platform.OS === 'ios') {
+      for (const prayer of PRAYER_ORDER) {
+        iconUris[prayer] = await getPrayerIconUri(prayer);
+      }
+    }
+
+    const buildContent = (prayer: string) => {
+      const message = PRAYER_MESSAGES[prayer];
+      const iconUri = iconUris[prayer];
+      return {
+        title: message.title,
+        body: message.body,
+        sound: 'default' as const,
+        ...(iconUri && { attachments: [{ identifier: prayer, url: iconUri, type: null }] }),
+        ...(Platform.OS === 'android' && { channelId: 'prayer-reminders' }),
+      };
+    };
+
+    if (!window || window.length === 0) {
+      // No window available (calculation failed). Fall back to today only, from
+      // the wall-clock strings, so the user still gets today's alerts.
+      for (const prayer of PRAYER_ORDER) {
+        const timeStr = timings[prayer];
+        if (!timeStr) continue;
+        if (completed.has(prayer)) continue;
+        const [h, m] = timeStr.split(':').map(Number);
+        const date = new Date();
+        date.setHours(h, m, 0, 0);
+        if (date.getTime() <= now) continue;
+        await Notifications.scheduleNotificationAsync({
+          identifier: `prayer-start-${prayer}-today`,
+          content: { ...buildContent(prayer), data: { prayer, type: 'start' } },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date },
+        });
+      }
+      return;
+    }
+
+    let count = 0;
+    for (let d = 0; d < window.length; d++) {
+      const day = window[d];
+      for (const prayer of PRAYER_ORDER) {
+        const at = day.instants[prayer];
+        if (!at || isNaN(at.getTime())) continue;
+        // Already passed - nothing to schedule.
+        if (at.getTime() <= now) continue;
+        // Don't nag about a prayer already marked done today.
+        if (d === 0 && completed.has(prayer)) continue;
+
+        await Notifications.scheduleNotificationAsync({
+          identifier: `prayer-start-${prayer}-${day.dayKey}`,
+          content: {
+            ...buildContent(prayer),
+            // dayKey lets cancelPrayerNotification target just today's alert
+            // instead of wiping the whole future window.
+            data: { prayer, type: 'start', dayKey: day.dayKey },
+          },
+          trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
+        });
+        count++;
+      }
+    }
+    console.log(`Scheduled ${count} prayer alerts across ${window.length} days`);
+  };
+
   const schedulePrayerNotifications = async (
     timings: PrayerTimings,
     completed: Set<string>,
     dl: PrayerDeadlines | null,
+    window: ComputedDay[] | null = null,
   ) => {
     try {
       // Cancel only prayer-type notifications (leave decay notifications intact)
@@ -324,6 +410,19 @@ export function useNotifications(
       const now = new Date();
       const currentMinutes = now.getHours() * 60 + now.getMinutes();
 
+      // ── Prayer start alerts ────────────────────────────────────────────────
+      //
+      // Scheduled as individually-dated one-off alarms across a rolling window,
+      // NOT as a daily repeating trigger. A repeating trigger fires at one fixed
+      // wall-clock time forever, but prayer times move: Maghrib and Isha drift
+      // ~2 min/day, so a repeating alarm set once is ~13 min wrong after a week
+      // and a full hour wrong after a month. It only ever got corrected when the
+      // user happened to open the app, which is exactly what users don't do.
+      //
+      // The window is refreshed on every launch, so in practice it is topped back
+      // up to its full length long before it runs out.
+      await schedulePrayerStarts(window, timings, completed);
+
       for (let i = 0; i < PRAYER_ORDER.length; i++) {
         const prayer = PRAYER_ORDER[i];
 
@@ -332,31 +431,6 @@ export function useNotifications(
 
         const [hours, minutes] = timeStr.split(':').map(Number);
         const prayerStartMinutes = hours * 60 + minutes;
-
-        // Schedule prayer start notification as a DAILY repeating trigger so it
-        // fires every day at this time - even if the user doesn't open the app.
-        // Fixed identifier per prayer lets us cancel & replace when timings shift.
-        const message = PRAYER_MESSAGES[prayer];
-        const iconUri = Platform.OS === 'ios' ? await getPrayerIconUri(prayer) : null;
-        await Notifications.scheduleNotificationAsync({
-          identifier: `prayer-start-${prayer}`,
-          content: {
-            title: message.title,
-            body: message.body,
-            data: { prayer, type: 'start' },
-            sound: 'default',
-            ...(iconUri && { attachments: [{ identifier: prayer, url: iconUri, type: null }] }),
-            ...(Platform.OS === 'android' && { channelId: 'prayer-reminders' }),
-          },
-          trigger: {
-            type: Notifications.SchedulableTriggerInputTypes.CALENDAR,
-            hour: hours,
-            minute: minutes,
-            repeats: true,
-          },
-        });
-
-        console.log(`Scheduled daily start notification for ${prayer} at ${timeStr}`);
 
         // Use explicit deadlines if available, otherwise derive
         let prayerEndMinutes: number;
@@ -440,19 +514,26 @@ export function useNotifications(
       await Notifications.cancelAllScheduledNotificationsAsync();
     } else if (timings) {
       // Re-schedule when enabled
-      await schedulePrayerNotifications(timings, completedPrayers, deadlines);
+      await schedulePrayerNotifications(timings, completedPrayers, deadlines, upcoming);
     }
   };
 
   // Cancel notification for a specific prayer (call when prayer is completed)
   const cancelPrayerNotification = async (prayer: string) => {
     try {
+      // Only today's alert. Prayer alerts are now scheduled across a rolling
+      // window of future days, so matching on the prayer name alone would wipe
+      // the next ten days of that prayer the moment the user ticked it off once.
+      const todayKey = localDayKey(new Date());
       const scheduled = await Notifications.getAllScheduledNotificationsAsync();
       for (const notification of scheduled) {
-        if (notification.content.data?.prayer === prayer) {
-          await Notifications.cancelScheduledNotificationAsync(notification.identifier);
-          console.log(`Cancelled notification for ${prayer}`);
-        }
+        const data = notification.content.data;
+        if (data?.prayer !== prayer) continue;
+        // Deadline warnings and the today-only fallback carry no dayKey; both are
+        // for today by construction, so cancelling them here is correct.
+        if (data?.dayKey && data.dayKey !== todayKey) continue;
+        await Notifications.cancelScheduledNotificationAsync(notification.identifier);
+        console.log(`Cancelled today's notification for ${prayer}`);
       }
     } catch (error) {
       console.error('Error cancelling notification:', error);

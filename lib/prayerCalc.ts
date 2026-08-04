@@ -355,8 +355,26 @@ export interface ComputedDay {
  * the computation), and the polar circles (AqrabYaum).
  */
 export function computePrayerDay(input: ComputeInput): ComputedDay {
+    // Which calendar day is it *where the prayers are*?
+    const here = zonedParts(input.now ?? new Date(), input.timezone);
+    return computeCalendarDay(input, here.year, here.month, here.day);
+}
+
+/**
+ * Compute a specific calendar day at the location, given explicitly.
+ *
+ * Kept separate from computePrayerDay so multi-day scheduling can step the
+ * calendar directly. Deriving each successive day by re-deriving it from an
+ * instant would be wrong: an anchor built in device-local time and then read
+ * back through a distant timezone can land on the neighbouring day.
+ */
+function computeCalendarDay(
+    input: ComputeInput,
+    year: number,
+    month: number,
+    day: number,
+): ComputedDay {
     const { lat, lng, methodKey, madhab, timezone } = input;
-    const now = input.now ?? new Date();
 
     // Aqrab al-Bilad: beyond the reliable band, follow the nearest latitude where
     // the signs of the prayer times are actually discernible, keeping the user's
@@ -371,10 +389,8 @@ export function computePrayerDay(input: ComputeInput): ComputedDay {
     const params = getAdhanParams(methodKey, coordinates);
     params.madhab = madhab === 'hanafi' ? AdhanMadhab.Hanafi : AdhanMadhab.Shafi;
 
-    // Which calendar day is it *where the prayers are*?
-    const here = zonedParts(now, timezone);
-    const today = adhanDateFor(here.year, here.month, here.day);
-    const tomorrow = adhanDateFor(here.year, here.month, here.day + 1);
+    const today = adhanDateFor(year, month, day);
+    const tomorrow = adhanDateFor(year, month, day + 1);
 
     const pt = new PrayerTimes(coordinates, today, params);
     const ptTomorrow = new PrayerTimes(coordinates, tomorrow, params);
@@ -402,13 +418,50 @@ export function computePrayerDay(input: ComputeInput): ComputedDay {
         Asr: pt.asr, Maghrib: pt.maghrib, Isha: pt.isha,
     };
 
+    // Read the day back off the normalised anchor so month/year/leap rollover
+    // (day 32, Feb 30, …) produces the real calendar day, not the raw input.
+    const dayKey = `${today.getFullYear()}-` +
+        `${String(today.getMonth() + 1).padStart(2, '0')}-` +
+        `${String(today.getDate()).padStart(2, '0')}`;
+
     return {
         timings,
         deadlines,
-        dayKey: localDayKey(now, timezone),
+        dayKey,
         instants,
         approximatedFromLatitude,
     };
+}
+
+/**
+ * Compute `days` consecutive days of prayer times, starting with today at the
+ * prayer location.
+ *
+ * Exists for notification scheduling. A repeating daily alarm fixed to one
+ * wall-clock time cannot track prayer times, because they move - Maghrib and Isha
+ * drift by roughly two minutes a day, so an alarm set once is an hour wrong within
+ * a month. Scheduling a rolling window of individually-dated alarms is the only
+ * way to stay accurate for a user who does not open the app.
+ */
+/**
+ * How many days of prayer times to keep scheduled ahead.
+ *
+ * Bounded by iOS, which holds at most 64 pending local notifications and silently
+ * drops the rest. Ten days × 5 prayers = 50, leaving room for the deadline
+ * warnings, the reflection reminder and the two garden-decay alerts (~58 total).
+ * Raising this without re-counting the other schedulers will start losing alarms.
+ */
+export const PRAYER_SCHEDULE_DAYS = 10;
+
+export function computeUpcomingDays(input: ComputeInput, days: number): ComputedDay[] {
+    const here = zonedParts(input.now ?? new Date(), input.timezone);
+    const out: ComputedDay[] = [];
+    for (let i = 0; i < days; i++) {
+        // Stepping the day number and letting Date normalise it handles month
+        // ends, year ends and leap days without any special-casing.
+        out.push(computeCalendarDay(input, here.year, here.month, here.day + i));
+    }
+    return out;
 }
 
 /**

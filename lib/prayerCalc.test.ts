@@ -23,6 +23,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
     computePrayerDay,
+    computeUpcomingDays,
+    PRAYER_SCHEDULE_DAYS,
     MAX_RELIABLE_LATITUDE,
     localDayKey,
     zonedParts,
@@ -414,6 +416,118 @@ test('the day key changes exactly at local midnight, which is what triggers a re
     const justAfter  = new Date('2026-07-29T23:00:30Z'); // 00:00:30 BST next day
     assert.equal(localDayKey(justBefore, tz), '2026-07-29');
     assert.equal(localDayKey(justAfter, tz), '2026-07-30');
+});
+
+// ─── 6b. Multi-day scheduling (notification window) ─────────────────────────────
+//
+// Regression cover for the second stale-time bug: prayer alerts were scheduled as
+// a daily-REPEATING alarm at one fixed wall-clock time, so they never tracked the
+// drifting sunset. A user who did not reopen the app was an hour wrong within a
+// month. Notifications now schedule from a rolling window of individually-dated
+// days, which is what computeUpcomingDays produces.
+
+test('computeUpcomingDays returns consecutive days starting today', () => {
+    const london = CITIES.find(c => c.name === 'London')!;
+    const days = computeUpcomingDays({
+        lat: london.lat, lng: london.lng, methodKey: 'UK', madhab: 'standard',
+        timezone: london.tz, now: new Date(Date.UTC(2026, 7, 4, 12)),
+    }, 10);
+    assert.equal(days.length, 10);
+    const expected = [
+        '2026-08-04', '2026-08-05', '2026-08-06', '2026-08-07', '2026-08-08',
+        '2026-08-09', '2026-08-10', '2026-08-11', '2026-08-12', '2026-08-13',
+    ];
+    assert.deepEqual(days.map(d => d.dayKey), expected);
+});
+
+test('each day in the window matches what computePrayerDay gives for that day', () => {
+    for (const city of CITIES.filter(c => !c.polar)) {
+        const base = {
+            lat: city.lat, lng: city.lng, methodKey: methodFor(city),
+            madhab: 'standard' as Madhab, timezone: city.tz,
+        };
+        const start = new Date(Date.UTC(2026, 7, 4, 12));
+        const window = computeUpcomingDays({ ...base, now: start }, 10);
+        for (let i = 0; i < window.length; i++) {
+            const single = computePrayerDay({
+                ...base,
+                now: new Date(start.getTime() + i * 86400e3),
+            });
+            assert.equal(window[i].dayKey, single.dayKey, `${city.name} day ${i} key`);
+            assert.deepEqual(window[i].timings, single.timings, `${city.name} day ${i} timings`);
+        }
+    }
+});
+
+test('the scheduling window rolls over month ends, year ends and leap days', () => {
+    const london = CITIES.find(c => c.name === 'London')!;
+    const base = {
+        lat: london.lat, lng: london.lng, methodKey: 'UK' as PrayerMethodKey,
+        madhab: 'standard' as Madhab, timezone: london.tz,
+    };
+    const cases: [Date, string[]][] = [
+        [new Date(Date.UTC(2026, 11, 29, 12)), ['2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02']],
+        [new Date(Date.UTC(2024, 1, 27, 12)),  ['2024-02-27', '2024-02-28', '2024-02-29', '2024-03-01', '2024-03-02']],
+        [new Date(Date.UTC(2026, 1, 26, 12)),  ['2026-02-26', '2026-02-27', '2026-02-28', '2026-03-01', '2026-03-02']],
+        [new Date(Date.UTC(2026, 3, 29, 12)),  ['2026-04-29', '2026-04-30', '2026-05-01', '2026-05-02', '2026-05-03']],
+    ];
+    for (const [now, expected] of cases) {
+        const days = computeUpcomingDays({ ...base, now }, 5);
+        assert.deepEqual(days.map(d => d.dayKey), expected, `window from ${now.toISOString()}`);
+    }
+});
+
+test('the window starts on the LOCATION\'s day, even from a distant device timezone', () => {
+    const auckland = CITIES.find(c => c.name === 'Auckland')!;
+    // 22:00 UTC on 30 Jul is still the 30th in London but already the 31st in NZ.
+    const days = computeUpcomingDays({
+        lat: auckland.lat, lng: auckland.lng, methodKey: 'MWL', madhab: 'standard',
+        timezone: auckland.tz, now: new Date('2026-07-30T22:00:00Z'),
+    }, 3);
+    assert.deepEqual(days.map(d => d.dayKey), ['2026-07-31', '2026-08-01', '2026-08-02']);
+});
+
+test('a rolling window stays accurate where a fixed repeating alarm would not', () => {
+    // Quantifies the bug being fixed. Maghrib moves ~2 min/day in August, so a
+    // single alarm set on day 0 is badly wrong by the end of the window, while
+    // every entry in the window is correct for its own day.
+    const london = CITIES.find(c => c.name === 'London')!;
+    const days = computeUpcomingDays({
+        lat: london.lat, lng: london.lng, methodKey: 'UK', madhab: 'standard',
+        timezone: london.tz, now: new Date(Date.UTC(2026, 7, 1, 12)),
+    }, 10);
+
+    const first = timeToMinutes(days[0].timings.Maghrib);
+    const last = timeToMinutes(days[days.length - 1].timings.Maghrib);
+    assert.ok(first - last >= 12,
+        `expected a fixed alarm to be badly wrong after 10 days, drift was only ${first - last} min`);
+
+    // And the window itself is monotonic - each day a little earlier than the last.
+    for (let i = 1; i < days.length; i++) {
+        const prev = timeToMinutes(days[i - 1].timings.Maghrib);
+        const cur = timeToMinutes(days[i].timings.Maghrib);
+        assert.ok(cur < prev, `day ${i} Maghrib ${days[i].timings.Maghrib} not earlier than previous`);
+    }
+});
+
+test('the scheduling window fits inside iOS 64-notification cap', () => {
+    // iOS keeps only the 64 soonest pending local notifications and silently
+    // drops the rest, so raising PRAYER_SCHEDULE_DAYS without re-counting the
+    // other schedulers would quietly lose prayer alerts at the far end.
+    const IOS_PENDING_LIMIT = 64;
+    const prayersPerDay = 5;
+    const deadlineWarningsToday = 5;   // useNotifications, today only
+    const reflectionReminder = 1;      // daily repeating
+    const decayAlerts = 2;             // warn + critical
+
+    const total = PRAYER_SCHEDULE_DAYS * prayersPerDay
+        + deadlineWarningsToday + reflectionReminder + decayAlerts;
+
+    assert.ok(total <= IOS_PENDING_LIMIT,
+        `scheduling ${PRAYER_SCHEDULE_DAYS} days needs ${total} slots, over the ${IOS_PENDING_LIMIT} iOS allows`);
+    // And it should be worth doing at all - a couple of days would defeat the point.
+    assert.ok(PRAYER_SCHEDULE_DAYS >= 7,
+        'the window should cover at least a week for a user who rarely opens the app');
 });
 
 // ─── 7. nextPrayerFrom ──────────────────────────────────────────────────────────

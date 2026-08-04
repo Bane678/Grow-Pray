@@ -29,7 +29,7 @@ import { FONTS } from './theme/typography';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Location from 'expo-location';
 import React, { useEffect, useState, useRef, useCallback, useMemo } from 'react';
-import { usePrayerTimes, type PrayerTimesConfig, type Madhab, type PrayerMethodKey, PRAYER_METHODS } from './hooks/usePrayerTimes';
+import { usePrayerTimes, nextPrayerFrom, type PrayerTimesConfig, type Madhab, type PrayerMethodKey, PRAYER_METHODS } from './hooks/usePrayerTimes';
 import { useNotifications } from './hooks/useNotifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -1645,7 +1645,7 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
 
 // Main Prayer State Management Hook
 function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, boostXpMultiplier: number = 1, boostCoinBonus: number = 0, prayerConfig?: PrayerTimesConfig) {
-  const { timings, deadlines, nextPrayer, loading, detectedMethodKey } = usePrayerTimes(prayerConfig);
+  const { timings, deadlines, nextPrayer, loading, detectedMethodKey, upcoming } = usePrayerTimes(prayerConfig);
   const [completedPrayers, setCompletedPrayers] = useState<Set<string>>(new Set());
   const [streaks, setStreaks] = useState<PrayerStreaks>({ ...DEFAULT_STREAKS });
   const [xp, setXp] = useState(0);
@@ -1686,6 +1686,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     }
 
     const PRAYER_ORDER = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
+    const prayerTimezone = prayerConfig?.manualCoords?.timezone;
 
     // Parse "HH:MM" → Date object for today (or adjusted day)
     const parseTime = (timeStr: string, refDate: Date): Date => {
@@ -1698,17 +1699,27 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     const updateCountdown = () => {
       const now = new Date();
 
+      // Re-derive which prayer is next on every tick rather than trusting the
+      // `nextPrayer` state, which only refreshes on the hook's 30s watcher.
+      // Using the state meant that the instant a prayer's time arrived the
+      // countdown was still targeting the prayer that had just started: it had
+      // already passed, so the branch below pushed it to tomorrow and the display
+      // flashed "23h 59m" until the state caught up seconds later.
+      const activeNext = nextPrayerFrom(timings, now, prayerTimezone) || nextPrayer;
+
       // ── Next prayer time ──
-      const nextTimeStr = timings[nextPrayer];
+      const nextTimeStr = timings[activeNext];
       if (!nextTimeStr) return;
       let nextTime = parseTime(nextTimeStr, now);
-      // If nextPrayer time already passed today, it's tomorrow (Fajr after Isha)
+      // If the next prayer's time reads earlier than now it belongs to tomorrow
+      // (Fajr after Isha). With activeNext derived above this is now only ever
+      // true for a genuine wrap past midnight, not for a stale target.
       if (nextTime <= now) {
         nextTime.setDate(nextTime.getDate() + 1);
       }
 
       // ── Previous prayer time ──
-      const nextIdx = PRAYER_ORDER.indexOf(nextPrayer);
+      const nextIdx = PRAYER_ORDER.indexOf(activeNext);
       const prevIdx = nextIdx > 0 ? nextIdx - 1 : PRAYER_ORDER.length - 1;
       const prevPrayer = PRAYER_ORDER[prevIdx];
       const prevTimeStr = timings[prevPrayer];
@@ -1742,7 +1753,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     updateCountdown();
     const interval = setInterval(updateCountdown, 1000); // Update every second
     return () => clearInterval(interval);
-  }, [timings, nextPrayer]);
+  }, [timings, nextPrayer, prayerConfig?.manualCoords?.timezone]);
 
   // ── Location-change guard ─────────────────────────────────────────────────────
   // When the user switches between cities (or clears manual override back to GPS)
@@ -2227,6 +2238,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     resolveStreakFreeze,
     prayerHistory,
     detectedMethodKey,
+    upcoming,
     debugSimulateMissed: async (prayers: string[]) => {
       // Clear the freeze-resolved guard so the prompt can fire again
       await AsyncStorage.removeItem('@GrowPray:freezeResolvedDate');
@@ -3369,6 +3381,7 @@ function AppInner() {
     gardenState.lastXPGainTimestamp,
     gardenState.totalRecoveredTiles > 0,
     showOnboarding === false,
+    isResting ? null : prayerState.upcoming,
   );
 
   // Pre-load the loading screen image first, then load everything else
