@@ -61,6 +61,49 @@ const DEADLINE_WARNING_MINUTES = 10;
 const DECAY_WARN_ID = 'garden-decay-warn';
 const DECAY_CRITICAL_ID = 'garden-decay-critical';
 
+// ─── Win-back ladder ─────────────────────────────────────────────────────────
+//
+// Prayer alerts only cover PRAYER_SCHEDULE_DAYS ahead, and the two decay alerts
+// fire at 24h and 48h and then stop for good. Without this, a user who drifted
+// away got nothing at all from roughly day 3 onward except the daily reflection
+// reminder - the app went silent on exactly the people it most needed to reach.
+//
+// These are ordinary one-off dated notifications scheduled relative to *now*,
+// and the whole ladder is cancelled and rebuilt every time the app opens. So
+// "day 8" always means eight days after the user was last here, and the ladder
+// resets itself the moment they come back. No server, no device tokens, and
+// nothing about the user ever leaves the phone.
+//
+// Deliberately sparse - four over a month - and never accusatory. Onboarding
+// promises gentle reminders and that every prayer is a fresh start, so these
+// invite a return rather than tallying what was missed. Two carry an
+// authenticated narration; the other two stay concrete about what is waiting.
+//
+// ⚠️ Any narration added here must be sahih or hasan with a real citation, the
+// same bar as data/hadith.ts. Do not add anything you have not verified.
+const WIN_BACK_LADDER: { days: number; title: string; body: string }[] = [
+  {
+    days: 4,
+    title: 'Your sapling is waiting',
+    body: 'One prayer brings it back to life.',
+  },
+  {
+    days: 8,
+    title: 'Your garden has gone quiet',
+    body: 'Your trees are still standing. Pick up wherever you are.',
+  },
+  {
+    days: 15,
+    title: 'Small and steady is enough',
+    body: '"The most beloved deeds to Allah are the most consistent, even if few." - Bukhari & Muslim',
+  },
+  {
+    days: 30,
+    title: 'The door is always open',
+    body: '"Do not despair of the mercy of Allah." - Qur\'an 39:53',
+  },
+];
+
 // Prayer-specific messages
 const PRAYER_MESSAGES: Record<string, { title: string; body: string }> = {
   Fajr: {
@@ -392,6 +435,40 @@ export function useNotifications(
     console.log(`Scheduled ${count} prayer alerts across ${window.length} days`);
   };
 
+  /**
+   * (Re)book the win-back ladder from this moment.
+   *
+   * Called on every scheduling pass, and the pass cancels all non-decay
+   * notifications first, so the effect is that every app open pushes the whole
+   * ladder back out to its full length. A user who opens the app daily never
+   * reaches even the first rung.
+   */
+  const scheduleWinBack = async () => {
+    const now = Date.now();
+    for (const rung of WIN_BACK_LADDER) {
+      try {
+        await Notifications.scheduleNotificationAsync({
+          identifier: `winback-${rung.days}`,
+          content: {
+            title: rung.title,
+            body: rung.body,
+            data: { type: 'winback', days: rung.days },
+            sound: 'default',
+            // Re-engagement, not a time-critical call to prayer - kept on the
+            // lower-importance channel so it can never feel like an adhan alert.
+            ...(Platform.OS === 'android' && { channelId: 'garden-decay' }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: new Date(now + rung.days * 24 * 60 * 60 * 1000),
+          },
+        });
+      } catch (error) {
+        console.error(`Failed to schedule win-back day ${rung.days}:`, error);
+      }
+    }
+  };
+
   const schedulePrayerNotifications = async (
     timings: PrayerTimings,
     completed: Set<string>,
@@ -422,6 +499,10 @@ export function useNotifications(
       // The window is refreshed on every launch, so in practice it is topped back
       // up to its full length long before it runs out.
       await schedulePrayerStarts(window, timings, completed);
+
+      // Covers the stretch beyond the prayer window, where the app would
+      // otherwise say nothing at all.
+      await scheduleWinBack();
 
       for (let i = 0; i < PRAYER_ORDER.length; i++) {
         const prayer = PRAYER_ORDER[i];

@@ -514,14 +514,16 @@ test('the scheduling window fits inside iOS 64-notification cap', () => {
     // iOS keeps only the 64 soonest pending local notifications and silently
     // drops the rest, so raising PRAYER_SCHEDULE_DAYS without re-counting the
     // other schedulers would quietly lose prayer alerts at the far end.
+    // Keep these in step with hooks/useNotifications.ts.
     const IOS_PENDING_LIMIT = 64;
     const prayersPerDay = 5;
     const deadlineWarningsToday = 5;   // useNotifications, today only
     const reflectionReminder = 1;      // daily repeating
     const decayAlerts = 2;             // warn + critical
+    const winBackLadder = 4;           // WIN_BACK_LADDER rungs
 
     const total = PRAYER_SCHEDULE_DAYS * prayersPerDay
-        + deadlineWarningsToday + reflectionReminder + decayAlerts;
+        + deadlineWarningsToday + reflectionReminder + decayAlerts + winBackLadder;
 
     assert.ok(total <= IOS_PENDING_LIMIT,
         `scheduling ${PRAYER_SCHEDULE_DAYS} days needs ${total} slots, over the ${IOS_PENDING_LIMIT} iOS allows`);
