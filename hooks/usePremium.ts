@@ -55,6 +55,48 @@ export const PREMIUM_LIMITS = {
   premiumTrees: true,      // Can buy premium trees
 } as const;
 
+// ─── Localized pricing ─────────────────────────────────────────────────────────
+//
+// The strings in PREMIUM_PLANS above are USD fallbacks only. The App Store
+// charges in the user's own storefront currency, so a UK user shown "$6.99" is
+// being quoted a price they will never actually be charged. RevenueCat returns
+// each product's `priceString` already formatted for the user's locale and
+// currency, so it is always preferred and the constants are used only until the
+// fetch lands (or if it fails offline).
+
+export interface LocalizedPrices {
+  monthly: string;
+  yearly: string;
+  /** Yearly price divided by 12, formatted in the same currency. */
+  yearlyPerMonth: string;
+  /** 12x the monthly price - the "before" figure in the savings comparison. */
+  yearlyOriginal: string;
+  /** Whole-percent saving of yearly vs 12x monthly, e.g. "46%". */
+  savings: string | null;
+  /** False while still showing USD fallbacks. */
+  loaded: boolean;
+}
+
+const FALLBACK_PRICES: LocalizedPrices = {
+  monthly: PREMIUM_PLANS.monthly.price,
+  yearly: PREMIUM_PLANS.yearly.price,
+  yearlyPerMonth: PREMIUM_PLANS.yearly.monthlyEquivalent,
+  yearlyOriginal: PREMIUM_PLANS.yearly.originalPrice,
+  savings: PREMIUM_PLANS.yearly.savings,
+  loaded: false,
+};
+
+function formatCurrency(amount: number, currencyCode: string, fallback: string): string {
+  try {
+    return new Intl.NumberFormat(undefined, {
+      style: 'currency',
+      currency: currencyCode,
+    }).format(amount);
+  } catch {
+    return fallback;
+  }
+}
+
 // ─── Types ─────────────────────────────────────────────────────────────────────
 
 export interface PremiumState {
@@ -65,6 +107,8 @@ export interface PremiumState {
   planId: string | null;
   // Feature access helpers
   limits: typeof FREE_LIMITS | typeof PREMIUM_LIMITS;
+  /** Prices in the user's own App Store currency. Falls back to USD until loaded. */
+  prices: LocalizedPrices;
   // Actions
   purchaseMonthly: () => Promise<boolean>;
   purchaseYearly: () => Promise<boolean>;
@@ -81,6 +125,7 @@ export function usePremium(): PremiumState {
   const [loading, setLoading] = useState(true);
   const [expirationDate, setExpirationDate] = useState<string | null>(null);
   const [planId, setPlanId] = useState<string | null>(null);
+  const [prices, setPrices] = useState<LocalizedPrices>(FALLBACK_PRICES);
 
   // Configure RevenueCat SDK and check existing entitlement on mount
   useEffect(() => {
@@ -97,6 +142,52 @@ export function usePremium(): PremiumState {
     } catch {
       setLoading(false);
     }
+  }, []);
+
+  // Pull real, locale-formatted prices from the store. Best-effort: any failure
+  // (offline, sandbox, products not yet approved) simply leaves the USD
+  // fallbacks in place rather than blocking the paywall from rendering.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const offerings = await Purchases.getOfferings();
+        const pkgs = offerings.current?.availablePackages ?? [];
+        const monthlyProduct = pkgs.find(p => p.product.identifier === PREMIUM_PLANS.monthly.id)?.product;
+        const yearlyProduct = pkgs.find(p => p.product.identifier === PREMIUM_PLANS.yearly.id)?.product;
+        if (cancelled || (!monthlyProduct && !yearlyProduct)) return;
+
+        // Currency comes from whichever product we got; both are billed in the
+        // same storefront currency so either is valid.
+        const currency = yearlyProduct?.currencyCode ?? monthlyProduct?.currencyCode ?? 'USD';
+
+        const next: LocalizedPrices = { ...FALLBACK_PRICES, loaded: true };
+
+        if (monthlyProduct) next.monthly = monthlyProduct.priceString;
+
+        if (yearlyProduct) {
+          next.yearly = yearlyProduct.priceString;
+          next.yearlyPerMonth = formatCurrency(
+            yearlyProduct.price / 12, currency, FALLBACK_PRICES.yearlyPerMonth,
+          );
+          if (monthlyProduct) {
+            const twelveMonths = monthlyProduct.price * 12;
+            next.yearlyOriginal = formatCurrency(
+              twelveMonths, currency, FALLBACK_PRICES.yearlyOriginal,
+            );
+            // Only claim a saving when there genuinely is one.
+            next.savings = twelveMonths > yearlyProduct.price
+              ? `${Math.round((1 - yearlyProduct.price / twelveMonths) * 100)}%`
+              : null;
+          }
+        }
+
+        setPrices(next);
+      } catch {
+        // Keep the fallbacks.
+      }
+    })();
+    return () => { cancelled = true; };
   }, []);
 
   // Dev-only: restore a persisted debug-premium grant so it survives reloads.
@@ -213,6 +304,7 @@ export function usePremium(): PremiumState {
     expirationDate,
     planId,
     limits,
+    prices,
     purchaseMonthly,
     purchaseYearly,
     purchaseCoins,

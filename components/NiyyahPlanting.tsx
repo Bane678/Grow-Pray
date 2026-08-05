@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { View, Text, Animated, StyleSheet, Pressable, Easing } from 'react-native';
+import { View, Animated, StyleSheet, Pressable, Easing } from 'react-native';
 import Svg, { Circle, Ellipse, Path, Defs, RadialGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
-import { FONTS } from '../theme/typography';
 
 const TILE_RECOVERED = require('../assets/Garden Assets/Ground Tiles/Recovered_Tile.png');
+const SAPLING = require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png');
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -30,6 +30,28 @@ const GLOW_SIZE = 208;
 const BLOOM_SIZE = 108;
 
 const HOLD_MS = 1400;
+
+// ─── The sapling that rises after burial ─────────────────────────────────────
+// Sized and anchored from the live garden's proportions (GardenScene) so the
+// first thing the user ever sees growing is the same shape, at the same relative
+// size, as the tree that will actually appear in their garden.
+const G_TILE_W = 1456 * 0.08;        // GardenScene tile width
+const G_TREE_W = 848 * 0.10;         // sapling stage width
+const G_TREE_H = 1264 * 0.10 * 0.7;  // sapling stage height, incl. TREE_SQUASH
+const SAPLING_W = TILE_W * (G_TREE_W / G_TILE_W);
+const SAPLING_H = TILE_W * (G_TREE_H / G_TILE_W);
+// GardenScene anchors trees 75% of their height above the tile centre; the
+// remaining 25% is the sprite's transparent footer, which is why the visible
+// trunk base lands on the soil.
+const SAPLING_ANCHOR = 0.75;
+const SAPLING_TOP = TILE_CY - SAPLING_H * SAPLING_ANCHOR;
+
+// Beat timings. The sapling starts while the bloom is still opening so the
+// light and the growth read as one event rather than two queued animations.
+const BURY_MS = 180;
+const BURST_MS = 520;
+const BLOOM_MS = 420;
+const SPROUT_DELAY_MS = 120;
 
 // ─── The seed ────────────────────────────────────────────────────────────────
 // Drawn procedurally so it costs no art asset. To swap in a real sprite later,
@@ -93,8 +115,10 @@ interface NiyyahPlantingProps {
  * the same seed glyph - the connection is made by that visual rhyme and by the
  * copy, rather than by physically tethering the words to the seed.
  *
- * Plants a SEED, never a sapling: the sapling is the payoff for the user's
- * first real prayer on the next screen.
+ * A sapling then rises out of the light, sized and anchored exactly as trees are
+ * in the real garden, so the payoff is literally the thing they will keep
+ * growing. Everything happens inside the ring and inside a fixed stage height,
+ * so no part of the screen reflows at any point in the sequence.
  */
 export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
   // Hold progress is split across two values animated in parallel: the ring is
@@ -107,6 +131,7 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
   const settle = useRef(new Animated.Value(0)).current;
   const sparkle = useRef(new Animated.Value(0)).current;
   const seedGone = useRef(new Animated.Value(0)).current;
+  const sprout = useRef(new Animated.Value(0)).current;
 
   const holdAnim = useRef<Animated.CompositeAnimation | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -133,6 +158,7 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
     settle.setValue(0);
     sparkle.setValue(0);
     seedGone.setValue(0);
+    sprout.setValue(0);
   }, [planted]);
 
   const clearTimers = useCallback(() => {
@@ -145,16 +171,26 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
   const finish = useCallback(() => {
     bobLoop.current?.stop();
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    // Seed sinks → dirt bursts and the soil settles → light blooms, and the
+    // sapling rises out of that light rather than waiting for it to finish.
     Animated.sequence([
-      Animated.timing(seedGone, { toValue: 1, duration: 180, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      Animated.timing(seedGone, { toValue: 1, duration: BURY_MS, easing: Easing.in(Easing.quad), useNativeDriver: true }),
       Animated.parallel([
-        Animated.timing(burst, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(burst, { toValue: 1, duration: BURST_MS, easing: Easing.out(Easing.quad), useNativeDriver: true }),
         Animated.sequence([
           Animated.timing(settle, { toValue: 1, duration: 140, easing: Easing.out(Easing.quad), useNativeDriver: true }),
           Animated.spring(settle, { toValue: 0, friction: 4, tension: 90, useNativeDriver: true }),
         ]),
       ]),
-      Animated.timing(sparkle, { toValue: 1, duration: 420, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.parallel([
+        Animated.timing(sparkle, { toValue: 1, duration: BLOOM_MS, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.sequence([
+          Animated.delay(SPROUT_DELAY_MS),
+          // Spring rather than timing: the slight overshoot is what makes it
+          // read as "coming to life" instead of simply scaling up.
+          Animated.spring(sprout, { toValue: 1, friction: 6, tension: 55, useNativeDriver: true }),
+        ]),
+      ]),
     ]).start();
     onPlanted();
   }, [onPlanted]);
@@ -285,6 +321,35 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
           <Seed />
         </Animated.View>
 
+        {/* The sapling rising where the seed went in.
+            Scales from its own trunk base (75% down the sprite, which is where
+            the visible stem meets the soil) so it grows out of the ground
+            rather than expanding from its middle. Occupies a fixed slot inside
+            the ring that is reserved whether or not it is visible, so nothing
+            reflows when it appears. */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.sapling,
+            {
+              opacity: sprout.interpolate({ inputRange: [0, 0.12, 1], outputRange: [0, 1, 1] }),
+              transformOrigin: `center ${SAPLING_ANCHOR * 100}%`,
+              transform: [
+                { scaleY: sprout.interpolate({ inputRange: [0, 1], outputRange: [0.04, 1] }) },
+                // Widens a touch behind the height so the leaves unfurl rather
+                // than inflating uniformly.
+                { scaleX: sprout.interpolate({ inputRange: [0, 0.45, 1], outputRange: [0.45, 0.82, 1] }) },
+              ],
+            },
+          ]}
+        >
+          <Animated.Image
+            source={SAPLING}
+            resizeMode="contain"
+            style={{ width: SAPLING_W, height: SAPLING_H }}
+          />
+        </Animated.View>
+
         {/* Bloom where the seed went in */}
         <Animated.View
           pointerEvents="none"
@@ -316,6 +381,13 @@ const styles = StyleSheet.create({
   particle: { position: 'absolute', backgroundColor: '#7a5230', top: TILE_CY - 8 },
 
   seed: { position: 'absolute', top: SEED_REST_CY - SEED_SIZE / 2 },
+
+  sapling: {
+    position: 'absolute',
+    width: SAPLING_W,
+    height: SAPLING_H,
+    top: SAPLING_TOP,
+  },
 
   bloomWrap: {
     position: 'absolute',

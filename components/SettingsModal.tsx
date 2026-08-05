@@ -19,6 +19,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { PRAYER_METHODS, type PrayerMethodKey, type Madhab } from '../hooks/usePrayerTimes';
+import { PREMIUM_PLANS } from '../hooks/usePremium';
 import { FONTS } from '../theme/typography';
 
 const ICON_GEAR = require('../assets/Garden Assets/Icons/Icon_Gear.png');
@@ -55,6 +56,8 @@ interface SettingsModalProps {
   onRest?: () => void;
   onDebug?: () => void;
   onReplayTutorial?: () => void;
+  /** Monthly price in the user's own currency; falls back to the USD constant. */
+  monthlyPriceLabel?: string;
 }
 
 const ALL_STORAGE_KEYS = [
@@ -107,6 +110,7 @@ export const SettingsModal = memo(function SettingsModal({
   onRest,
   onDebug,
   onReplayTutorial,
+  monthlyPriceLabel,
 }: SettingsModalProps) {
   const [restoringPurchases, setRestoringPurchases] = useState(false);
   const [cityInput, setCityInput] = useState(manualCity);
@@ -220,7 +224,7 @@ export const SettingsModal = memo(function SettingsModal({
             <Text style={s.premiumBannerSub}>Exclusive trees · remove limits</Text>
           </View>
           <View style={s.premiumBannerPill}>
-            <Text style={s.premiumBannerPillText}>$6.99/mo</Text>
+            <Text style={s.premiumBannerPillText}>{monthlyPriceLabel ?? PREMIUM_PLANS.monthly.price}/mo</Text>
           </View>
         </TouchableOpacity>
       )}

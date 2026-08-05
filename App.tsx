@@ -777,10 +777,11 @@ function TopInfoBar({
   boostTimeRemaining,
   onOpenSettings,
   onOpenQibla,
+  userName,
 }: {
-  streaks: PrayerStreaks; 
+  streaks: PrayerStreaks;
   coins: number;
-  xp: number; 
+  xp: number;
   nextPrayer: string | null;
   nextPrayerTime: string | null;
   timeUntilNext: string;
@@ -794,6 +795,7 @@ function TopInfoBar({
   boostTimeRemaining?: string;
   onOpenSettings: () => void;
   onOpenQibla: () => void;
+  userName?: string | null;
 }) {
   const bestStreak = Math.max(...Object.values(streaks));
   const combinedMultiplier = consistencyMultiplier;
@@ -955,6 +957,28 @@ function TopInfoBar({
           );
         })()}
       </View>
+
+      {/* ── Greeting ──
+          Onboarding asks for a name; before this it was stored and never shown
+          again, which reads as collecting it for its own sake. Kept deliberately
+          quiet (low opacity, small) so the countdown below stays the focal
+          element, and omitted entirely when no name was given. */}
+      {userName ? (
+        <View style={{ alignItems: 'center', marginTop: 2 }}>
+          <Text
+            numberOfLines={1}
+            style={{
+              fontSize: 13,
+              fontWeight: '500',
+              color: 'rgba(232,224,214,0.62)',
+              fontFamily: FONTS.display,
+              maxWidth: '80%',
+            }}
+          >
+            Assalamu alaikum, {userName}
+          </Text>
+        </View>
+      ) : null}
 
       {/* ── Context label - subtle next prayer indicator with time ── */}
       <View style={{ alignItems: 'center' }}>
@@ -2669,6 +2693,16 @@ function AppInner() {
   const visitedTabs = useRef<Set<string>>(new Set()).current;
   if (activeTab !== 'garden') visitedTabs.add(activeTab);
 
+  // Name captured during onboarding, shown as the garden greeting.
+  // Re-read when onboarding finishes so it appears without an app restart.
+  const [userName, setUserName] = useState<string | null>(null);
+  useEffect(() => {
+    if (showOnboarding !== false) return;
+    AsyncStorage.getItem('@JannahGarden:userName')
+      .then((v) => setUserName(v && v.trim() ? v.trim() : null))
+      .catch(() => {});
+  }, [showOnboarding]);
+
   // ── Prayer calculation settings ──────────────────────────────────────────
   const [madhab, setMadhab] = useState<Madhab>('standard');
   const [calcMethodKey, setCalcMethodKey] = useState<PrayerMethodKey | null>(null);
@@ -3516,6 +3550,7 @@ function AppInner() {
             onMadhabChange={setMadhab}
             onPurchaseMonthly={premium.purchaseMonthly}
             onPurchaseYearly={premium.purchaseYearly}
+            prices={premium.prices}
           />
         <PrayerIconsPrerender />
         <LoadingOverlay
@@ -4213,6 +4248,7 @@ function AppInner() {
         onPurchaseYearly={premium.purchaseYearly}
         onRestore={premium.restorePurchases}
         triggerReason={paywallReason}
+        prices={premium.prices}
       />
 
       {/* Qibla compass - full-screen surface; unmounts on close so the magnetometer stops */}
@@ -4644,6 +4680,7 @@ function AppInner() {
               onRest={() => setShowRestModal(true)}
               onDebug={() => setShowDebugModal(true)}
               onReplayTutorial={() => { setActiveTab('garden'); setTimeout(() => tutorial.replay(), 400); }}
+              monthlyPriceLabel={premium.prices.monthly}
             />
           </SafeAreaView>
         </FreezeWhenHidden>
@@ -4711,6 +4748,7 @@ function AppInner() {
             boostTimeRemaining={boosts.activeBoost ? (() => { const ms = boosts.timeRemainingMs; const h = Math.floor(ms / 3600000); const m = Math.floor((ms % 3600000) / 60000); return h > 0 ? `${h}h ${m}m left` : `${m}m left`; })() : undefined}
             onOpenSettings={() => setActiveTab('settings')}
             onOpenQibla={openQibla}
+            userName={userName}
           />
         )}
         </SafeAreaView>

@@ -20,7 +20,7 @@ import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { PREMIUM_PLANS } from '../hooks/usePremium';
+import { PREMIUM_PLANS, type LocalizedPrices } from '../hooks/usePremium';
 import { usePrayerTimes, Timings } from '../hooks/usePrayerTimes';
 import { FONTS } from '../theme/typography';
 import { GardenGrowthPreview } from './GardenGrowthPreview';
@@ -76,6 +76,11 @@ type OnboardingScreenProps = {
   onMadhabChange?: (madhab: 'hanafi' | 'standard') => void;
   onPurchaseMonthly?: () => Promise<boolean>;
   onPurchaseYearly?: () => Promise<boolean>;
+  /**
+   * Store prices in the user's own currency. Optional so the component can be
+   * rendered standalone; falls back to the USD constants in PREMIUM_PLANS.
+   */
+  prices?: LocalizedPrices;
 };
 
 type IconName = keyof typeof MaterialCommunityIcons.glyphMap;
@@ -192,7 +197,7 @@ const STEPS: Step[] = [
       { value: 'nudge',      label: 'A nudge to pray it as soon as I can', icon: 'refresh' },
       { value: 'freshstart', label: 'Knowing the next one is a fresh start', icon: 'weather-sunset-up' },
       { value: 'progress',   label: 'Seeing my progress, not my failures', icon: 'sprout-outline' },
-      { value: 'noguilt',    label: 'Less guilt, more encouragement',      icon: 'heart-outline' },
+      { value: 'freeze',     label: "A streak freeze so one miss doesn't reset me", icon: 'snowflake' },
     ],
   },
 
@@ -502,7 +507,17 @@ function lastBegunPrayerOf(timings: Timings): PrayerName {
 }
 
 
-export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly, onPurchaseYearly }: OnboardingScreenProps) {
+export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly, onPurchaseYearly, prices: pricesProp }: OnboardingScreenProps) {
+  // USD constants are the last resort - used only if the store lookup hasn't
+  // landed yet or the component is rendered without the prop.
+  const prices: LocalizedPrices = pricesProp ?? {
+    monthly: PREMIUM_PLANS.monthly.price,
+    yearly: PREMIUM_PLANS.yearly.price,
+    yearlyPerMonth: PREMIUM_PLANS.yearly.monthlyEquivalent,
+    yearlyOriginal: PREMIUM_PLANS.yearly.originalPrice,
+    savings: PREMIUM_PLANS.yearly.savings,
+    loaded: false,
+  };
   const [step, setStep] = useState(0);
   const [name, setName] = useState('');
   const [nameError, setNameError] = useState<string | null>(null);
@@ -675,11 +690,11 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           icon: 'sprout-outline',
           bullets: ['Each prayer grows something real', 'Per-prayer streaks and history', 'Missed days show recovery, not ruin'],
         },
-        noguilt: {
-          title: 'No guilt. That\'s a promise.',
-          body: 'The Prophet صلى الله عليه وسلم said: "The most beloved of deeds to Allah are the most consistent, even if they are few." (Bukhari & Muslim). Grow Pray never shames a missed prayer.',
-          icon: 'heart-outline',
-          bullets: ['No punitive language, ever', 'Your garden shows recovery, not ruin', 'Encouragement built around your answers'],
+        freeze: {
+          title: 'One miss won\'t undo your month.',
+          body: 'A streak freeze holds your progress through a day you couldn\'t pray - illness, travel, a shift that ran over. Your garden keeps standing and your streak carries on from where it was.',
+          icon: 'snowflake',
+          bullets: ['Applied automatically - no decision to make', 'Protects every missed prayer\'s streak that day', 'Buy with coins, or 3 free monthly on Premium'],
         },
       };
       return selected ? (responses[selected] ?? null) : null;
@@ -1133,14 +1148,18 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <View style={nstyles.niyyahBlock}>
             <View style={nstyles.niyyahLabelRow}>
               <Seed size={15} />
+              {/* The name earns its place here: step 6 promises "your name
+                  appears in one place that matters - your intention", and this
+                  is that place. Falls back to "YOUR" if the name is somehow
+                  blank so the label never reads as broken. */}
               <Text style={nstyles.niyyahLabel}>
-                {planted ? 'YOUR NIYYAH · PLANTED' : 'YOUR NIYYAH · NEXT 30 DAYS'}
+                {`${name.trim() ? `${name.trim().toUpperCase()}'S` : 'YOUR'} NIYYAH · ${planted ? 'PLANTED' : 'NEXT 30 DAYS'}`}
               </Text>
             </View>
             <Text style={nstyles.niyyahQuote}>{intention}</Text>
             <Text style={nstyles.niyyahExplainer}>
               {planted
-                ? "It's in the ground now. Your first prayer is what brings it up."
+                ? "It's taken root. Your prayers are what will grow it."
                 : 'This seed carries your niyyah into your garden. Your prayers are what helps it grow.'}
             </Text>
           </View>
@@ -1291,9 +1310,9 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               </View>
               <Text style={nstyles.planTitleTight}>Yearly</Text>
               <Text style={nstyles.planPriceTight}>
-                $3.75<Text style={styles.planPeriod}>/mo</Text>
+                {prices.yearlyPerMonth}<Text style={styles.planPeriod}>/mo</Text>
               </Text>
-              <Text style={nstyles.planSubTight}>$44.99 billed yearly</Text>
+              <Text style={nstyles.planSubTight}>{prices.yearly} billed yearly</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -1303,7 +1322,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             >
               <Text style={nstyles.planTitleTight}>Monthly</Text>
               <Text style={nstyles.planPriceTight}>
-                $6.99<Text style={styles.planPeriod}>/mo</Text>
+                {prices.monthly}<Text style={styles.planPeriod}>/mo</Text>
               </Text>
               <Text style={nstyles.planSubTight}>billed monthly</Text>
             </TouchableOpacity>
@@ -1322,7 +1341,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             </Text>
           </TouchableOpacity>
           <Text style={nstyles.trialNoteTight}>
-            {trialDays} days free · then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · cancel in two taps
+            {trialDays} days free · then {selectedPlan === 'yearly' ? `${prices.yearly}/year` : `${prices.monthly}/month`} · cancel in two taps
           </Text>
 
           {/* Decline - a visible ghost button, not a buried link. In this
@@ -1391,7 +1410,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             </Text>
           </TouchableOpacity>
           <Text style={nstyles.trialNoteTight}>
-            then {selectedPlan === 'yearly' ? '$44.99/year' : '$6.99/month'} · cancel anytime
+            then {selectedPlan === 'yearly' ? `${prices.yearly}/year` : `${prices.monthly}/month`} · cancel anytime
           </Text>
 
           <TouchableOpacity onPress={finishOnboarding} style={nstyles.ghostButtonTight}>

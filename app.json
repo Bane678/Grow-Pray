@@ -4,7 +4,7 @@
     "slug": "grow-pray",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/app-icon-ios-1024.png",
+    "icon": "./assets/Garden Assets/Icons/Logo_3.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#0d1b2d",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
       "backgroundColor": "#0f1526"
     },
     "ios": {
-      "icon": "./assets/app-icon-ios-1024.png",
+      "icon": "./assets/Garden Assets/Icons/Logo_3.png",
       "bundleIdentifier": "com.antigravity.growpray",
       "buildNumber": "1",
       "supportsTablet": true,

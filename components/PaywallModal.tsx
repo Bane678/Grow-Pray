@@ -11,7 +11,7 @@ import {
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
-import { PREMIUM_PLANS, FREE_LIMITS, PREMIUM_LIMITS } from '../hooks/usePremium';
+import { PREMIUM_PLANS, FREE_LIMITS, PREMIUM_LIMITS, type LocalizedPrices } from '../hooks/usePremium';
 import { FONTS } from '../theme/typography';
 
 const ICON_SPARKLE = require('../assets/Garden Assets/Icons/Icon_Sparkle.png');
@@ -31,6 +31,8 @@ interface PaywallModalProps {
   onPurchaseYearly: () => Promise<boolean>;
   onRestore: () => Promise<boolean>;
   triggerReason?: 'garden_limit' | 'premium_tree' | 'settings' | 'insights' | 'dhikr_library' | 'reflection_archive' | 'general';
+  /** Store prices in the user's own currency; falls back to the USD constants. */
+  prices?: LocalizedPrices;
 }
 
 const COMPARISON_ROWS: Array<{
@@ -109,7 +111,16 @@ export function PaywallModal({
   onPurchaseYearly,
   onRestore,
   triggerReason = 'general',
+  prices: pricesProp,
 }: PaywallModalProps) {
+  const prices: LocalizedPrices = pricesProp ?? {
+    monthly: PREMIUM_PLANS.monthly.price,
+    yearly: PREMIUM_PLANS.yearly.price,
+    yearlyPerMonth: PREMIUM_PLANS.yearly.monthlyEquivalent,
+    yearlyOriginal: PREMIUM_PLANS.yearly.originalPrice,
+    savings: PREMIUM_PLANS.yearly.savings,
+    loaded: false,
+  };
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [purchasing, setPurchasing] = useState(false);
   const [restoring, setRestoring] = useState(false);
@@ -353,7 +364,7 @@ export function PaywallModal({
               alignItems: 'center',
             }}
           >
-            {PREMIUM_PLANS.yearly.savings && (
+            {prices.savings && (
               <View style={{
                 position: 'absolute',
                 top: -8,
@@ -364,7 +375,7 @@ export function PaywallModal({
                 borderRadius: 6,
               }}>
                 <Text style={{ fontSize: 9, fontWeight: '800', color: '#fff' }}>
-                  SAVE {PREMIUM_PLANS.yearly.savings}
+                  SAVE {prices.savings}
                 </Text>
               </View>
             )}
@@ -382,21 +393,21 @@ export function PaywallModal({
                 fontWeight: '800',
                 color: selectedPlan === 'yearly' ? '#fbbf24' : '#e2e8f0',
               }}>
-                {PREMIUM_PLANS.yearly.price}
+                {prices.yearly}
               </Text>
               <Text style={{
                 fontSize: 13,
                 color: selectedPlan === 'yearly' ? '#94a3b8' : '#6b7280',
                 textDecorationLine: 'line-through',
               }}>
-                {PREMIUM_PLANS.yearly.originalPrice}
+                {prices.yearlyOriginal}
               </Text>
             </View>
             <Text style={{
               fontSize: 10,
               color: selectedPlan === 'yearly' ? '#fbbf24' : '#6b7280',
             }}>
-              ({PREMIUM_PLANS.yearly.monthlyEquivalent}/month)
+              ({prices.yearlyPerMonth}/month)
             </Text>
           </TouchableOpacity>
 
@@ -430,7 +441,7 @@ export function PaywallModal({
               fontWeight: '800',
               color: selectedPlan === 'monthly' ? '#fbbf24' : '#e2e8f0',
             }}>
-              {PREMIUM_PLANS.monthly.price}
+              {prices.monthly}
             </Text>
             <Text style={{
               fontSize: 10,
