@@ -200,6 +200,15 @@ const THEME = {
   bgOverlay: 'rgba(0,0,0,0.7)',      // Modal overlay
   accent: '#e8a87c',           // Warm peach - active states, highlights
   accentMuted: 'rgba(232,168,124,0.15)', // Soft accent bg
+  // Cool moonlight - the prayer the countdown is pointing at. Deliberately a
+  // different hue from `accent` rather than a dimmer version of it, so "coming
+  // up" never competes with "you can log this now".
+  upNext: '#8fb8e8',
+  upNextMuted: 'rgba(143,184,232,0.10)',
+  // Active but running out. Sits between accent and danger: hotter than peach,
+  // but not the flat red reserved for a prayer that was actually missed.
+  urgent: '#ff7043',
+  urgentMuted: 'rgba(255,112,67,0.12)',
   text: '#e8e0d6',             // Primary text (warm off-white)
   textSecondary: '#6b7280',    // Muted gray
   textMuted: 'rgba(255,255,255,0.35)', // Very subtle labels
@@ -230,6 +239,12 @@ type PrayerStreaks = Record<string, number>;
 const DEFAULT_STREAKS: PrayerStreaks = { Fajr: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, Isha: 0 };
 
 // XP rewards
+// Minutes left in a prayer's window before the bar switches to its urgent state.
+// Matches DEADLINE_WARNING_MINUTES in hooks/useNotifications.ts, so the "10 min
+// left" notification and the on-screen warning appear together rather than
+// contradicting each other.
+const URGENT_WINDOW_MINUTES = 10;
+
 const XP_ON_TIME = 5;      // XP for completing during active window
 const JUMMAH_XP_BONUS = 3; // Extra XP per prayer on Fridays (Jummah blessing)
 
@@ -991,7 +1006,10 @@ function TopInfoBar({
               letterSpacing: 1,
               textTransform: 'uppercase',
             }}>
-              Next: {nextPrayer}{nextPrayerTime ? ` · ${formatTime12h(nextPrayerTime)}` : ''}
+              {/* The prayer name carries the same colour as its chip in the bar
+                  below, so it's obvious which one the countdown belongs to. */}
+              Next: <Text style={{ color: THEME.upNext, fontWeight: '700' }}>{nextPrayer}</Text>
+              {nextPrayerTime ? ` · ${formatTime12h(nextPrayerTime)}` : ''}
             </Text>
           </View>
         ) : (
@@ -1060,16 +1078,21 @@ function TopInfoBar({
 }
 
 // Gentle breathing glow for the active (next) prayer button
-const BreathingGlow = React.memo(function BreathingGlow({ color, size }: { color: string; size: number }) {
+const BreathingGlow = React.memo(function BreathingGlow({ color, size, periodMs = 2000 }: {
+  color: string;
+  size: number;
+  /** Half-cycle duration. Shorter reads as more urgent. */
+  periodMs?: number;
+}) {
   const pulse = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     const loop = Animated.loop(Animated.sequence([
-      Animated.timing(pulse, { toValue: 1, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      Animated.timing(pulse, { toValue: 0, duration: 2000, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 1, duration: periodMs, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      Animated.timing(pulse, { toValue: 0, duration: periodMs, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
     ]));
     loop.start();
     return () => loop.stop();
-  }, []);
+  }, [periodMs]);
   return (
     <Animated.View pointerEvents="none" style={{
       position: 'absolute',
@@ -1100,6 +1123,7 @@ function FloatingPrayerBar({
   completedPrayers,
   onTogglePrayer,
   getPrayerWindowStatus,
+  getMinutesLeftInWindow,
   streaks,
   debugPrayersUnlocked = false,
 }: {
@@ -1108,6 +1132,7 @@ function FloatingPrayerBar({
   completedPrayers: Set<string>;
   onTogglePrayer: (prayer: string) => void;
   getPrayerWindowStatus: (prayer: string) => 'active' | 'missed' | 'upcoming';
+  getMinutesLeftInWindow?: (prayer: string) => number | null;
   streaks: PrayerStreaks;
   debugPrayersUnlocked?: boolean;
 }) {
@@ -1150,15 +1175,32 @@ function FloatingPrayerBar({
               const isMissed = status === 'missed';
               const canTap = debugPrayersUnlocked || isActive || isCompleted;
 
+              // The prayer the countdown above is actually counting down to.
+              // Without this it looked identical to every other future prayer,
+              // so the countdown had nothing on screen to point at while the
+              // *previous* prayer sat glowing in accent.
+              const isNext = !isCompleted && !isActive && prayer === nextPrayer;
+
+              // Active, unlogged, and the window is about to shut. Escalates the
+              // existing active state rather than introducing a separate one.
+              const minutesLeft = isActive && !isCompleted && getMinutesLeftInWindow
+                ? getMinutesLeftInWindow(prayer)
+                : null;
+              const isUrgent = minutesLeft !== null && minutesLeft <= URGENT_WINDOW_MINUTES;
+
+              const activeColor = isUrgent ? THEME.urgent : THEME.accent;
+
               let ringColor = 'rgba(255,255,255,0.08)';
               if (isCompleted) ringColor = THEME.success;
-              else if (isActive) ringColor = THEME.accent;
+              else if (isActive) ringColor = activeColor;
               else if (isMissed) ringColor = 'rgba(239, 68, 68, 0.5)';
+              else if (isNext) ringColor = 'rgba(143,184,232,0.55)';
 
               let textColor = 'rgba(255,255,255,0.4)';
               if (isCompleted) textColor = THEME.success;
               else if (isActive) textColor = '#fff';
               else if (isMissed) textColor = THEME.danger;
+              else if (isNext) textColor = THEME.upNext;
 
               return (
                 <View key={prayer} style={{ alignItems: 'center', flex: 1 }}>
@@ -1174,10 +1216,20 @@ function FloatingPrayerBar({
                       borderRadius: 25,
                       borderWidth: 2,
                       borderColor: ringColor,
-                      backgroundColor: isActive ? 'rgba(232,168,124,0.08)' : 'transparent',
+                      backgroundColor: isActive
+                        ? (isUrgent ? THEME.urgentMuted : 'rgba(232,168,124,0.08)')
+                        : isNext ? THEME.upNextMuted : 'transparent',
                     }}
                   >
-                    {isActive && <BreathingGlow color={THEME.accent} size={50} />}
+                    {/* Urgency reads through a faster pulse as well as colour,
+                        so it still lands for colour-blind users. */}
+                    {isActive && (
+                      <BreathingGlow
+                        color={activeColor}
+                        size={50}
+                        periodMs={isUrgent ? 900 : 2000}
+                      />
+                    )}
                     <Image
                       source={PRAYER_ICONS[prayer as keyof typeof PRAYER_ICONS]}
                       style={{ width: 46, height: 46, borderRadius: 23 }}
@@ -1205,7 +1257,7 @@ function FloatingPrayerBar({
                   <Text style={{
                     marginTop: 5,
                     fontSize: 9,
-                    fontWeight: isActive ? '800' : '600',
+                    fontWeight: isActive || isNext ? '800' : '600',
                     color: textColor,
                     textTransform: 'uppercase',
                     letterSpacing: 0.5,
@@ -1217,10 +1269,17 @@ function FloatingPrayerBar({
                     <Text style={{
                       fontSize: 10,
                       fontWeight: '700',
-                      color: isCompleted ? 'rgba(74,222,128,0.7)' : isActive ? 'rgba(232,168,124,0.9)' : 'rgba(255,255,255,0.3)',
+                      color: isCompleted ? 'rgba(74,222,128,0.7)'
+                        : isUrgent ? THEME.urgent
+                        : isActive ? 'rgba(232,168,124,0.9)'
+                        : isNext ? 'rgba(143,184,232,0.85)'
+                        : 'rgba(255,255,255,0.3)',
                       marginTop: 2,
                     }}>
-                      {formatTime12h(timings[prayer])}
+                      {/* In the closing minutes the start time is the least
+                          useful thing on screen - how long is left is what the
+                          user actually needs. */}
+                      {isUrgent ? `${Math.max(1, minutesLeft as number)}m left` : formatTime12h(timings[prayer])}
                     </Text>
                   )}
 
@@ -2054,6 +2113,30 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     return getPrayerWindowStatus(prayer) === 'active';
   };
 
+  /**
+   * Minutes left before this prayer's window closes, or null if its window
+   * isn't currently open.
+   *
+   * Drives the "running out" state on the prayer bar. Recomputed off
+   * `currentTime`, which ticks every minute - enough resolution for a warning
+   * measured in minutes.
+   */
+  const getMinutesLeftInWindow = (prayer: string): number | null => {
+    if (!timings || !timings[prayer]) return null;
+    if (getPrayerWindowStatus(prayer) !== 'active') return null;
+    try {
+      const start = timeToMinutes(timings[prayer]);
+      const end = getPrayerEndTime(prayer);
+      let now = getPrayerTzMinutes(currentTime, prayerConfig?.manualCoords?.timezone);
+      // Isha crosses midnight: normalise onto the same continuous scale
+      // getPrayerEndTime already uses (it returns 24*60 + Fajr for Isha).
+      if (prayer === 'Isha' && now < start) now += 24 * 60;
+      return Math.max(0, end - now);
+    } catch {
+      return null;
+    }
+  };
+
   // Classify a completion as 'onTime' or 'grace' based on how far into the prayer's
   // window we are (grace = final quarter). Forward-looking data only; no UI yet.
   const getPrayerTimingLabel = (prayer: string): 'onTime' | 'grace' => {
@@ -2255,6 +2338,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     togglePrayerCompleted,
     debugTogglePrayer,
     getPrayerWindowStatus,
+    getMinutesLeftInWindow,
     spendCoins,
     earnCoins,
     missedPrayers,
@@ -4774,6 +4858,7 @@ function AppInner() {
             completedPrayers={prayerState.completedPrayers}
             onTogglePrayer={handleTogglePrayerWithChallenges}
             getPrayerWindowStatus={prayerState.getPrayerWindowStatus}
+            getMinutesLeftInWindow={prayerState.getMinutesLeftInWindow}
             streaks={prayerState.streaks}
             debugPrayersUnlocked={debugPrayersUnlocked}
           />
