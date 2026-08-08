@@ -1314,17 +1314,18 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
                 </Text>
               </View>
               <Text style={nstyles.planTitleTight}>Yearly</Text>
-              <View style={nstyles.planPriceRowTight}>
-                <Text style={nstyles.planPriceTight}>
-                  {prices.yearlyPerMonth}<Text style={styles.planPeriod}>/mo</Text>
-                </Text>
-                {/* Struck-through monthly price - the per-month comparison is
-                    the one that makes the yearly saving legible at a glance. */}
-                {prices.savings && (
-                  <Text style={nstyles.planStrikeTight}>{prices.monthly}</Text>
-                )}
-              </View>
-              <Text style={nstyles.planSubTight}>{prices.yearly} billed yearly</Text>
+              <Text style={nstyles.planPriceTight}>
+                {prices.yearlyPerMonth}<Text style={styles.planPeriod}>/mo</Text>
+              </Text>
+              {/* The struck-through figure is 12x the monthly price - what a
+                  year costs paying monthly - so it sits against the yearly
+                  total it discounts, not against the per-month figure. Same
+                  comparison PaywallModal makes. */}
+              <Text style={nstyles.planSubTight}>
+                {prices.yearly}
+                {prices.savings ? <Text style={nstyles.planStrikeTight}> {prices.yearlyOriginal}</Text> : null}
+                {' billed yearly'}
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -2801,10 +2802,8 @@ const nstyles = StyleSheet.create({
     fontFamily: FONTS.display,
     marginTop: 2,
   },
-  planPriceRowTight: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
   planStrikeTight: {
     color: 'rgba(247,241,232,0.38)',
-    fontSize: 12,
     fontWeight: '600',
     textDecorationLine: 'line-through',
   },
