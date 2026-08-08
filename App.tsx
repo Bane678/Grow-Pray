@@ -245,6 +245,24 @@ const DEFAULT_STREAKS: PrayerStreaks = { Fajr: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, 
 // contradicting each other.
 const URGENT_WINDOW_MINUTES = 10;
 
+// ─── Dhikr nudge pacing ──────────────────────────────────────────────────────
+// The nudge used to fire after every single prayer completion - five times a
+// day, every day - which turns a gentle suggestion into nagging and trains
+// people to dismiss it without reading. Three gates now apply: never if they
+// have already done dhikr today, never within DHIKR_NUDGE_MIN_HOURS of the last
+// one, and then only on a chance roll so it never becomes a predictable part of
+// the routine. Works out to roughly twice a week.
+const DHIKR_NUDGE_KEY = '@GrowPray:dhikrNudgeLast';
+const DHIKR_STREAK_KEY_READONLY = '@GrowPray:dhikrStreak'; // owned by useDhikr
+const DHIKR_NUDGE_MIN_HOURS = 48;
+const DHIKR_NUDGE_CHANCE = 0.4;
+
+/** Same day format useDhikr writes into its streak record. */
+function dhikrDayKey(): string {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 const XP_ON_TIME = 5;      // XP for completing during active window
 const JUMMAH_XP_BONUS = 3; // Extra XP per prayer on Fridays (Jummah blessing)
 
@@ -3290,6 +3308,38 @@ function AppInner() {
 
   // ─── Challenges wrappers ──────────────────────────────────────────────────
   // Wrap prayer toggle to also track challenge progress
+  /**
+   * Show the dhikr suggestion only if it's genuinely worth showing.
+   *
+   * Silent no-op in every rejected case - the point is that the user should not
+   * be able to feel a rule being applied, only that the prompt turns up
+   * occasionally rather than after every prayer.
+   */
+  const maybeShowDhikrNudge = useCallback(async () => {
+    try {
+      // 1. Already done dhikr today - there is nothing to suggest.
+      const streakRaw = await AsyncStorage.getItem(DHIKR_STREAK_KEY_READONLY);
+      if (streakRaw) {
+        const streak = JSON.parse(streakRaw);
+        if (streak?.lastDate === dhikrDayKey()) return;
+      }
+
+      // 2. Too soon since the last nudge.
+      const lastRaw = await AsyncStorage.getItem(DHIKR_NUDGE_KEY);
+      const last = lastRaw ? parseInt(lastRaw, 10) : 0;
+      if (last && Date.now() - last < DHIKR_NUDGE_MIN_HOURS * 60 * 60 * 1000) return;
+
+      // 3. Past the cooldown, still only sometimes - so it never becomes a
+      //    predictable "every Fajr" fixture the user tunes out.
+      if (Math.random() > DHIKR_NUDGE_CHANCE) return;
+
+      await AsyncStorage.setItem(DHIKR_NUDGE_KEY, String(Date.now()));
+      setTimeout(() => setShowDhikrNudge(true), 1600);
+    } catch {
+      // Non-critical - if storage fails, simply don't nudge.
+    }
+  }, []);
+
   const handleTogglePrayerWithChallenges = useCallback(async (prayer: string) => {
     const wasCompleted = prayerState.completedPrayers.has(prayer);
     const status = prayerState.getPrayerWindowStatus(prayer);
@@ -3310,10 +3360,11 @@ function AppInner() {
       challengesHook.undoPrayerCompletion(prayer, isOnTime, distinctCompletedToday);
     } else {
       challengesHook.recordPrayerCompletion(prayer, isOnTime, distinctCompletedToday);
-      // Gentle, dismissible nudge to continue with dhikr. Never blocks completion.
-      setTimeout(() => setShowDhikrNudge(true), 1600);
+      // Gentle, dismissible nudge to continue with dhikr. Never blocks
+      // completion, and heavily rate-limited - see maybeShowDhikrNudge.
+      maybeShowDhikrNudge();
     }
-  }, [prayerState, challengesHook, debugPrayersUnlocked]);
+  }, [prayerState, challengesHook, debugPrayersUnlocked, maybeShowDhikrNudge]);
 
   // Claim challenge reward → credit coins
   const handleClaimChallengeReward = useCallback(async (challengeId: ChallengeId) => {

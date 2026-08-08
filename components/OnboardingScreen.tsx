@@ -1305,13 +1305,25 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               style={[nstyles.planCardTight, selectedPlan === 'yearly' && styles.planCardSelected]}
               activeOpacity={0.7}
             >
+              {/* A concrete saving beats a vague superlative, so the badge
+                  carries the real number when we have it and only falls back
+                  to "BEST VALUE" if the store hasn't returned both prices. */}
               <View style={nstyles.planBadgeTight}>
-                <Text style={styles.planBadgeText}>BEST VALUE</Text>
+                <Text style={styles.planBadgeText}>
+                  {prices.savings ? `SAVE ${prices.savings}` : 'BEST VALUE'}
+                </Text>
               </View>
               <Text style={nstyles.planTitleTight}>Yearly</Text>
-              <Text style={nstyles.planPriceTight}>
-                {prices.yearlyPerMonth}<Text style={styles.planPeriod}>/mo</Text>
-              </Text>
+              <View style={nstyles.planPriceRowTight}>
+                <Text style={nstyles.planPriceTight}>
+                  {prices.yearlyPerMonth}<Text style={styles.planPeriod}>/mo</Text>
+                </Text>
+                {/* Struck-through monthly price - the per-month comparison is
+                    the one that makes the yearly saving legible at a glance. */}
+                {prices.savings && (
+                  <Text style={nstyles.planStrikeTight}>{prices.monthly}</Text>
+                )}
+              </View>
               <Text style={nstyles.planSubTight}>{prices.yearly} billed yearly</Text>
             </TouchableOpacity>
 
@@ -2788,6 +2800,13 @@ const nstyles = StyleSheet.create({
     fontWeight: '800',
     fontFamily: FONTS.display,
     marginTop: 2,
+  },
+  planPriceRowTight: { flexDirection: 'row', alignItems: 'baseline', gap: 5 },
+  planStrikeTight: {
+    color: 'rgba(247,241,232,0.38)',
+    fontSize: 12,
+    fontWeight: '600',
+    textDecorationLine: 'line-through',
   },
   planSubTight: { color: 'rgba(247,241,232,0.45)', fontSize: 10, marginTop: 2 },
   premiumButtonTight: {
