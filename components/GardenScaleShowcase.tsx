@@ -48,11 +48,25 @@ export type GardenStage = {
   usesGardenGeometry?: boolean;
 };
 
+// Captions are PRAYER COUNTS, not elapsed time.
+//
+// They previously read "Day 1 / Week 1 / Month 1", which was wrong in the worst
+// direction - it made the app look far slower than it is. Growth is driven by XP
+// earned since planting (GardenScene TREE_STAGES), at 5 XP per on-time prayer:
+//
+//   Sapling      0 XP    - on planting
+//   Growing     15 XP    - 3 prayers   (labelled "Week 1" before)
+//   Grown       75 XP    - 15 prayers  (labelled "Month 1" before)
+//   Flourishing 175 XP   - 35 prayers
+//
+// These counts are an upper bound: XP multipliers, boosts and the Jummah bonus
+// all get there sooner, and XP is never deducted. If TREE_STAGES thresholds or
+// XP_ON_TIME change, recompute these.
 export const GARDEN_STAGES: GardenStage[] = [
-  { source: require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png'),           caption: 'Day 1',       gardenScale: 0.10, usesGardenGeometry: true },
-  { source: require('../assets/Garden Assets/Tree Types/Basic Trees/Growing_Tree_converted.png'),      caption: 'Week 1',      gardenScale: 0.12, usesGardenGeometry: true },
-  { source: require('../assets/Garden Assets/Tree Types/Basic Trees/Grown_Tree_converted.png'),        caption: 'Month 1',     gardenScale: 0.14, usesGardenGeometry: true },
-  { source: require('../assets/Garden Assets/Tree Types/Basic Trees/Flourishing_Tree_converted.png'),  caption: 'Flourishing', gardenScale: 0.16, usesGardenGeometry: true },
+  { source: require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png'),           caption: 'Planted',    gardenScale: 0.10, usesGardenGeometry: true },
+  { source: require('../assets/Garden Assets/Tree Types/Basic Trees/Growing_Tree_converted.png'),      caption: '3 prayers',  gardenScale: 0.12, usesGardenGeometry: true },
+  { source: require('../assets/Garden Assets/Tree Types/Basic Trees/Grown_Tree_converted.png'),        caption: '15 prayers', gardenScale: 0.14, usesGardenGeometry: true },
+  { source: require('../assets/Garden Assets/Tree Types/Basic Trees/Flourishing_Tree_converted.png'),  caption: '35 prayers', gardenScale: 0.16, usesGardenGeometry: true },
 ];
 
 const GROUND = require('../assets/Garden Assets/Ground Tiles/Recovered_Tile.png');
