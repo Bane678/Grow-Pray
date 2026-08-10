@@ -1291,7 +1291,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               { icon: 'tree' as const, text: 'Golden Tree & Cedar' },
               { icon: 'snowflake' as const, text: '3 freezes monthly' },
               { icon: 'chart-line' as const, text: 'Advanced insights' },
-              { icon: 'pencil-plus-outline' as const, text: 'Margin notes' },
+              { icon: 'pencil-plus-outline' as const, text: 'Annotate verses' },
             ].map((b, i) => (
               <View key={i} style={nstyles.benefitPillTight}>
                 <MaterialCommunityIcons name={b.icon} size={13} color="#d9a75f" />
