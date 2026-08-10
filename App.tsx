@@ -203,18 +203,18 @@ const THEME = {
   // Cool moonlight - the prayer the countdown is pointing at. Deliberately a
   // different hue from `accent` rather than a dimmer version of it, so "coming
   // up" never competes with "you can log this now".
-  // The countdown ring sits over the sky, which crossfades between a real day
-  // image and a night one. Anything blue measured ~1.8:1 against the daytime
-  // sky - the same hue family as the background it had to be legible on. Warm
-  // ivory holds 3.1:1 by day and 16.2:1 by night, and stays neutral enough
-  // never to be mistaken for a state colour.
-  countdownRing: '#f5ead6',
-  // The upcoming prayer's chip has a different problem from the ring: it sits
-  // on constant dark glass, where contrast is easy, but the "later today" chips
-  // are already white. An ivory chip therefore differed from them only by
-  // opacity, reading as brighter-nothing rather than a distinct state. This
-  // needs a real hue - cool, so it recedes behind the warm peach ACTIVE chip
-  // that is the one the user can actually tap.
+  // The prayer the countdown is counting down to. ONE token deliberately: the
+  // countdown ring and that prayer's chip must be the same colour, or there is
+  // nothing tying the timer to the prayer it refers to - which was the whole
+  // reason for a separate colour in the first place.
+  //
+  // Periwinkle survives both places it has to live. On the prayer bar's dark
+  // glass it is a real hue, where a near-white would have differed from the
+  // idle chips only in opacity. Over the sky it would have been far too dim by
+  // day (1.9:1) on its own, so the ring carries its own radial scrim (CD_SCRIM)
+  // which lifts it to ~4.9:1 - better than a near-white managed unaided.
+  // Cool, so it recedes behind the warm peach ACTIVE chip, which is the one
+  // that can actually be tapped and must stay dominant.
   upNext: '#a5b4fc',
   upNextMuted: 'rgba(165,180,252,0.12)',
   // Active but running out. Sits between accent and danger: hotter than peach,
@@ -256,6 +256,10 @@ const DEFAULT_STREAKS: PrayerStreaks = { Fajr: 0, Dhuhr: 0, Asr: 0, Maghrib: 0, 
 // left" notification and the on-screen warning appear together rather than
 // contradicting each other.
 const URGENT_WINDOW_MINUTES = 10;
+
+// Diameter of the dark pool behind the countdown ring. Comfortably wider than
+// the 96pt ring so the gradient has room to fall off to nothing.
+const CD_SCRIM = 190;
 
 // ─── Dhikr nudge pacing ──────────────────────────────────────────────────────
 // The nudge used to fire after every single prayer completion - five times a
@@ -696,8 +700,11 @@ function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
   // colour of the prayer that is currently ACTIVE, so the strongest colour link
   // on screen pointed at the wrong prayer. Green still wins when the day is
   // complete, since that reads as a state rather than a target.
-  const activeColor = isComplete ? '#4ade80' : THEME.countdownRing;
-  const brightColor = isComplete ? '#86efac' : '#ffffff';
+  // Same token as the upcoming prayer's chip below, so the countdown and the
+  // prayer it is counting down to are visibly the same thing. Green still wins
+  // when the day is complete - that reads as a state, not a target.
+  const activeColor = isComplete ? '#4ade80' : THEME.upNext;
+  const brightColor = isComplete ? '#86efac' : '#dbe2ff';
 
   return (
     <View style={{ width: size + 16, height: size + 16, alignItems: 'center', justifyContent: 'center' }}>
@@ -1051,23 +1058,33 @@ function TopInfoBar({
           <View style={{ height: 10, marginBottom: 10, marginTop: 6 }} />
         )}
 
-        {/* ── Moonlight glow behind timer ── */}
+        {/* ── Backdrop behind timer ── */}
         <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-          {/* Outer soft glow */}
-          <View pointerEvents="none" style={{
-            position: 'absolute',
-            width: 180,
-            height: 180,
-            borderRadius: 90,
-            backgroundColor: 'rgba(245,234,214,0.045)',
-          }} />
-          {/* Inner brighter glow */}
+          {/* Soft dark pool. The sky behind this crossfades to a bright blue
+              daytime image, which left the ring at ~1.9:1 and forced it to a
+              near-white that could not also work as the upcoming-prayer colour
+              down in the bar. Giving the ring its own dark backdrop - the same
+              trick the prayer bar's glass already uses - fixes legibility at
+              the source and lets one saturated colour serve both. Radial so it
+              falls off to nothing; a flat disc would show a hard edge. */}
+          <Svg width={CD_SCRIM} height={CD_SCRIM} pointerEvents="none" style={{ position: 'absolute' }}>
+            <Defs>
+              <RadialGradient id="cdScrim" cx="50%" cy="50%" r="50%">
+                <Stop offset="0%" stopColor="#0a0e1c" stopOpacity={0.62} />
+                <Stop offset="55%" stopColor="#0a0e1c" stopOpacity={0.42} />
+                <Stop offset="100%" stopColor="#0a0e1c" stopOpacity={0} />
+              </RadialGradient>
+            </Defs>
+            <Circle cx={CD_SCRIM / 2} cy={CD_SCRIM / 2} r={CD_SCRIM / 2} fill="url(#cdScrim)" />
+          </Svg>
+          {/* Faint moonlight lift, kept so the ring still reads as lit rather
+              than sitting in a hole. */}
           <View pointerEvents="none" style={{
             position: 'absolute',
             width: 120,
             height: 120,
             borderRadius: 60,
-            backgroundColor: 'rgba(255,255,255,0.06)',
+            backgroundColor: 'rgba(255,255,255,0.05)',
           }} />
 
           {/* ── Countdown Circle - sole focal element ── */}
