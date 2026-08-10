@@ -1954,6 +1954,9 @@ function IsometricGrid({
     // Finish a drag: commit the move/swap or snap back with an error flash.
     // The ghost is kept on screen until the move is confirmed committed, so the
     // tree can never disappear - it either lands on the target or springs back.
+    // That confirmation is now state-only and resolves in a microtask; the
+    // garden is persisted in the background, because awaiting the disk write
+    // here left the ghost hanging over the already-swapped tiles.
     const endDrag = useCallback(async (px: number, py: number) => {
         const d = draggingRef.current;
         stopWiggle();
@@ -1963,7 +1966,7 @@ function IsometricGrid({
 
         const hit = Number.isNaN(px) ? null : screenToTile(px, py, gridSize, rotation, startRow, startCol);
         if (hit && isValidDropTarget(hit.row, hit.col)) {
-            // Wait for the move to actually persist before removing the ghost.
+            // Resolves as soon as the move is committed to state.
             const committed = await onMoveTree?.(d.fromRow, d.fromCol, hit.row, hit.col);
             if (committed) {
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});

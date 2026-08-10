@@ -325,6 +325,15 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     }
   }, []);
 
+  // Persist without making the caller wait, for interactions where the delay is
+  // visible on screen. Writes are chained rather than fired independently so
+  // they still land in the order they were issued - which is what awaiting the
+  // save used to guarantee implicitly.
+  const saveChainRef = useRef<Promise<void>>(Promise.resolve());
+  const queueSaveGarden = useCallback((data: GardenData) => {
+    saveChainRef.current = saveChainRef.current.then(() => saveGarden(data));
+  }, [saveGarden]);
+
   // ─── Decay tracking: auto-update timestamp when XP increases ──────────────
   const prevXPRef = useRef(xp);
   useEffect(() => {
@@ -702,9 +711,14 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
 
     const updated = { ...gardenData, plantedTrees: nextPlanted };
     setGardenData(updated);
-    await saveGarden(updated);
+    // Persist in the background rather than awaiting it. Every rejection path
+    // above returns before this point, so success is already decided here and
+    // the write cannot change the outcome - but the caller keeps the drag ghost
+    // on screen until this resolves, so awaiting a full JSON.stringify of the
+    // garden plus an AsyncStorage write showed up as a visible stall on drop.
+    queueSaveGarden(updated);
     return true;
-  }, [gardenData, getTileState, saveGarden]);
+  }, [gardenData, getTileState, queueSaveGarden]);
 
   // ─── Tree inventory ────────────────────────────────────────────────────────
   const saveInventory = useCallback(async (inv: Record<string, number>) => {
