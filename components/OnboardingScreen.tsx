@@ -1267,7 +1267,9 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
         <View style={nstyles.paywallCompact}>
           {/* Hero - the garden growing, small to flourishing. Swap in real
               screenshots via GARDEN_STAGES in components/GardenScaleShowcase.tsx */}
-          <GardenScaleShowcase height={SCREEN_HEIGHT * 0.19} />
+          {/* Trimmed from 0.19 to offset the taller stacked plan rows below and
+              keep the whole page on one screen. */}
+          <GardenScaleShowcase height={SCREEN_HEIGHT * 0.165} />
 
           {/* What's free comes FIRST - the Qur'an is never behind a lock, and
               saying so is the strongest trust move on this screen. */}
@@ -1298,46 +1300,67 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             ))}
           </View>
 
-          {/* Plan selector - side by side */}
-          <View style={nstyles.planRowTight}>
+          {/* Plan selector.
+              Full-width rows rather than side-by-side cards: yearly has four
+              things to say (rate, annual total, what it replaces, the saving)
+              and monthly has two, so a half-width column forced the yearly card
+              to wrap and never sat centred against its neighbour. Stacked rows
+              give it the horizontal room, and - the real win - put both /mo
+              figures in one right-hand column, so the comparison that matters
+              is a straight vertical read. */}
+          <View style={nstyles.planStack}>
             <TouchableOpacity
               onPress={() => setSelectedPlan('yearly')}
-              style={[nstyles.planCardTight, selectedPlan === 'yearly' && styles.planCardSelected]}
-              activeOpacity={0.7}
+              style={[nstyles.planRow, selectedPlan === 'yearly' && nstyles.planRowActive]}
+              activeOpacity={0.8}
             >
-              {/* A concrete saving beats a vague superlative, so the badge
-                  carries the real number when we have it and only falls back
-                  to "BEST VALUE" if the store hasn't returned both prices. */}
-              <View style={nstyles.planBadgeTight}>
-                <Text style={styles.planBadgeText}>
-                  {prices.savings ? `SAVE ${prices.savings}` : 'BEST VALUE'}
+              <View style={[nstyles.radio, selectedPlan === 'yearly' && nstyles.radioActive]}>
+                {selectedPlan === 'yearly' && <View style={nstyles.radioDot} />}
+              </View>
+
+              <View style={nstyles.planBody}>
+                <View style={nstyles.planNameRow}>
+                  <Text style={nstyles.planName}>Yearly</Text>
+                  {/* A real number beats a vague superlative, but only when the
+                      store has given us both prices to derive it from. */}
+                  <View style={nstyles.saveChip}>
+                    <Text style={nstyles.saveChipText}>
+                      {prices.savings ? `SAVE ${prices.savings}` : 'BEST VALUE'}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={nstyles.planMeta} numberOfLines={1}>
+                  {prices.yearly} billed yearly
+                  {prices.savings ? (
+                    <Text style={nstyles.planStrike}>{`  ${prices.yearlyOriginal}`}</Text>
+                  ) : null}
                 </Text>
               </View>
-              <Text style={nstyles.planTitleTight}>Yearly</Text>
-              <Text style={nstyles.planPriceTight}>
-                {prices.yearlyPerMonth}<Text style={styles.planPeriod}>/mo</Text>
-              </Text>
-              {/* The struck-through figure is 12x the monthly price - what a
-                  year costs paying monthly - so it sits against the yearly
-                  total it discounts, not against the per-month figure. Same
-                  comparison PaywallModal makes. */}
-              <Text style={nstyles.planSubTight}>
-                {prices.yearly}
-                {prices.savings ? <Text style={nstyles.planStrikeTight}> {prices.yearlyOriginal}</Text> : null}
-                {' billed yearly'}
+
+              <Text style={nstyles.planRate}>
+                {prices.yearlyPerMonth}<Text style={nstyles.planRateUnit}>/mo</Text>
               </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => setSelectedPlan('monthly')}
-              style={[nstyles.planCardTight, selectedPlan === 'monthly' && styles.planCardSelected]}
-              activeOpacity={0.7}
+              style={[nstyles.planRow, selectedPlan === 'monthly' && nstyles.planRowActive]}
+              activeOpacity={0.8}
             >
-              <Text style={nstyles.planTitleTight}>Monthly</Text>
-              <Text style={nstyles.planPriceTight}>
-                {prices.monthly}<Text style={styles.planPeriod}>/mo</Text>
+              <View style={[nstyles.radio, selectedPlan === 'monthly' && nstyles.radioActive]}>
+                {selectedPlan === 'monthly' && <View style={nstyles.radioDot} />}
+              </View>
+
+              <View style={nstyles.planBody}>
+                <View style={nstyles.planNameRow}>
+                  <Text style={nstyles.planName}>Monthly</Text>
+                </View>
+                <Text style={nstyles.planMeta} numberOfLines={1}>Billed monthly</Text>
+              </View>
+
+              <Text style={nstyles.planRate}>
+                {prices.monthly}<Text style={nstyles.planRateUnit}>/mo</Text>
               </Text>
-              <Text style={nstyles.planSubTight}>billed monthly</Text>
             </TouchableOpacity>
           </View>
 
@@ -2213,10 +2236,6 @@ const styles = StyleSheet.create({
     alignItems: 'center' as const,
     overflow: 'visible' as const,
   },
-  planCardSelected: {
-    borderColor: '#d9a75f',
-    backgroundColor: 'rgba(63,52,31,0.45)',
-  },
   planBadge: {
     position: 'absolute' as const,
     top: -10,
@@ -2224,12 +2243,6 @@ const styles = StyleSheet.create({
     paddingVertical: 3,
     backgroundColor: '#d9a75f',
     borderRadius: 10,
-  },
-  planBadgeText: {
-    color: '#1a0f00',
-    fontSize: 9,
-    fontWeight: '800',
-    letterSpacing: 0.5,
   },
   planTitle: {
     color: '#f5ebd8',
@@ -2241,11 +2254,6 @@ const styles = StyleSheet.create({
     color: '#d9a75f',
     fontWeight: '800',
     fontSize: 22,
-  },
-  planPeriod: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: 'rgba(247,241,232,0.50)',
   },
   planStrikethrough: {
     color: 'rgba(247,241,232,0.25)',
@@ -2773,41 +2781,72 @@ const nstyles = StyleSheet.create({
     borderColor: 'rgba(217,167,95,0.22)',
   },
   benefitPillTextTight: { color: '#e8c97e', fontSize: 11, fontWeight: '600' },
-  planRowTight: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  planCardTight: {
-    flex: 1,
-    borderRadius: 16,
-    borderWidth: 1.5,
-    borderColor: 'rgba(247,241,232,0.16)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    paddingTop: 16,
-    paddingBottom: 10,
-    paddingHorizontal: 10,
+  // ─── Plan selector (stacked rows) ──────────────────────────────────────────
+  planStack: { gap: 8, marginBottom: 12 },
+  planRow: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: 'rgba(247,241,232,0.14)',
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    paddingVertical: 9,
+    paddingHorizontal: 12,
   },
-  planBadgeTight: {
-    position: 'absolute',
-    top: -9,
-    alignSelf: 'center',
+  planRowActive: {
+    borderColor: '#d9a75f',
+    backgroundColor: 'rgba(217,167,95,0.10)',
+  },
+  radio: {
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 1.5,
+    borderColor: 'rgba(247,241,232,0.32)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  radioActive: { borderColor: '#d9a75f' },
+  radioDot: { width: 9, height: 9, borderRadius: 5, backgroundColor: '#d9a75f' },
+  planBody: { flex: 1 },
+  planNameRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  planName: {
+    color: '#f7f1e8',
+    fontSize: 14,
+    fontWeight: '700',
+    fontFamily: FONTS.display,
+  },
+  saveChip: {
     backgroundColor: '#d9a75f',
     borderRadius: 999,
-    paddingHorizontal: 8,
-    paddingVertical: 2,
+    paddingHorizontal: 6,
+    paddingVertical: 1,
   },
-  planTitleTight: { color: 'rgba(247,241,232,0.75)', fontSize: 12, fontWeight: '700' },
-  planPriceTight: {
+  saveChipText: {
+    color: '#1a0f00',
+    fontSize: 8.5,
+    fontWeight: '900',
+    letterSpacing: 0.4,
+  },
+  planMeta: { color: 'rgba(247,241,232,0.5)', fontSize: 10.5, marginTop: 1 },
+  planRate: {
     color: '#ffffff',
-    fontSize: 21,
+    fontSize: 19,
     fontWeight: '800',
     fontFamily: FONTS.display,
-    marginTop: 2,
   },
-  planStrikeTight: {
-    color: 'rgba(247,241,232,0.38)',
+  planRateUnit: {
+    color: 'rgba(247,241,232,0.5)',
+    fontSize: 11,
+    fontWeight: '700',
+    fontFamily: FONTS.display,
+  },
+  planStrike: {
+    color: 'rgba(247,241,232,0.34)',
     fontWeight: '600',
     textDecorationLine: 'line-through',
   },
-  planSubTight: { color: 'rgba(247,241,232,0.45)', fontSize: 10, marginTop: 2 },
   premiumButtonTight: {
     flexDirection: 'row',
     alignItems: 'center',
