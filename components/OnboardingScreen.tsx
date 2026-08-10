@@ -1366,8 +1366,14 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
                 </View>
                 <Text style={nstyles.planMeta} numberOfLines={1}>
                   {prices.yearly} billed yearly
+                  {/* Spacing lives outside the struck-through span - inside it,
+                      the line-through draws across the leading whitespace too
+                      and visibly overshoots past the "U" of the price. */}
                   {prices.savings ? (
-                    <Text style={nstyles.planStrike}>{`  ${prices.yearlyOriginal}`}</Text>
+                    <>
+                      {'  '}
+                      <Text style={nstyles.planStrike}>{prices.yearlyOriginal}</Text>
+                    </>
                   ) : null}
                 </Text>
               </View>
