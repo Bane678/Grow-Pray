@@ -416,10 +416,12 @@ const WOOD_CHOP_SOUND = require('../assets/sounds/Wood_Chopping_Noise.m4a');
 // is exactly the moment a 200-400ms createAsync delay would be felt, since the
 // sound has to land with the error flash and the haptic, not after them.
 //
-// A soft falling two-tone rather than a buzzer - this app never scolds, and a
-// harsh error beep for putting a tree in the wrong place would be badly out of
-// key with the rest of it.
-const DROP_ERROR_SOUND = require('../assets/sounds/error_thunk.wav');
+// The conventional descending two-tone error beep (660Hz, gap, 494Hz), but
+// softened: sine-based with light harmonics instead of a square-wave buzzer,
+// kept under 700Hz so it never turns piercing, and played at low volume. The
+// shape is what makes it read instantly as "no"; the timbre is what keeps it
+// from scolding, which would be out of key with the rest of this app.
+const DROP_ERROR_SOUND = require('../assets/sounds/error_beep.wav');
 
 let _dropErrorSound: Audio.Sound | null = null;
 (async () => {
