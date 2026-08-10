@@ -203,14 +203,20 @@ const THEME = {
   // Cool moonlight - the prayer the countdown is pointing at. Deliberately a
   // different hue from `accent` rather than a dimmer version of it, so "coming
   // up" never competes with "you can log this now".
-  // Warm ivory rather than a colour with its own identity, for two reasons.
-  // The sky crossfades between a real day image and a night one, so anything
-  // blue sat at ~1.8:1 contrast against the daytime sky - the same hue family
-  // as the background it had to be legible on. Ivory holds 3.1:1 by day and
-  // 16:1 by night. Being near-neutral also means it can never be mistaken for
-  // the saturated state colours (peach active, green done, red missed).
-  upNext: '#f5ead6',
-  upNextMuted: 'rgba(245,234,214,0.10)',
+  // The countdown ring sits over the sky, which crossfades between a real day
+  // image and a night one. Anything blue measured ~1.8:1 against the daytime
+  // sky - the same hue family as the background it had to be legible on. Warm
+  // ivory holds 3.1:1 by day and 16.2:1 by night, and stays neutral enough
+  // never to be mistaken for a state colour.
+  countdownRing: '#f5ead6',
+  // The upcoming prayer's chip has a different problem from the ring: it sits
+  // on constant dark glass, where contrast is easy, but the "later today" chips
+  // are already white. An ivory chip therefore differed from them only by
+  // opacity, reading as brighter-nothing rather than a distinct state. This
+  // needs a real hue - cool, so it recedes behind the warm peach ACTIVE chip
+  // that is the one the user can actually tap.
+  upNext: '#a5b4fc',
+  upNextMuted: 'rgba(165,180,252,0.12)',
   // Active but running out. Sits between accent and danger: hotter than peach,
   // but not the flat red reserved for a prayer that was actually missed.
   urgent: '#ff7043',
@@ -690,7 +696,7 @@ function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
   // colour of the prayer that is currently ACTIVE, so the strongest colour link
   // on screen pointed at the wrong prayer. Green still wins when the day is
   // complete, since that reads as a state rather than a target.
-  const activeColor = isComplete ? '#4ade80' : THEME.upNext;
+  const activeColor = isComplete ? '#4ade80' : THEME.countdownRing;
   const brightColor = isComplete ? '#86efac' : '#ffffff';
 
   return (
@@ -1223,7 +1229,7 @@ function FloatingPrayerBar({
               if (isCompleted) ringColor = THEME.success;
               else if (isActive) ringColor = activeColor;
               else if (isMissed) ringColor = 'rgba(239, 68, 68, 0.5)';
-              else if (isNext) ringColor = 'rgba(245,234,214,0.55)';
+              else if (isNext) ringColor = 'rgba(165,180,252,0.60)';
 
               let textColor = 'rgba(255,255,255,0.4)';
               if (isCompleted) textColor = THEME.success;
@@ -1301,7 +1307,7 @@ function FloatingPrayerBar({
                       color: isCompleted ? 'rgba(74,222,128,0.7)'
                         : isUrgent ? THEME.urgent
                         : isActive ? 'rgba(232,168,124,0.9)'
-                        : isNext ? 'rgba(245,234,214,0.85)'
+                        : isNext ? 'rgba(165,180,252,0.90)'
                         : 'rgba(255,255,255,0.3)',
                       marginTop: 2,
                     }}>
