@@ -768,8 +768,14 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     const { effectiveStageIndex, ptWidth, ptHeight, ptAsset, tintStyle, offsetX, offsetY } =
         getPlantedTreeSprite(planted, xp, tileState, daysSinceLastXP);
 
+    // Which tree is standing here. These two fields survive a move intact
+    // (movePlantedTree relocates the object, it doesn't rebuild it) and never
+    // change as a tree grows, so this identifies a specific tree across tiles.
+    const treeIdentity = `${planted.type}:${planted.plantedAtXP}`;
+
     // Detect stage advances and fire level-up FX + scale bounce
     const prevStageIndexRef = useRef(effectiveStageIndex);
+    const prevIdentityRef = useRef(treeIdentity);
     const [fxTrigger, setFxTrigger] = useState(0);
     const treeSizeAnim = useRef(new Animated.Value(1)).current;
     const swayAnim     = useRef(new Animated.Value(0)).current;
@@ -805,7 +811,13 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     }, [editMode]);
 
     useEffect(() => {
-        if (effectiveStageIndex > prevStageIndexRef.current) {
+        // This component is keyed by TILE, not by tree, so after a swap the same
+        // instance is suddenly rendering a different tree. Comparing stage alone
+        // meant dragging a flourishing tree onto a sapling's tile looked exactly
+        // like a level-up and fired the whole celebration. Only celebrate when
+        // the tree that advanced is the same one that was already standing here.
+        const sameTree = prevIdentityRef.current === treeIdentity;
+        if (sameTree && effectiveStageIndex > prevStageIndexRef.current) {
             setFxTrigger(n => n + 1);
             Animated.sequence([
                 Animated.spring(treeSizeAnim, { toValue: 1.25, tension: 120, friction: 4, useNativeDriver: false }),
@@ -813,7 +825,8 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
             ]).start();
         }
         prevStageIndexRef.current = effectiveStageIndex;
-    }, [effectiveStageIndex]);
+        prevIdentityRef.current = treeIdentity;
+    }, [effectiveStageIndex, treeIdentity]);
 
     const posX = tileCenterX - ptWidth / 2 + offsetX;
     const posY = tileCenterY - ptHeight * 0.75 + offsetY;
