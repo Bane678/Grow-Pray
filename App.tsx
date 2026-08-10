@@ -3527,12 +3527,22 @@ function AppInner() {
   }, []);
   
   // Rest period management
-  const { 
-    isResting, 
-    startRestPeriod, 
-    endRestPeriod, 
-    getDaysRemaining 
+  const {
+    isResting,
+    startRestPeriod,
+    endRestPeriod,
+    getDaysRemaining
   } = useRestPeriod();
+
+  // Resting hides the bottom tab bar, so any tab other than the garden becomes
+  // a dead end - no tab bar to leave with, and the settings page paints over
+  // the RestOverlay because it renders later in the tree. Starting a rest from
+  // Settings therefore trapped the user on that page. Leaving is the only
+  // sensible outcome, so send them back to the garden where the overlay (and
+  // its "End Early" button) is actually visible.
+  useEffect(() => {
+    if (isResting) setActiveTab('garden');
+  }, [isResting]);
   
   // Initialize notifications with prayer timings and completed prayers
   // Pass isResting to disable notifications during rest

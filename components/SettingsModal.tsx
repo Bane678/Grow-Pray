@@ -337,8 +337,8 @@ export const SettingsModal = memo(function SettingsModal({
       <SectionLabel label="NOTIFICATIONS" />
       <View style={s.groupCard}>
         <View style={s.settingsRow}>
-          <View style={[s.rowIconBg, { backgroundColor: 'rgba(168,85,247,0.1)' }]}>
-            <MaterialCommunityIcons name="bell-outline" size={18} color="#a855f7" />
+          <View style={[s.rowIconBg, { backgroundColor: 'rgba(217,167,95,0.12)' }]}>
+            <MaterialCommunityIcons name="bell-ring-outline" size={18} color="#d9a75f" />
           </View>
           <View style={s.rowBody}>
             <Text style={s.rowLabel}>Prayer Reminders</Text>
@@ -347,8 +347,8 @@ export const SettingsModal = memo(function SettingsModal({
           <Switch
             value={notificationsEnabled}
             onValueChange={(val) => { Haptics.selectionAsync(); onToggleNotifications(val); }}
-            trackColor={{ false: '#374151', true: 'rgba(168,85,247,0.5)' }}
-            thumbColor={notificationsEnabled ? '#a855f7' : '#6b7280'}
+            trackColor={{ false: '#374151', true: 'rgba(217,167,95,0.45)' }}
+            thumbColor={notificationsEnabled ? '#d9a75f' : '#6b7280'}
           />
         </View>
       </View>
@@ -359,8 +359,9 @@ export const SettingsModal = memo(function SettingsModal({
           <SectionLabel label="TOOLS" />
           <View style={s.groupCard}>
             <TouchableOpacity style={s.settingsRow} onPress={onRest} activeOpacity={0.7}>
-              <View style={[s.rowIconBg, { backgroundColor: 'rgba(16,185,129,0.1)' }]}>
-                <MaterialCommunityIcons name="moon-waning-crescent" size={18} color="#10b981" />
+              {/* Moonlight, matching the RestOverlay this row opens. */}
+              <View style={[s.rowIconBg, { backgroundColor: 'rgba(147,165,220,0.14)' }]}>
+                <MaterialCommunityIcons name="weather-night" size={18} color="#93a5dc" />
               </View>
               <View style={s.rowBody}>
                 <Text style={s.rowLabel}>Rest Period</Text>
@@ -376,15 +377,17 @@ export const SettingsModal = memo(function SettingsModal({
       <SectionLabel label="ACCOUNT" />
       <View style={s.groupCard}>
         <TouchableOpacity style={s.settingsRow} onPress={handleRestorePurchases} disabled={restoringPurchases} activeOpacity={0.7}>
-          <View style={[s.rowIconBg, { backgroundColor: 'rgba(96,165,250,0.1)' }]}>
-            <MaterialCommunityIcons name="restore" size={18} color="#60a5fa" />
+          {/* Understated slate - a rarely-needed utility that shouldn't
+              compete with the settings people actually come here to change. */}
+          <View style={[s.rowIconBg, { backgroundColor: 'rgba(154,168,189,0.12)' }]}>
+            <MaterialCommunityIcons name="cloud-download-outline" size={18} color="#9aa8bd" />
           </View>
           <View style={s.rowBody}>
             <Text style={s.rowLabel}>Restore Purchases</Text>
             <Text style={s.rowHint}>Recover a previous premium subscription</Text>
           </View>
           {restoringPurchases
-            ? <ActivityIndicator size="small" color="#60a5fa" />
+            ? <ActivityIndicator size="small" color="#9aa8bd" />
             : <MaterialCommunityIcons name="chevron-right" size={20} color="#374151" />}
         </TouchableOpacity>
       </View>
