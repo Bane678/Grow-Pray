@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   Animated,
   Dimensions,
+  Easing,
   Image,
   KeyboardAvoidingView,
   Platform,
@@ -113,7 +114,8 @@ type Step =
   | { kind: 'niyyahPlanting' }
   /** Adaptive first-prayer step - runs the core loop once, for real, before
       the paywall: "Have you prayed X today?" */
-  | { kind: 'firstPrayer' };
+  | { kind: 'firstPrayer' }
+  | { kind: 'reflections' };
 
 type InsightCard = {
   title: string;
@@ -239,17 +241,25 @@ const STEPS: Step[] = [
   // 13 - First prayer (adaptive: runs the core loop once, for real)
   { kind: 'firstPrayer' },
 
-  // 14 - The offer (single paywall; opens with what's free forever)
+  // 14 - The other half of the app. Until here everything has been prayer
+  //      tracking; the Qur'an and hadith readers were never mentioned, so the
+  //      paywall's "Annotate verses" landed with no context at all. Placed
+  //      after the niyyah and the first prayer (nothing commercial may precede
+  //      those) and immediately before the offer, so "free forever" is proven
+  //      with real scripture a screen before it is claimed.
+  { kind: 'reflections' },
+
+  // 15 - The offer (single paywall; opens with what's free forever)
   { kind: 'paywall' },
 
-  // 15 - The honest second look (soft decline screen; conveniences only,
+  // 16 - The honest second look (soft decline screen; conveniences only,
   //      never religious content)
   { kind: 'freeWarning' },
 ];
 const TOTAL_STEPS = STEPS.length;
 // Empathy select steps that produce an insight card (indices 2 and 5)
 const INSIGHT_STEP_INDICES = [2, 5];
-const TRUE_TOTAL = STEPS.length + INSIGHT_STEP_INDICES.length; // 16 steps + 2 insights = 18
+const TRUE_TOTAL = STEPS.length + INSIGHT_STEP_INDICES.length; // 17 steps + 2 insights = 19
 
 // Common profanity/slur blocklist - word-boundary matched, case-insensitive.
 // This is a client-side first pass; not exhaustive but catches obvious cases.
@@ -539,6 +549,9 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
 
   const fadeAnim = useRef(new Animated.Value(1)).current;
   const slideAnim = useRef(new Animated.Value(0)).current;
+  // Highlighter sweep on the reflections card. Replays whenever that step is
+  // entered - including on a back-navigation - rather than only on mount.
+  const reflHighlight = useRef(new Animated.Value(0)).current;
 
   // Live prayer times for the payoff screens (live-times card, notification
   // priming, adaptive first prayer). locationReady stays false until the user
@@ -552,6 +565,28 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
   const liveTimings: Timings | null = locGranted ? prayerLive.timings : null;
 
   const currentStep = dynamicSteps[step];
+
+  // Run the highlighter sweep on arrival at the reflections card. Declared
+  // before the early return below so hook order stays stable across steps.
+  const onReflections = currentStep?.kind === 'reflections' && !insightCard;
+  useEffect(() => {
+    if (!onReflections) return;
+    reflHighlight.setValue(0);
+    const anim = Animated.sequence([
+      // Let the card settle first - the mark should read as something being
+      // drawn onto a verse the user is already looking at.
+      Animated.delay(520),
+      Animated.timing(reflHighlight, {
+        toValue: 1,
+        duration: 820,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+    ]);
+    anim.start();
+    return () => anim.stop();
+  }, [onReflections]);
+
   if (!currentStep) return null;
 
   // Visual position accounts for insight cards already passed + whether one is showing now
@@ -1472,6 +1507,57 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               <Text style={styles.primaryButtonText}>{currentStep.cta}</Text>
             </TouchableOpacity>
           </View>
+        </View>
+      );
+    }
+
+    // ── Reflections (Qur'an + hadith, and marking them) ───────────────────────
+    if (currentStep.kind === 'reflections') {
+      return (
+        <View style={nstyles.reflWrap}>
+          <StarRow />
+          <Text style={nstyles.reflEyebrow}>ALSO IN YOUR GARDEN</Text>
+          <Text style={nstyles.reflTitle}>The Qur'an, always open.</Text>
+          <Text style={nstyles.reflBody}>
+            The full Qur'an and Imam an-Nawawi's Forty Hadith, in the app from
+            day one. No unlocks, no counters.
+          </Text>
+
+          {/* A real verse, rendered the way the reader renders it, with the
+              highlight drawing itself on. Showing the feature in one gesture
+              is worth more than a benefit pill claiming it. */}
+          <View style={nstyles.reflVerseCard}>
+            <Text style={nstyles.reflArabic}>فَاذْكُرُونِي أَذْكُرْكُمْ</Text>
+            <View style={nstyles.reflHighlightWrap}>
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  nstyles.reflHighlight,
+                  {
+                    transform: [{ scaleX: reflHighlight }],
+                  },
+                ]}
+              />
+              <Text style={nstyles.reflTranslation}>
+                So remember Me; I will remember you.
+              </Text>
+            </View>
+            <Text style={nstyles.reflSource}>Qur'an 2:152</Text>
+          </View>
+
+          <Text style={nstyles.reflCaption}>
+            Save the ones that stay with you, and mark them in your own hand.
+          </Text>
+          {/* Stated plainly here rather than discovered at a lock later - the
+              free half is the promise, so the paid half has to be named next
+              to it. */}
+          <Text style={nstyles.reflFinePrint}>
+            Reading is always free. Saving and marking come with Premium.
+          </Text>
+
+          <TouchableOpacity onPress={goNext} style={[styles.primaryButton, { alignSelf: 'stretch' }]}>
+            <Text style={styles.primaryButtonText}>Continue</Text>
+          </TouchableOpacity>
         </View>
       );
     }
@@ -2781,6 +2867,90 @@ const nstyles = StyleSheet.create({
     borderColor: 'rgba(217,167,95,0.22)',
   },
   benefitPillTextTight: { color: '#e8c97e', fontSize: 11, fontWeight: '600' },
+  // ─── Reflections card ──────────────────────────────────────────────────────
+  reflWrap: { alignItems: 'center', paddingHorizontal: 4 },
+  reflEyebrow: {
+    color: 'rgba(217,167,95,0.85)',
+    fontSize: 10,
+    fontWeight: '800',
+    letterSpacing: 1.6,
+    marginTop: 10,
+  },
+  reflTitle: {
+    color: '#f7f1e8',
+    fontSize: 24,
+    fontWeight: '700',
+    fontFamily: FONTS.display,
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  reflBody: {
+    color: 'rgba(247,241,232,0.6)',
+    fontSize: 13.5,
+    lineHeight: 20,
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 8,
+  },
+  reflVerseCard: {
+    alignSelf: 'stretch',
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    marginTop: 20,
+    alignItems: 'center',
+  },
+  reflArabic: {
+    color: '#f2e9dc',
+    fontSize: 26,
+    lineHeight: 46,
+    fontFamily: FONTS.arabic,
+    textAlign: 'center',
+  },
+  reflHighlightWrap: { marginTop: 10, alignSelf: 'stretch' },
+  reflHighlight: {
+    position: 'absolute',
+    left: -4,
+    right: -4,
+    top: -2,
+    bottom: -2,
+    borderRadius: 5,
+    backgroundColor: 'rgba(217,167,95,0.30)',
+    // Grows from the left like a highlighter being dragged across the line,
+    // rather than fading in everywhere at once.
+    transformOrigin: 'left center',
+  },
+  reflTranslation: {
+    color: 'rgba(242,233,220,0.92)',
+    fontSize: 15,
+    lineHeight: 22,
+    textAlign: 'center',
+  },
+  reflSource: {
+    color: 'rgba(217,167,95,0.8)',
+    fontSize: 11.5,
+    fontWeight: '700',
+    marginTop: 12,
+  },
+  reflCaption: {
+    color: 'rgba(247,241,232,0.72)',
+    fontSize: 13.5,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginTop: 18,
+    paddingHorizontal: 6,
+  },
+  reflFinePrint: {
+    color: 'rgba(247,241,232,0.4)',
+    fontSize: 11,
+    textAlign: 'center',
+    marginTop: 8,
+    marginBottom: 18,
+  },
+
   // ─── Plan selector (stacked rows) ──────────────────────────────────────────
   planStack: { gap: 8, marginBottom: 12 },
   planRow: {
