@@ -1371,7 +1371,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
                       and visibly overshoots past the "U" of the price. */}
                   {prices.savings ? (
                     <>
-                      {'  '}
+                      {' '}
                       <Text style={nstyles.planStrike}>{prices.yearlyOriginal}</Text>
                     </>
                   ) : null}
@@ -1521,7 +1521,6 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     if (currentStep.kind === 'reflections') {
       return (
         <View style={nstyles.reflWrap}>
-          <StarRow />
           <Text style={nstyles.reflEyebrow}>ALSO IN YOUR GARDEN</Text>
           <Text style={nstyles.reflTitle}>The Qur'an, always open.</Text>
           <Text style={nstyles.reflBody}>
