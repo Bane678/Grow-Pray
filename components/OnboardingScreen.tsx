@@ -1443,9 +1443,14 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       const ceilings = [
         { icon: 'grid-off' as const, text: 'Garden stops at 7×7, permanently' },
         { icon: 'speedometer-slow' as const, text: 'Coins & XP earn at half the rate' },
-        { icon: 'snowflake-off' as const, text: 'No streak freezes - one bad week resets you' },
+        { icon: 'snowflake-off' as const, text: 'No free monthly streak freezes' },
         { icon: 'tree-outline' as const, text: 'Golden Tree & Ancient Cedar stay locked' },
         { icon: 'chart-line' as const, text: 'No insight into your prayer patterns' },
+        // Reading stays free forever - see the hard rule above. This is the
+        // convenience layered on top (saving + marking), not the Qur'an/hadith
+        // themselves, so it belongs on this list the same way "insights" is a
+        // tool built on prayer data rather than the prayer times themselves.
+        { icon: 'pencil-off-outline' as const, text: "Can't save or mark Qur'an & Hadith verses" },
       ];
       return (
         <View style={nstyles.declineCompact}>
