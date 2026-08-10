@@ -203,8 +203,14 @@ const THEME = {
   // Cool moonlight - the prayer the countdown is pointing at. Deliberately a
   // different hue from `accent` rather than a dimmer version of it, so "coming
   // up" never competes with "you can log this now".
-  upNext: '#8fb8e8',
-  upNextMuted: 'rgba(143,184,232,0.10)',
+  // Warm ivory rather than a colour with its own identity, for two reasons.
+  // The sky crossfades between a real day image and a night one, so anything
+  // blue sat at ~1.8:1 contrast against the daytime sky - the same hue family
+  // as the background it had to be legible on. Ivory holds 3.1:1 by day and
+  // 16:1 by night. Being near-neutral also means it can never be mistaken for
+  // the saturated state colours (peach active, green done, red missed).
+  upNext: '#f5ead6',
+  upNextMuted: 'rgba(245,234,214,0.10)',
   // Active but running out. Sits between accent and danger: hotter than peach,
   // but not the flat red reserved for a prayer that was actually missed.
   urgent: '#ff7043',
@@ -679,8 +685,13 @@ function PremiumCountdownRing({ progress, size, strokeWidth, isComplete }: {
   const p = Math.min(Math.max(displayProgress, 0), 1);
   const offset = circumference * (1 - p);
 
-  const activeColor = isComplete ? '#4ade80' : '#e8a87c';
-  const brightColor = isComplete ? '#86efac' : '#fbbf24';
+  // The ring counts down to the NEXT prayer, so it carries the same ivory as
+  // that prayer's chip in the bar below - previously it was accent peach, the
+  // colour of the prayer that is currently ACTIVE, so the strongest colour link
+  // on screen pointed at the wrong prayer. Green still wins when the day is
+  // complete, since that reads as a state rather than a target.
+  const activeColor = isComplete ? '#4ade80' : THEME.upNext;
+  const brightColor = isComplete ? '#86efac' : '#ffffff';
 
   return (
     <View style={{ width: size + 16, height: size + 16, alignItems: 'center', justifyContent: 'center' }}>
@@ -1042,7 +1053,7 @@ function TopInfoBar({
             width: 180,
             height: 180,
             borderRadius: 90,
-            backgroundColor: 'rgba(140,170,220,0.04)',
+            backgroundColor: 'rgba(245,234,214,0.045)',
           }} />
           {/* Inner brighter glow */}
           <View pointerEvents="none" style={{
@@ -1050,7 +1061,7 @@ function TopInfoBar({
             width: 120,
             height: 120,
             borderRadius: 60,
-            backgroundColor: 'rgba(160,190,240,0.06)',
+            backgroundColor: 'rgba(255,255,255,0.06)',
           }} />
 
           {/* ── Countdown Circle - sole focal element ── */}
@@ -1212,7 +1223,7 @@ function FloatingPrayerBar({
               if (isCompleted) ringColor = THEME.success;
               else if (isActive) ringColor = activeColor;
               else if (isMissed) ringColor = 'rgba(239, 68, 68, 0.5)';
-              else if (isNext) ringColor = 'rgba(143,184,232,0.55)';
+              else if (isNext) ringColor = 'rgba(245,234,214,0.55)';
 
               let textColor = 'rgba(255,255,255,0.4)';
               if (isCompleted) textColor = THEME.success;
@@ -1290,7 +1301,7 @@ function FloatingPrayerBar({
                       color: isCompleted ? 'rgba(74,222,128,0.7)'
                         : isUrgent ? THEME.urgent
                         : isActive ? 'rgba(232,168,124,0.9)'
-                        : isNext ? 'rgba(143,184,232,0.85)'
+                        : isNext ? 'rgba(245,234,214,0.85)'
                         : 'rgba(255,255,255,0.3)',
                       marginTop: 2,
                     }}>
