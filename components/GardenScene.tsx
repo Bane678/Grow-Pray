@@ -411,6 +411,33 @@ const ASSETS = {
 
 const WOOD_CHOP_SOUND = require('../assets/sounds/Wood_Chopping_Noise.m4a');
 
+// ─── Invalid-drop sound ──────────────────────────────────────────────────────
+// Preloaded once at module level rather than created per drop: a rejected drag
+// is exactly the moment a 200-400ms createAsync delay would be felt, since the
+// sound has to land with the error flash and the haptic, not after them.
+//
+// A soft falling two-tone rather than a buzzer - this app never scolds, and a
+// harsh error beep for putting a tree in the wrong place would be badly out of
+// key with the rest of it.
+const DROP_ERROR_SOUND = require('../assets/sounds/error_thunk.wav');
+
+let _dropErrorSound: Audio.Sound | null = null;
+(async () => {
+    try {
+        const { sound } = await Audio.Sound.createAsync(DROP_ERROR_SOUND, { shouldPlay: false, volume: 0.45 });
+        _dropErrorSound = sound;
+    } catch { /* silent fail - the flash and haptic still land */ }
+})();
+
+/** Fire-and-forget; rewinds first so rapid repeated rejections each sound. */
+function playDropError() {
+    const s = _dropErrorSound;
+    if (!s) return;
+    s.setPositionAsync(0)
+        .then(() => s.playAsync())
+        .catch(() => { /* non-critical */ });
+}
+
 // Tree dimensions (actual asset is 848x1264)
 const TREE_WIDTH = 848;
 const TREE_HEIGHT = 1264;
@@ -1930,11 +1957,13 @@ function IsometricGrid({
                 // Rejected unexpectedly - snap back rather than leave it stranded.
                 flashError(hit.row, hit.col);
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+                playDropError();
                 snapBack();
             }
         } else {
             if (hit) flashError(hit.row, hit.col);
             Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
+            playDropError();
             snapBack();
         }
     }, [gridSize, rotation, startRow, startCol, isValidDropTarget, onMoveTree, flashError, stopWiggle, snapBack]);
