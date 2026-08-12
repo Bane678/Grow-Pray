@@ -754,7 +754,6 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     tileState,
     daysSinceLastXP,
     editMode,
-    selected = false,
 }: {
     tileCenterX: number;
     tileCenterY: number;
@@ -764,8 +763,6 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     tileState: TileState;
     daysSinceLastXP: number;
     editMode: boolean;
-    /** Marked for batch removal in edit mode. */
-    selected?: boolean;
 }) {
     // Resolve sprite / size / tint (with withering penalty) via shared helper.
     const { effectiveStageIndex, ptWidth, ptHeight, ptAsset, tintStyle, offsetX, offsetY } =
@@ -871,31 +868,6 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
                     />
                 </Animated.View>
             </Animated.View>
-            {/* Selection marker for batch removal. Sits at the trunk base
-                rather than over the canopy so it never hides the tree the user
-                is deciding about, and is tinted danger because the only action
-                it leads to is destructive. */}
-            {selected && (
-                <View
-                    pointerEvents="none"
-                    style={{
-                        position: 'absolute',
-                        left: tileCenterX - 11,
-                        top: tileCenterY - 11,
-                        width: 22,
-                        height: 22,
-                        borderRadius: 11,
-                        backgroundColor: '#ef4444',
-                        borderWidth: 2,
-                        borderColor: 'rgba(255,255,255,0.92)',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        zIndex: zIndexBase + 400,
-                    }}
-                >
-                    <Text style={{ color: '#fff', fontSize: 13, fontWeight: '900', lineHeight: 15 }}>×</Text>
-                </View>
-            )}
             <LevelUpFX
                 centerX={tileCenterX}
                 centerY={tileCenterY}
@@ -1568,9 +1540,6 @@ interface IsometricGridProps {
     onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
     editMode?: boolean;
     onExitEditMode?: () => void;
-    /** Tiles selected for batch removal, as "row,col". */
-    selectedTrees?: Set<string>;
-    onToggleTreeSelection?: (row: number, col: number) => void;
     justPlantedTile?: { row: number; col: number; seq: number } | null;
     onChoppingComplete?: (row: number, col: number) => void;
     onStageChange?: (stage: string) => void;
@@ -1599,8 +1568,6 @@ function IsometricGrid({
     onMoveTree,
     editMode = false,
     onExitEditMode,
-    selectedTrees,
-    onToggleTreeSelection,
     justPlantedTile,
     onChoppingComplete,
     onStageChange,
@@ -1801,19 +1768,9 @@ function IsometricGrid({
 
     // ─── Grid-level tap handler with isometric diamond hit-testing ────────────
     const handleGridTap = useCallback((x: number, y: number) => {
-        // In edit mode, tapping a tree toggles it for batch removal and tapping
-        // anywhere else leaves the mode. Trees are still moved by dragging, so a
-        // tap is free to mean "select" - which is what makes clearing several
-        // trees one confirmation instead of one per tree.
-        if (editMode) {
-            const hit = screenToTile(x, y, gridSize, rotation, startRow, startCol);
-            if (hit && getPlantedTree(hit.row, hit.col) && !(hit.row === maxCenter && hit.col === maxCenter)) {
-                onToggleTreeSelection?.(hit.row, hit.col);
-                return;
-            }
-            onExitEditMode?.();
-            return;
-        }
+        // In edit mode a plain tap (not a drag) leaves the rearrange mode -
+        // trees are moved by dragging, so any tap here means "I'm done".
+        if (editMode) { onExitEditMode?.(); return; }
 
         // ── Priority: dead-tree sprite bounding-box check ──────────────────────
         // Dead trees are much taller than their tile's diamond (trunk extends well
@@ -1871,7 +1828,7 @@ function IsometricGrid({
     }, [gridSize, rotation, startRow, startCol, maxLocal, centerOffsetX,
         getTileState, visibleDeadTrees, choppingTrees,
         onDeadTreePress, onTilePress, onPlantPress, onPlantedTreePress, getPlantedTree, xp, showTapHighlight,
-        editMode, onExitEditMode, onToggleTreeSelection, maxCenter]);
+        editMode, onExitEditMode]);
 
     // ─── Hold-to-move (drag a planted tree like an iOS home-screen icon) ──────
     // A long-press (~500ms) on a planted tree lifts it; it then follows the finger
@@ -2286,13 +2243,12 @@ function IsometricGrid({
                         tileState={tileState}
                         daysSinceLastXP={daysSinceLastXP}
                         editMode={editMode}
-                        selected={!!selectedTrees?.has(`${row},${col}`)}
                     />
                 );
             }
         }
         return elements;
-    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode, selectedTrees]);
+    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode]);
 
     // Center tile position for main tree
     const centerLocalRow = maxCenter - startRow;
@@ -2523,9 +2479,6 @@ interface GardenSceneProps {
     onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
     editMode?: boolean;
     onExitEditMode?: () => void;
-    /** Tiles selected for batch removal, as "row,col". */
-    selectedTrees?: Set<string>;
-    onToggleTreeSelection?: (row: number, col: number) => void;
     justPlantedTile?: { row: number; col: number; seq: number } | null;
     onChoppingComplete?: (row: number, col: number) => void;
     frozen?: boolean;
@@ -2548,8 +2501,6 @@ export const GardenScene = React.memo(function GardenScene({
     onMoveTree,
     editMode = false,
     onExitEditMode,
-    selectedTrees,
-    onToggleTreeSelection,
     justPlantedTile,
     onChoppingComplete,
     frozen = false,
@@ -2875,8 +2826,6 @@ export const GardenScene = React.memo(function GardenScene({
                                     onMoveTree={onMoveTree}
                                     editMode={editMode}
                                     onExitEditMode={onExitEditMode}
-                                    selectedTrees={selectedTrees}
-                                    onToggleTreeSelection={onToggleTreeSelection}
                                     justPlantedTile={justPlantedTile}
                                     onChoppingComplete={onChoppingComplete}
                                     isZoomedOut={isZoomedOut}
