@@ -754,6 +754,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     tileState,
     daysSinceLastXP,
     editMode,
+    selected = false,
 }: {
     tileCenterX: number;
     tileCenterY: number;
@@ -763,6 +764,8 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     tileState: TileState;
     daysSinceLastXP: number;
     editMode: boolean;
+    /** Highlighted for removal in edit mode. */
+    selected?: boolean;
 }) {
     // Resolve sprite / size / tint (with withering penalty) via shared helper.
     const { effectiveStageIndex, ptWidth, ptHeight, ptAsset, tintStyle, offsetX, offsetY } =
@@ -801,10 +804,12 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
             jiggleAnim.setValue(0);
             return;
         }
+        // Slower than the iOS original - these are trees in a calm garden, and
+        // at the previous 140/280/140 the whole grid buzzed.
         const loop = Animated.loop(Animated.sequence([
-            Animated.timing(jiggleAnim, { toValue:  1, duration: 140, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(jiggleAnim, { toValue: -1, duration: 280, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(jiggleAnim, { toValue:  0, duration: 140, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(jiggleAnim, { toValue:  1, duration: 230, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(jiggleAnim, { toValue: -1, duration: 460, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+            Animated.timing(jiggleAnim, { toValue:  0, duration: 230, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
         ]));
         loop.start();
         return () => loop.stop();
@@ -833,6 +838,25 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
 
     return (
         <>
+            {/* Selection highlight: the tile beneath the tree lights up, rather
+                than a badge stuck on the canopy. Sits below the tree's zIndex so
+                the tree is never obscured by its own highlight. */}
+            {selected && (
+                <Image
+                    source={TILE_ASSETS.recovered}
+                    style={{
+                        position: 'absolute',
+                        left: tileCenterX - SCALED_WIDTH / 2,
+                        top: tileCenterY - SCALED_HEIGHT / 2,
+                        width: SCALED_WIDTH,
+                        height: SCALED_HEIGHT,
+                        tintColor: '#fbbf24',
+                        opacity: 0.6,
+                        zIndex: zIndexBase,
+                    }}
+                    resizeMode="contain"
+                />
+            )}
             {/* Outer view: sway rotation on native driver (smooth, no JS overhead) */}
             <Animated.View
                 pointerEvents="none"
@@ -1539,7 +1563,9 @@ interface IsometricGridProps {
     onPlantedTreePress?: (row: number, col: number) => void;
     onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
     editMode?: boolean;
-    onExitEditMode?: () => void;
+    /** Tiles marked for removal in edit mode, as "row,col". */
+    selectedTrees?: Set<string>;
+    onToggleTreeSelection?: (row: number, col: number) => void;
     justPlantedTile?: { row: number; col: number; seq: number } | null;
     onChoppingComplete?: (row: number, col: number) => void;
     onStageChange?: (stage: string) => void;
@@ -1567,7 +1593,8 @@ function IsometricGrid({
     onPlantedTreePress,
     onMoveTree,
     editMode = false,
-    onExitEditMode,
+    selectedTrees,
+    onToggleTreeSelection,
     justPlantedTile,
     onChoppingComplete,
     onStageChange,
@@ -1768,9 +1795,21 @@ function IsometricGrid({
 
     // ─── Grid-level tap handler with isometric diamond hit-testing ────────────
     const handleGridTap = useCallback((x: number, y: number) => {
-        // In edit mode a plain tap (not a drag) leaves the rearrange mode -
-        // trees are moved by dragging, so any tap here means "I'm done".
-        if (editMode) { onExitEditMode?.(); return; }
+        // In edit mode a tap selects a tree for removal. Trees are lifted by
+        // holding, so a tap is free to mean something else.
+        //
+        // Tapping empty ground deliberately does nothing rather than leaving
+        // edit mode: now that the garden can be panned while editing, a tap
+        // that lands on nothing is far more likely to be a stray finger than
+        // an intent to exit. Leaving is the Done button's job.
+        if (editMode) {
+            const hit = screenToTile(x, y, gridSize, rotation, startRow, startCol);
+            if (!hit) return;
+            if (hit.row === maxCenter && hit.col === maxCenter) return; // main tree
+            if (!getPlantedTree(hit.row, hit.col)) return;
+            onToggleTreeSelection?.(hit.row, hit.col);
+            return;
+        }
 
         // ── Priority: dead-tree sprite bounding-box check ──────────────────────
         // Dead trees are much taller than their tile's diamond (trunk extends well
@@ -1828,7 +1867,7 @@ function IsometricGrid({
     }, [gridSize, rotation, startRow, startCol, maxLocal, centerOffsetX,
         getTileState, visibleDeadTrees, choppingTrees,
         onDeadTreePress, onTilePress, onPlantPress, onPlantedTreePress, getPlantedTree, xp, showTapHighlight,
-        editMode, onExitEditMode]);
+        editMode, onToggleTreeSelection, maxCenter]);
 
     // ─── Hold-to-move (drag a planted tree like an iOS home-screen icon) ──────
     // A long-press (~500ms) on a planted tree lifts it; it then follows the finger
@@ -1849,7 +1888,10 @@ function IsometricGrid({
     const [hoverTile, setHoverTile] = useState<{ row: number; col: number; valid: boolean } | null>(null);
     const lastHoverKeyRef = useRef<string | null>(null);
 
-    const [errorFlash, setErrorFlash] = useState<{ x: number; y: number; zIndex: number } | null>(null);
+    // `tone` picks the flash colour: 'error' for a rejected drop, 'neutral' for
+    // putting a tree back where it came from - which is a cancellation, not a
+    // mistake, and shouldn't be scolded.
+    const [errorFlash, setErrorFlash] = useState<{ x: number; y: number; zIndex: number; tone: 'error' | 'neutral' } | null>(null);
     const errorFlashOpacity = useRef(new Animated.Value(0)).current;
 
     // Screen-space top-left of a tile (grid container coords).
@@ -1891,10 +1933,10 @@ function IsometricGrid({
         dragWiggle.setValue(0);
     }, []);
 
-    const flashError = useCallback((row: number, col: number) => {
+    const flashError = useCallback((row: number, col: number, tone: 'error' | 'neutral' = 'error') => {
         const { x, y, zIndex } = tileScreenXY(row, col);
-        setErrorFlash({ x, y, zIndex: zIndex + 200 });
-        errorFlashOpacity.setValue(0.75);
+        setErrorFlash({ x, y, zIndex: zIndex + 200, tone });
+        errorFlashOpacity.setValue(tone === 'neutral' ? 0.5 : 0.75);
         Animated.timing(errorFlashOpacity, {
             toValue: 0,
             duration: 520,
@@ -1965,6 +2007,18 @@ function IsometricGrid({
         if (!d) return;
 
         const hit = Number.isNaN(px) ? null : screenToTile(px, py, gridSize, rotation, startRow, startCol);
+
+        // Dropping a tree back on the tile it came from is a cancelled move, not
+        // a failed one. It used to fall through to the invalid branch and get the
+        // full rejection treatment - red flash, error haptic, error sound - for
+        // picking a tree up and changing your mind.
+        if (hit && hit.row === d.fromRow && hit.col === d.fromCol) {
+            flashError(hit.row, hit.col, 'neutral');
+            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
+            snapBack();
+            return;
+        }
+
         if (hit && isValidDropTarget(hit.row, hit.col)) {
             // Resolves as soon as the move is committed to state.
             const committed = await onMoveTree?.(d.fromRow, d.fromCol, hit.row, hit.col);
@@ -1996,10 +2050,14 @@ function IsometricGrid({
         .runOnJS(true), [handleGridTap]);
 
     const moveGesture = useMemo(() => {
-        // In edit mode trees lift immediately; otherwise a ~500ms long-press
-        // (matching iOS icon-move) is required so normal taps still work.
+        // A ~500ms long-press (matching iOS icon-move) lifts a tree, in edit
+        // mode as well as out of it. Edit mode used to lift instantly, which
+        // meant every drag grabbed whatever tree was under the finger and the
+        // garden could not be panned or zoomed at all while editing. Requiring
+        // the hold leaves plain drags to the outer pan/pinch handlers and frees
+        // a tap to mean "select".
         let g = Gesture.Pan()
-            .activateAfterLongPress(editMode ? 0 : 500)
+            .activateAfterLongPress(500)
             .maxPointers(1)
             .onStart((e) => { settledRef.current = false; beginDrag(e.x, e.y); })
             .onUpdate((e) => {
@@ -2243,12 +2301,13 @@ function IsometricGrid({
                         tileState={tileState}
                         daysSinceLastXP={daysSinceLastXP}
                         editMode={editMode}
+                        selected={!!selectedTrees?.has(`${row},${col}`)}
                     />
                 );
             }
         }
         return elements;
-    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode]);
+    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode, selectedTrees]);
 
     // Center tile position for main tree
     const centerLocalRow = maxCenter - startRow;
@@ -2414,7 +2473,13 @@ function IsometricGrid({
                 >
                     <Image
                         source={TILE_ASSETS.recovered}
-                        style={{ width: SCALED_WIDTH, height: SCALED_HEIGHT, tintColor: '#ef4444' }}
+                        style={{
+                            width: SCALED_WIDTH,
+                            height: SCALED_HEIGHT,
+                            // Same grey the hover indicator uses for a tile that
+                            // isn't a move, so cancelling reads consistently.
+                            tintColor: errorFlash.tone === 'neutral' ? '#94a3b8' : '#ef4444',
+                        }}
                         resizeMode="contain"
                     />
                 </Animated.View>
@@ -2478,7 +2543,9 @@ interface GardenSceneProps {
     onPlantedTreePress?: (row: number, col: number) => void;
     onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
     editMode?: boolean;
-    onExitEditMode?: () => void;
+    /** Tiles marked for removal in edit mode, as "row,col". */
+    selectedTrees?: Set<string>;
+    onToggleTreeSelection?: (row: number, col: number) => void;
     justPlantedTile?: { row: number; col: number; seq: number } | null;
     onChoppingComplete?: (row: number, col: number) => void;
     frozen?: boolean;
@@ -2500,7 +2567,8 @@ export const GardenScene = React.memo(function GardenScene({
     onPlantedTreePress,
     onMoveTree,
     editMode = false,
-    onExitEditMode,
+    selectedTrees,
+    onToggleTreeSelection,
     justPlantedTile,
     onChoppingComplete,
     frozen = false,
@@ -2825,7 +2893,8 @@ export const GardenScene = React.memo(function GardenScene({
                                     onPlantedTreePress={onPlantedTreePress}
                                     onMoveTree={onMoveTree}
                                     editMode={editMode}
-                                    onExitEditMode={onExitEditMode}
+                                    selectedTrees={selectedTrees}
+                                    onToggleTreeSelection={onToggleTreeSelection}
                                     justPlantedTile={justPlantedTile}
                                     onChoppingComplete={onChoppingComplete}
                                     isZoomedOut={isZoomedOut}

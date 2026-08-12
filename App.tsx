@@ -2963,6 +2963,26 @@ function AppInner() {
   // Garden "edit mode" - entered from a tree's Move action. All planted trees
   // jiggle and can be dragged immediately (no long-press), iOS home-screen style.
   const [editMode, setEditMode] = useState(false);
+  // Trees highlighted for removal while editing, as "row,col".
+  const [selectedTrees, setSelectedTrees] = useState<Set<string>>(new Set());
+  const [confirmBulkRemove, setConfirmBulkRemove] = useState(false);
+
+  const toggleTreeSelection = useCallback((row: number, col: number) => {
+    const key = `${row},${col}`;
+    setSelectedTrees(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key); else next.add(key);
+      return next;
+    });
+    Haptics.selectionAsync().catch(() => {});
+  }, []);
+
+  // Leaving edit mode always drops the highlights - a pending set of trees
+  // marked for deletion must never outlive the mode that displays it.
+  const exitEditMode = useCallback(() => {
+    setEditMode(false);
+    setSelectedTrees(new Set());
+  }, []);
   // Temporary "just planted" spotlight so a freshly placed tree is easy to spot.
   // seq increments on every plant so re-planting the same tile re-triggers it.
   const [justPlantedTile, setJustPlantedTile] = useState<{ row: number; col: number; seq: number } | null>(null);
@@ -3259,8 +3279,29 @@ function AppInner() {
   // commit result so the caller can keep the lifted "ghost" on screen until the
   // move is actually persisted (the tree either lands on the new tile or snaps
   // back - it can never vanish). Uses the ref so the callback stays stable.
-  const handleMoveTree = useCallback((fromRow: number, fromCol: number, toRow: number, toCol: number): Promise<boolean> => {
-    return gardenStateRef.current.movePlantedTree(fromRow, fromCol, toRow, toCol);
+  const handleMoveTree = useCallback(async (fromRow: number, fromCol: number, toRow: number, toCol: number): Promise<boolean> => {
+    const moved = await gardenStateRef.current.movePlantedTree(fromRow, fromCol, toRow, toCol);
+    if (!moved) return false;
+
+    // Highlights are keyed by tile, so a move would otherwise leave the mark
+    // behind on the tile - and after a swap it would be highlighting a tree the
+    // user never picked. Exchanging membership of the two keys is right for both
+    // cases: a swap sends each tree to the other tile, and a move onto empty
+    // ground simply carries the mark along with the tree.
+    const fromKey = `${fromRow},${fromCol}`;
+    const toKey = `${toRow},${toCol}`;
+    setSelectedTrees(prev => {
+      if (!prev.has(fromKey) && !prev.has(toKey)) return prev;
+      const hadFrom = prev.has(fromKey);
+      const hadTo = prev.has(toKey);
+      const next = new Set(prev);
+      next.delete(fromKey);
+      next.delete(toKey);
+      if (hadFrom) next.add(toKey);
+      if (hadTo) next.add(fromKey);
+      return next;
+    });
+    return true;
   }, []);
 
   // Refs for stable callbacks (avoid re-creating on every state change)
@@ -3771,7 +3812,8 @@ function AppInner() {
         onPlantedTreePress={handlePlantedTreePress}
         onMoveTree={handleMoveTree}
         editMode={editMode}
-        onExitEditMode={() => setEditMode(false)}
+        selectedTrees={selectedTrees}
+        onToggleTreeSelection={toggleTreeSelection}
         justPlantedTile={justPlantedTile}
         onChoppingComplete={handleChoppingComplete}
         frozen={isAnyModalOpen}
@@ -3828,31 +3870,141 @@ function AppInner() {
             marginBottom: 10,
           }}>
             <Text style={{ fontSize: 11, fontWeight: '600', color: 'rgba(232,224,214,0.7)', letterSpacing: 0.3 }}>
-              Drag trees to rearrange
+              {selectedTrees.size > 0
+                ? `${selectedTrees.size} selected · tap to add or remove`
+                : 'Hold to move · tap to select'}
             </Text>
           </View>
-          <TouchableOpacity
-            onPress={() => {
-              setEditMode(false);
-              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            }}
-            activeOpacity={0.85}
-            style={{
-              backgroundColor: THEME.accent,
-              borderRadius: 12,
-              paddingVertical: 13,
-              paddingHorizontal: 44,
-              shadowColor: '#000',
-              shadowOpacity: 0.3,
-              shadowRadius: 12,
-              shadowOffset: { width: 0, height: 4 },
-              elevation: 8,
-            }}
-          >
-            <Text style={{ fontSize: 16, fontWeight: '600', color: '#000' }}>Done</Text>
-          </TouchableOpacity>
+
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+            {/* Appears only once something is highlighted, so a destructive
+                button never sits next to Done waiting to be mis-tapped. */}
+            {selectedTrees.size > 0 && (
+              <TouchableOpacity
+                onPress={() => {
+                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+                  setConfirmBulkRemove(true);
+                }}
+                activeOpacity={0.85}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 6,
+                  backgroundColor: THEME.danger,
+                  borderRadius: 12,
+                  paddingVertical: 13,
+                  paddingHorizontal: 20,
+                  shadowColor: '#000',
+                  shadowOpacity: 0.3,
+                  shadowRadius: 12,
+                  shadowOffset: { width: 0, height: 4 },
+                  elevation: 8,
+                }}
+              >
+                <MaterialCommunityIcons name="trash-can-outline" size={17} color="#fff" />
+                <Text style={{ fontSize: 16, fontWeight: '600', color: '#fff' }}>
+                  Delete {selectedTrees.size}
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              onPress={() => {
+                exitEditMode();
+                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              }}
+              activeOpacity={0.85}
+              style={{
+                backgroundColor: THEME.accent,
+                borderRadius: 12,
+                paddingVertical: 13,
+                paddingHorizontal: selectedTrees.size > 0 ? 26 : 44,
+                shadowColor: '#000',
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
+                shadowOffset: { width: 0, height: 4 },
+                elevation: 8,
+              }}
+            >
+              <Text style={{ fontSize: 16, fontWeight: '600', color: '#000' }}>Done</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       )}
+
+      {/* Bulk delete confirmation. One dialog for the whole selection - the
+          point of selecting is not to answer this once per tree - but it still
+          carries the no-refund warning the single-tree flow does, because
+          removal is permanent and trees are bought with coins. */}
+      <Modal
+        visible={confirmBulkRemove}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConfirmBulkRemove(false)}
+      >
+        <View style={{
+          flex: 1,
+          backgroundColor: 'rgba(0,0,0,0.7)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: 32,
+        }}>
+          <View style={{
+            backgroundColor: THEME.bg,
+            borderRadius: 20,
+            padding: 24,
+            alignItems: 'center',
+            width: '100%',
+            maxWidth: 300,
+          }}>
+            <Text style={{ fontSize: 18, fontWeight: '700', color: THEME.text, marginBottom: 8 }}>
+              Delete {selectedTrees.size} {selectedTrees.size === 1 ? 'tree' : 'trees'}?
+            </Text>
+            <Text style={{ fontSize: 13, color: THEME.textSecondary, textAlign: 'center', marginBottom: 18, lineHeight: 18 }}>
+              This can't be undone, and deleting won't refund them.
+            </Text>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={async () => {
+                const keys = Array.from(selectedTrees);
+                setConfirmBulkRemove(false);
+                const removed = await gardenState.removePlantedTrees(keys);
+                setSelectedTrees(new Set());
+                if (removed > 0) {
+                  Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+                }
+              }}
+              style={{
+                width: '100%',
+                backgroundColor: THEME.dangerMuted,
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: 'center',
+                marginBottom: 8,
+              }}
+            >
+              <Text style={{ color: THEME.danger, fontSize: 16, fontWeight: '600' }}>
+                Delete {selectedTrees.size === 1 ? 'tree' : `all ${selectedTrees.size}`}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              activeOpacity={0.85}
+              onPress={() => setConfirmBulkRemove(false)}
+              style={{
+                width: '100%',
+                backgroundColor: THEME.bgCard,
+                paddingVertical: 14,
+                borderRadius: 12,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: THEME.textSecondary, fontSize: 16, fontWeight: '600' }}>Cancel</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Rest Overlay - Shows when in rest mode */}
       {isResting && (
@@ -4139,7 +4291,7 @@ function AppInner() {
                 marginBottom: 10,
               }}
             >
-              <Text style={{ color: '#000', fontSize: 16, fontWeight: '600' }}>Move tree</Text>
+              <Text style={{ color: '#000', fontSize: 16, fontWeight: '600' }}>Edit tree</Text>
             </TouchableOpacity>
 
             {/* Remove tree - muted destructive (soft danger fill, danger label) */}
