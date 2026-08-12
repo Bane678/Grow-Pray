@@ -47,6 +47,8 @@ export interface GardenStateResult {
   removeDeadTree: (row: number, col: number) => Promise<number>; // returns coin reward
   plantTree: (row: number, col: number, treeType: string, currentXP: number) => Promise<boolean>;
   removePlantedTree: (row: number, col: number) => Promise<boolean>;
+  /** Batch removal - one state update and one write. Returns count removed. */
+  removePlantedTrees: (keys: string[]) => Promise<number>;
   movePlantedTree: (fromRow: number, fromCol: number, toRow: number, toCol: number) => Promise<boolean>;
   isDeadTreeRemoved: (row: number, col: number) => boolean;
   getPlantedTree: (row: number, col: number) => PlantedTree | null;
@@ -677,6 +679,28 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     return true;
   }, [gardenData, saveGarden]);
 
+  /**
+   * Remove several planted trees at once.
+   *
+   * One state update and one write for the whole batch, rather than looping
+   * removePlantedTree - that would re-derive `gardenData` from a stale closure
+   * on every iteration and drop all but the last removal.
+   *
+   * Returns how many were actually removed.
+   */
+  const removePlantedTrees = useCallback(async (keys: string[]): Promise<number> => {
+    const present = keys.filter(k => gardenData.plantedTrees[k]);
+    if (present.length === 0) return 0;
+
+    const remaining = { ...gardenData.plantedTrees };
+    for (const k of present) delete remaining[k];
+
+    const updated = { ...gardenData, plantedTrees: remaining };
+    setGardenData(updated);
+    queueSaveGarden(updated);
+    return present.length;
+  }, [gardenData, queueSaveGarden]);
+
   // ─── Move / swap a planted tree ─────────────────────────────────────────────
   // Relocates the tree at (from) to (to). If (to) already holds a tree the two
   // swap positions. Target must be a fully recovered tile and never the center
@@ -802,6 +826,7 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     getPlantedTree,
     plantTree,
     removePlantedTree,
+    removePlantedTrees,
     movePlantedTree,
     treeInventory,
     purchaseTree,
