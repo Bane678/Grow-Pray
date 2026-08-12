@@ -1039,8 +1039,12 @@ function TopInfoBar({
 
       {/* ── Context label - subtle next prayer indicator with time ── */}
       <View style={{ alignItems: 'center' }}>
+        {/* Spacing note: the ring's outer glow is `size + 12` and pulses with a
+            scale transform, so it breathes past its own container. The gap
+            below has to clear that pulse, not just the stroke, or the glow
+            grazes this label at the top of each cycle. */}
         {nextPrayer ? (
-          <View style={{ alignItems: 'center', marginBottom: 10, marginTop: 6 }}>
+          <View style={{ alignItems: 'center', marginBottom: 18, marginTop: 10 }}>
             <Text style={{
               fontSize: 11,
               fontWeight: '500',
@@ -1055,7 +1059,9 @@ function TopInfoBar({
             </Text>
           </View>
         ) : (
-          <View style={{ height: 10, marginBottom: 10, marginTop: 6 }} />
+          // Mirrors the label's margins so the ring doesn't jump when the
+          // countdown has no target (rest mode).
+          <View style={{ height: 10, marginBottom: 18, marginTop: 10 }} />
         )}
 
         {/* ── Backdrop behind timer ── */}
@@ -3961,7 +3967,7 @@ function AppInner() {
               Delete {selectedTrees.size} {selectedTrees.size === 1 ? 'tree' : 'trees'}?
             </Text>
             <Text style={{ fontSize: 13, color: THEME.textSecondary, textAlign: 'center', marginBottom: 18, lineHeight: 18 }}>
-              This can't be undone, and deleting won't refund them.
+              This can't be undone and deleting won't refund them.
             </Text>
 
             <TouchableOpacity
