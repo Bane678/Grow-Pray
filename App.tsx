@@ -2965,6 +2965,20 @@ function AppInner() {
   const [skipTileTarget, setSkipTileTarget] = useState<{ row: number; col: number } | null>(null);
   const [plantTarget, setPlantTarget] = useState<{ row: number; col: number } | null>(null);
   const [choppingTrees, setChoppingTrees] = useState<Set<string>>(new Set());
+  // Brief "one at a time" notice when a second dead tree is tapped mid-chop.
+  const [chopBusyNotice, setChopBusyNotice] = useState(false);
+  const chopNoticeAnim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!chopBusyNotice) return;
+    chopNoticeAnim.setValue(0);
+    const anim = Animated.sequence([
+      Animated.timing(chopNoticeAnim, { toValue: 1, duration: 200, useNativeDriver: true }),
+      Animated.delay(1500),
+      Animated.timing(chopNoticeAnim, { toValue: 0, duration: 350, useNativeDriver: true }),
+    ]);
+    anim.start(({ finished }) => { if (finished) setChopBusyNotice(false); });
+    return () => anim.stop();
+  }, [chopBusyNotice]);
   const [removeTreeTarget, setRemoveTreeTarget] = useState<{ row: number; col: number } | null>(null);
   // Garden "edit mode" - entered from a tree's Move action. All planted trees
   // jiggle and can be dragged immediately (no long-press), iOS home-screen style.
@@ -3242,6 +3256,14 @@ function AppInner() {
         setSkipTileTarget({ row, col });
       }, 75);
     }
+  }, []);
+
+  // A dead tree was tapped while another is already being felled. GardenScene
+  // has already flashed and sounded the rejection; this names the rule, since
+  // "that didn't work" and "you can only do one at a time" are different
+  // messages and only the second one teaches anything.
+  const handleChopBusy = useCallback(() => {
+    setChopBusyNotice(true);
   }, []);
 
   // Handle dead tree tap (on recovering tiles → start chopping animation)
@@ -3814,6 +3836,7 @@ function AppInner() {
         pendingTransitions={gardenState.pendingTransitions}
         onTilePress={handleTilePress}
         onDeadTreePress={handleDeadTreePress}
+        onChopBusy={handleChopBusy}
         onPlantPress={handlePlantPress}
         onPlantedTreePress={handlePlantedTreePress}
         onMoveTree={handleMoveTree}
@@ -4539,6 +4562,41 @@ function AppInner() {
         challenges={challengesHook.challengesList}
         onClaimReward={handleClaimChallengeReward}
       />
+
+      {/* "One tree at a time" notice - sits above the prayer bar rather than at
+          the top, so it appears near where the user just tapped. */}
+      {chopBusyNotice && (
+        <Animated.View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            bottom: 160,
+            left: 24,
+            right: 24,
+            zIndex: 1000,
+            alignItems: 'center',
+            opacity: chopNoticeAnim,
+            transform: [{ translateY: chopNoticeAnim.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }],
+          }}
+        >
+          <View style={{
+            backgroundColor: 'rgba(15,21,38,0.96)',
+            borderWidth: 1,
+            borderColor: 'rgba(232,168,124,0.4)',
+            paddingHorizontal: 16,
+            paddingVertical: 10,
+            borderRadius: 14,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 8,
+          }}>
+            <Image source={AXE_ICON} style={{ width: 16, height: 16 }} resizeMode="contain" />
+            <Text style={{ color: THEME.text, fontSize: 13, fontWeight: '600' }}>
+              One tree at a time
+            </Text>
+          </View>
+        </Animated.View>
+      )}
 
       {/* Streak Protected Banner */}
       <Animated.View

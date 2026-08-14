@@ -1559,6 +1559,8 @@ interface IsometricGridProps {
     pendingTransitions?: TileTransition[];
     onTilePress?: (row: number, col: number, state: TileState) => void;
     onDeadTreePress?: (row: number, col: number) => void;
+    /** A dead tree was tapped while another is already being felled. */
+    onChopBusy?: () => void;
     onPlantPress?: (row: number, col: number) => void;
     onPlantedTreePress?: (row: number, col: number) => void;
     onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
@@ -1591,6 +1593,7 @@ function IsometricGrid({
     pendingTransitions,
     onTilePress,
     onDeadTreePress,
+    onChopBusy,
     onPlantPress,
     onPlantedTreePress,
     onMoveTree,
@@ -1797,6 +1800,34 @@ function IsometricGrid({
     }, [startRow, startCol, rotation, maxLocal, centerOffsetX, tapHighlightOpacity, getTileState]);
 
     // ─── Grid-level tap handler with isometric diamond hit-testing ────────────
+    // `tone` picks the flash colour: 'error' for a rejected drop, 'neutral' for
+    // putting a tree back where it came from - which is a cancellation, not a
+    // mistake, and shouldn't be scolded.
+    const [errorFlash, setErrorFlash] = useState<{ x: number; y: number; zIndex: number; tone: 'error' | 'neutral' } | null>(null);
+    const errorFlashOpacity = useRef(new Animated.Value(0)).current;
+
+    // Screen-space top-left of a tile (grid container coords).
+    const tileScreenXY = useCallback((row: number, col: number) => {
+        const [rRow, rCol] = rotateLocal(row - startRow, col - startCol, rotation, maxLocal);
+        return {
+            x: (rCol - rRow) * STEP_X + centerOffsetX,
+            y: (rCol + rRow) * STEP_Y,
+            zIndex: rRow + rCol,
+        };
+    }, [startRow, startCol, rotation, maxLocal, centerOffsetX]);
+
+    const flashError = useCallback((row: number, col: number, tone: 'error' | 'neutral' = 'error') => {
+        const { x, y, zIndex } = tileScreenXY(row, col);
+        setErrorFlash({ x, y, zIndex: zIndex + 200, tone });
+        errorFlashOpacity.setValue(tone === 'neutral' ? 0.5 : 0.75);
+        Animated.timing(errorFlashOpacity, {
+            toValue: 0,
+            duration: 520,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true,
+        }).start(() => setErrorFlash(null));
+    }, [tileScreenXY]);
+
     const handleGridTap = useCallback((x: number, y: number) => {
         // In edit mode a tap selects a tree for removal. Trees are lifted by
         // holding, so a tap is free to mean something else.
@@ -1834,6 +1865,17 @@ function IsometricGrid({
 
             if (x >= dtPosX && x <= dtPosX + SCALED_DEAD_TREE_WIDTH &&
                 y >= dtPosY && y <= dtPosY + SCALED_DEAD_TREE_HEIGHT) {
+                // Only one tree can be felled at a time. This used to be a silent
+                // no-op in the parent, which is indistinguishable from having
+                // missed the tree entirely - so say so, here, at the moment the
+                // user is asking the question.
+                if (choppingTrees.size > 0) {
+                    flashError(dt.row, dt.col, 'neutral');
+                    playDropError();
+                    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+                    onChopBusy?.();
+                    return;
+                }
                 if (dtState === 'recovered') showTapHighlight(dt.row, dt.col);
                 onDeadTreePress?.(dt.row, dt.col);
                 return;
@@ -1870,7 +1912,7 @@ function IsometricGrid({
     }, [gridSize, rotation, startRow, startCol, maxLocal, centerOffsetX,
         getTileState, visibleDeadTrees, choppingTrees,
         onDeadTreePress, onTilePress, onPlantPress, onPlantedTreePress, getPlantedTree, xp, showTapHighlight,
-        editMode, onToggleTreeSelection, maxCenter]);
+        editMode, onToggleTreeSelection, maxCenter, flashError, onChopBusy]);
 
     // ─── Hold-to-move (drag a planted tree like an iOS home-screen icon) ──────
     // A long-press (~500ms) on a planted tree lifts it; it then follows the finger
@@ -1890,22 +1932,6 @@ function IsometricGrid({
 
     const [hoverTile, setHoverTile] = useState<{ row: number; col: number; valid: boolean } | null>(null);
     const lastHoverKeyRef = useRef<string | null>(null);
-
-    // `tone` picks the flash colour: 'error' for a rejected drop, 'neutral' for
-    // putting a tree back where it came from - which is a cancellation, not a
-    // mistake, and shouldn't be scolded.
-    const [errorFlash, setErrorFlash] = useState<{ x: number; y: number; zIndex: number; tone: 'error' | 'neutral' } | null>(null);
-    const errorFlashOpacity = useRef(new Animated.Value(0)).current;
-
-    // Screen-space top-left of a tile (grid container coords).
-    const tileScreenXY = useCallback((row: number, col: number) => {
-        const [rRow, rCol] = rotateLocal(row - startRow, col - startCol, rotation, maxLocal);
-        return {
-            x: (rCol - rRow) * STEP_X + centerOffsetX,
-            y: (rCol + rRow) * STEP_Y,
-            zIndex: rRow + rCol,
-        };
-    }, [startRow, startCol, rotation, maxLocal, centerOffsetX]);
 
     // Whether a tile can receive a dragged tree. Occupied tiles are valid (swap);
     // the center (main tree), non-recovered tiles, standing dead trees and the
@@ -1935,18 +1961,6 @@ function IsometricGrid({
         wiggleLoopRef.current = null;
         dragWiggle.setValue(0);
     }, []);
-
-    const flashError = useCallback((row: number, col: number, tone: 'error' | 'neutral' = 'error') => {
-        const { x, y, zIndex } = tileScreenXY(row, col);
-        setErrorFlash({ x, y, zIndex: zIndex + 200, tone });
-        errorFlashOpacity.setValue(tone === 'neutral' ? 0.5 : 0.75);
-        Animated.timing(errorFlashOpacity, {
-            toValue: 0,
-            duration: 520,
-            easing: Easing.out(Easing.cubic),
-            useNativeDriver: true,
-        }).start(() => setErrorFlash(null));
-    }, [tileScreenXY]);
 
     // Begin a drag: identify the tree under the finger, lift it, fire haptic.
     const beginDrag = useCallback((px: number, py: number) => {
@@ -2182,6 +2196,8 @@ function IsometricGrid({
 
     // Memoize dead tree elements
     const deadTreeElements = useMemo(() => {
+        // True while any tree is mid-fell; every OTHER axe badge greys out.
+        const chopBusy = choppingTrees.size > 0;
         return visibleDeadTrees.map(({ row, col }) => {
             const localRow = row - startRow;
             const localCol = col - startCol;
@@ -2234,6 +2250,10 @@ function IsometricGrid({
                             zIndex: zIdx + 1,
                         }}
                     >
+                        {/* The axe badge IS the "you can chop this" affordance,
+                            so it withdraws while another tree is being felled -
+                            the limit is visible before the tap, not only after
+                            one is rejected. */}
                         <View style={{
                             position: 'absolute',
                             top: SCALED_DEAD_TREE_HEIGHT * 0.05,
@@ -2241,9 +2261,10 @@ function IsometricGrid({
                             width: 48,
                             height: 48,
                             zIndex: 10,
+                            opacity: chopBusy ? 0.25 : 1,
                             shadowColor: '#ffffff',
                             shadowOffset: { width: 0, height: 0 },
-                            shadowOpacity: 0.9,
+                            shadowOpacity: chopBusy ? 0 : 0.9,
                             shadowRadius: 3,
                         }}>
                             <Image
@@ -2565,6 +2586,8 @@ interface GardenSceneProps {
     pendingTransitions?: TileTransition[];
     onTilePress?: (row: number, col: number, state: TileState) => void;
     onDeadTreePress?: (row: number, col: number) => void;
+    /** A dead tree was tapped while another is already being felled. */
+    onChopBusy?: () => void;
     onPlantPress?: (row: number, col: number) => void;
     onPlantedTreePress?: (row: number, col: number) => void;
     onMoveTree?: (fromRow: number, fromCol: number, toRow: number, toCol: number) => void | boolean | Promise<boolean>;
@@ -2589,6 +2612,7 @@ export const GardenScene = React.memo(function GardenScene({
     pendingTransitions,
     onTilePress,
     onDeadTreePress,
+    onChopBusy,
     onPlantPress,
     onPlantedTreePress,
     onMoveTree,
@@ -2974,6 +2998,7 @@ export const GardenScene = React.memo(function GardenScene({
                                     pendingTransitions={pendingTransitions}
                                     onTilePress={onTilePress}
                                     onDeadTreePress={onDeadTreePress}
+                                    onChopBusy={onChopBusy}
                                     onPlantPress={onPlantPress}
                                     onPlantedTreePress={onPlantedTreePress}
                                     onMoveTree={onMoveTree}
