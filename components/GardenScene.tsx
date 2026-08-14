@@ -1570,6 +1570,8 @@ interface IsometricGridProps {
     onChoppingComplete?: (row: number, col: number) => void;
     onStageChange?: (stage: string) => void;
     isZoomedOut?: boolean;
+    /** Content-space slice currently on screen; anything outside is not rendered. */
+    visibleBounds?: { minX: number; maxX: number; minY: number; maxY: number };
     onCenterTreeLoaded?: () => void;
     // Refs to the outer scroll/zoom handlers so the tree-move gesture can block
     // them while a tree is being dragged.
@@ -1599,6 +1601,7 @@ function IsometricGrid({
     onChoppingComplete,
     onStageChange,
     isZoomedOut = false,
+    visibleBounds,
     onCenterTreeLoaded,
     panRef,
     pinchRef,
@@ -2096,6 +2099,21 @@ function IsometricGrid({
     }, [justPlantedTile?.seq]);
 
     // Memoize the tile elements - only rebuilt when grid state actually changes
+    /**
+     * Is this tile's box anywhere near the screen?
+     *
+     * Deliberately tolerant: `visibleBounds` already carries a margin, and when
+     * it is absent (no pan data yet) everything renders, so culling can only
+     * ever remove things that are genuinely off-screen.
+     */
+    const isNearViewport = useCallback((screenX: number, screenY: number, w = SCALED_WIDTH, h = SCALED_HEIGHT) => {
+        if (!visibleBounds) return true;
+        return screenX + w >= visibleBounds.minX
+            && screenX <= visibleBounds.maxX
+            && screenY + h >= visibleBounds.minY
+            && screenY <= visibleBounds.maxY;
+    }, [visibleBounds]);
+
     const tiles = useMemo(() => {
         const result: React.ReactElement[] = [];
         for (let row = startRow; row <= endRow; row++) {
@@ -2105,6 +2123,7 @@ function IsometricGrid({
                 const [rRow, rCol] = rotateLocal(localRow, localCol, rotation, maxLocal);
                 const screenX = (rCol - rRow) * STEP_X + centerOffsetX;
                 const screenY = (rCol + rRow) * STEP_Y;
+                if (!isNearViewport(screenX, screenY)) continue;
                 const state = getTileState(row, col);
                 const hasTree = treeOccupiedTileSet.has(`${row},${col}`);
 
@@ -2125,7 +2144,7 @@ function IsometricGrid({
             }
         }
         return result;
-    }, [startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, animDelayMap, treeOccupiedTileSet]);
+    }, [startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, animDelayMap, treeOccupiedTileSet, isNearViewport]);
 
     // Memoize ambient tile effects - embers on dead, dew sparkles on recovered
     const tileEffects = useMemo(() => {
@@ -2146,6 +2165,7 @@ function IsometricGrid({
                 const hasTree = treeOccupiedTileSet.has(`${row},${col}`);
 
                 if (hasTree) continue;
+                if (!isNearViewport(screenX, screenY)) continue;
 
                 if (state === 'dead') {
                     // Sparse embers on dead tiles.
@@ -2158,7 +2178,7 @@ function IsometricGrid({
             }
         }
         return effects;
-    }, [isZoomedOut, startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, treeOccupiedTileSet]);
+    }, [isZoomedOut, startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, treeOccupiedTileSet, isNearViewport]);
 
     // Memoize dead tree elements
     const deadTreeElements = useMemo(() => {
@@ -2171,6 +2191,9 @@ function IsometricGrid({
             const zIdx = rRow + rCol;
             const posX = deadTreeX + (SCALED_WIDTH / 2) - (SCALED_DEAD_TREE_WIDTH / 2);
             const posY = deadTreeY + (SCALED_HEIGHT / 2) - (SCALED_DEAD_TREE_HEIGHT * 0.75);
+
+            // Dead sprites are much taller than a tile, so test their real box.
+            if (!isNearViewport(posX, posY, SCALED_DEAD_TREE_WIDTH, SCALED_DEAD_TREE_HEIGHT)) return null;
 
             const tileState = getTileState(row, col);
             const isTappable = (tileState === 'recovering' || tileState === 'recovered') && onDeadTreePress;
@@ -2266,7 +2289,7 @@ function IsometricGrid({
                 </View>
             );
         });
-    }, [visibleDeadTrees, gridSize, rotation, getTileState, choppingTrees, onDeadTreePress, onChoppingComplete]);
+    }, [visibleDeadTrees, gridSize, rotation, getTileState, choppingTrees, onDeadTreePress, onChoppingComplete, isNearViewport]);
 
     // Memoize planted tree elements - each renders as an AnimatedPlantedTree component
     // which owns its own stage-tracking state and level-up FX. The tile currently
@@ -2290,6 +2313,9 @@ function IsometricGrid({
                 const tileCenterX = tileX + SCALED_WIDTH / 2;
                 const tileCenterY = tileY + SCALED_HEIGHT / 2;
 
+                // Trees rise well above their tile, so allow for the sprite.
+                if (!isNearViewport(tileX, tileY - TREE_HEIGHT * 0.16 * TREE_SQUASH, SCALED_WIDTH, SCALED_HEIGHT + TREE_HEIGHT * 0.16 * TREE_SQUASH)) continue;
+
                 elements.push(
                     <AnimatedPlantedTree
                         key={`planted-${row}-${col}`}
@@ -2307,7 +2333,7 @@ function IsometricGrid({
             }
         }
         return elements;
-    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode, selectedTrees]);
+    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode, selectedTrees, isNearViewport]);
 
     // Center tile position for main tree
     const centerLocalRow = maxCenter - startRow;
@@ -2680,6 +2706,37 @@ export const GardenScene = React.memo(function GardenScene({
     // clamped transform when zoom settles.
     const [viewScale, setViewScale] = useState(1);
 
+    // ── Viewport culling ─────────────────────────────────────────────────────
+    // Tile count grows with the square of the grid, so a maxed-out garden asks
+    // for ~440 tiles plus their trees, embers and dead sprites - a few thousand
+    // native views and a hundred-odd animation loops, all of it mounted whether
+    // or not it is anywhere near the screen. Past a certain size that is enough
+    // to stop the device keeping up with the gesture, and the garden stops
+    // responding to drags entirely.
+    //
+    // The four grid loops below therefore skip anything outside the viewport.
+    // The loops themselves still run - a few hundred iterations of arithmetic is
+    // nothing - but they no longer create elements for tiles nobody can see.
+    //
+    // Panning is native-driven, so the offset is not in JS. These listeners pull
+    // it back, but only commit a re-render once the garden has moved half a tile,
+    // which keeps culling off the per-frame path.
+    const [panSnapshot, setPanSnapshot] = useState({ x: 0, y: 0 });
+    const lastCulledPan = useRef({ x: 0, y: 0 });
+    useEffect(() => {
+        const threshold = SCALED_WIDTH / 2;
+        const onChange = (axis: 'x' | 'y') => ({ value }: { value: number }) => {
+            const last = lastCulledPan.current;
+            const next = axis === 'x' ? { x: value, y: last.y } : { x: last.x, y: value };
+            if (Math.abs(next.x - last.x) < threshold && Math.abs(next.y - last.y) < threshold) return;
+            lastCulledPan.current = next;
+            setPanSnapshot(next);
+        };
+        const idX = panX.addListener(onChange('x'));
+        const idY = panY.addListener(onChange('y'));
+        return () => { panX.removeListener(idX); panY.removeListener(idY); };
+    }, [panX, panY]);
+
     const pinchRef = useRef(null);
     const panRef   = useRef(null);
 
@@ -2697,6 +2754,34 @@ export const GardenScene = React.memo(function GardenScene({
     // ── Content-aware pan / zoom bounds ──────────────────────────────────────
     // The garden diamond's bounding box at scale 1. It's centred in the viewport
     // at pan (0,0), so bounds are symmetric around centre.
+    /**
+     * The slice of content-space currently on screen, in the same coordinates
+     * the tile loops compute (0..contentW, 0..contentH).
+     *
+     * The wrapper is centre-aligned, then translated by the pan and scaled about
+     * its centre, so a point `d` from the content centre lands at
+     * `viewportCentre + pan + d * scale`. Solving for the visible range of `d`
+     * and shifting back into content coordinates gives the bounds below.
+     *
+     * The margin keeps a ring of off-screen tiles mounted so a fling doesn't
+     * outrun the half-tile cull threshold and expose a blank edge.
+     */
+    const visibleBounds = useMemo(() => {
+        const cw = gridSize * SCALED_WIDTH;
+        const ch = gridSize * SCALED_HEIGHT;
+        const s = Math.max(viewScale, 0.01);
+        // Two tiles of slack against a cull threshold of half a tile - enough
+        // that a fling can never outrun the window, without mounting a whole
+        // extra screen's worth of tiles nobody sees.
+        const margin = SCALED_WIDTH * 2;
+        return {
+            minX: cw / 2 + (-SCREEN_W / 2 - panSnapshot.x) / s - margin,
+            maxX: cw / 2 + (SCREEN_W / 2 - panSnapshot.x) / s + margin,
+            minY: ch / 2 + (-SCREEN_H / 2 - panSnapshot.y) / s - margin,
+            maxY: ch / 2 + (SCREEN_H / 2 - panSnapshot.y) / s + margin,
+        };
+    }, [gridSize, viewScale, panSnapshot]);
+
     const contentW = gridSize * SCALED_WIDTH;
     const contentH = gridSize * SCALED_HEIGHT;
 
@@ -2898,6 +2983,7 @@ export const GardenScene = React.memo(function GardenScene({
                                     justPlantedTile={justPlantedTile}
                                     onChoppingComplete={onChoppingComplete}
                                     isZoomedOut={isZoomedOut}
+                                    visibleBounds={visibleBounds}
                                     onCenterTreeLoaded={handleCenterTreeLoaded}
                                     panRef={panRef}
                                     pinchRef={pinchRef}
