@@ -2747,19 +2747,48 @@ export const GardenScene = React.memo(function GardenScene({
     // which keeps culling off the per-frame path.
     const [panSnapshot, setPanSnapshot] = useState({ x: 0, y: 0 });
     const lastCulledPan = useRef({ x: 0, y: 0 });
+    // Whether the window we last rendered already contained the whole garden.
+    const committedCoversAll = useRef(false);
     useEffect(() => {
         const threshold = SCALED_WIDTH / 2;
+        const cw = gridSize * SCALED_WIDTH;
+        const ch = gridSize * SCALED_HEIGHT;
+        const s = Math.max(viewScale, 0.01);
+        const margin = SCALED_WIDTH * 2;
+
+        // Does the cull window at this offset already contain the entire garden?
+        // Mirrors visibleBounds exactly - if it drifts from that, culling and
+        // this check disagree and tiles pop.
+        const coversAll = (x: number, y: number) =>
+            cw / 2 + (-SCREEN_W / 2 - x) / s - margin <= 0 &&
+            cw / 2 + (SCREEN_W / 2 - x) / s + margin >= cw &&
+            ch / 2 + (-SCREEN_H / 2 - y) / s - margin <= 0 &&
+            ch / 2 + (SCREEN_H / 2 - y) / s + margin >= ch;
+
+        // Resync on zoom - the effect re-subscribes when viewScale changes.
+        committedCoversAll.current = coversAll(lastCulledPan.current.x, lastCulledPan.current.y);
+
         const onChange = (axis: 'x' | 'y') => ({ value }: { value: number }) => {
             const last = lastCulledPan.current;
             const next = axis === 'x' ? { x: value, y: last.y } : { x: last.x, y: value };
             if (Math.abs(next.x - last.x) < threshold && Math.abs(next.y - last.y) < threshold) return;
             lastCulledPan.current = next;
+
+            // Zoomed out far enough that nothing is being culled: the element
+            // set is identical wherever the garden is dragged to, so a re-render
+            // costs a full rebuild of every grid loop and produces the same
+            // output. That was the dropped-frame case - a big garden entirely on
+            // screen, rebuilt every half tile of travel for no visible change.
+            const nextCovers = coversAll(next.x, next.y);
+            if (nextCovers && committedCoversAll.current) return;
+
+            committedCoversAll.current = nextCovers;
             setPanSnapshot(next);
         };
         const idX = panX.addListener(onChange('x'));
         const idY = panY.addListener(onChange('y'));
         return () => { panX.removeListener(idX); panY.removeListener(idY); };
-    }, [panX, panY]);
+    }, [panX, panY, gridSize, viewScale]);
 
     const pinchRef = useRef(null);
     const panRef   = useRef(null);
