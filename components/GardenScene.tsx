@@ -755,6 +755,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     daysSinceLastXP,
     editMode,
     selected = false,
+    swayDriver = null,
 }: {
     tileCenterX: number;
     tileCenterY: number;
@@ -766,6 +767,8 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     editMode: boolean;
     /** Highlighted for removal in edit mode. */
     selected?: boolean;
+    /** Shared 0->1 sway clock for the whole garden; null disables sway. */
+    swayDriver?: Animated.Value | null;
 }) {
     // Resolve sprite / size / tint (with withering penalty) via shared helper.
     const { effectiveStageIndex, ptWidth, ptHeight, ptAsset, tintStyle, offsetX, offsetY } =
@@ -781,21 +784,28 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     const prevIdentityRef = useRef(treeIdentity);
     const [fxTrigger, setFxTrigger] = useState(0);
     const treeSizeAnim = useRef(new Animated.Value(1)).current;
-    const swayAnim     = useRef(new Animated.Value(0)).current;
     const jiggleAnim   = useRef(new Animated.Value(0)).current;
-    const swayDur      = 3200 + (Math.abs(tileCenterX * 7 + tileCenterY * 13) % 900);
 
-    useEffect(() => {
-        const halfDur = swayDur / 2;
-        const loop = Animated.loop(Animated.sequence([
-            Animated.timing(swayAnim, { toValue:  1, duration: halfDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(swayAnim, { toValue:  0, duration: halfDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(swayAnim, { toValue: -1, duration: halfDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-            Animated.timing(swayAnim, { toValue:  0, duration: halfDur, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        ]));
-        loop.start();
-        return () => loop.stop();
-    }, []);
+    // Sway is driven by ONE shared value for the whole garden, offset per tree,
+    // exactly as the tiles' wind already works. Each tree used to run its own
+    // four-step Animated.loop; on a 13x13 that was well over a hundred
+    // concurrent loops, each updating a transform every frame on top of the pan
+    // transform, which is what kept a zoomed-out swipe from holding 60fps.
+    //
+    // A single driver costs one loop no matter how large the garden gets. The
+    // trade is that every tree now shares one period and differs only by phase,
+    // which is the same trade the tiles already make and reads the same.
+    const swayPhase = useMemo(
+        () => (Math.abs(Math.round(tileCenterX * 7 + tileCenterY * 13)) % 1000) / 1000,
+        [tileCenterX, tileCenterY],
+    );
+    const swayRotate = useMemo(() => {
+        if (!swayDriver) return '0rad';
+        return Animated.add(swayDriver, swayPhase).interpolate({
+            inputRange: [swayPhase, swayPhase + 0.25, swayPhase + 0.5, swayPhase + 0.75, swayPhase + 1],
+            outputRange: ['0rad', '0.03rad', '0rad', '-0.03rad', '0rad'],
+        });
+    }, [swayDriver, swayPhase]);
 
     // iOS home-screen style jiggle while the garden is in edit mode.
     useEffect(() => {
@@ -869,7 +879,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
                     zIndex: zIndexBase + 1,
                     transformOrigin: 'center bottom',
                     transform: [
-                        { rotate: swayAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-0.03rad', '0.03rad'] }) },
+                        { rotate: swayRotate },
                         { rotate: jiggleAnim.interpolate({ inputRange: [-1, 1], outputRange: ['-0.022rad', '0.022rad'] }) },
                     ],
                 }}
@@ -1737,6 +1747,26 @@ function IsometricGrid({
         return () => loop.stop();
     }, []);
 
+    // ── Shared tree sway ─────────────────────────────────────────────────────
+    // One clock for every planted tree, offset per tree (see AnimatedPlantedTree).
+    // Stopped entirely when zoomed out: a 0.03rad lean on a tree drawn at ~25px
+    // is not perceptible, and skipping it drops one transform update per tree
+    // per frame in exactly the view where the garden is largest and the frame
+    // budget tightest. Same reasoning as the tile effects and particles above.
+    const treeSway = useRef(new Animated.Value(0)).current;
+    useEffect(() => {
+        if (isZoomedOut) {
+            treeSway.stopAnimation();
+            treeSway.setValue(0);
+            return;
+        }
+        const loop = Animated.loop(
+            Animated.timing(treeSway, { toValue: 1, duration: 7000, easing: Easing.linear, useNativeDriver: true })
+        );
+        loop.start();
+        return () => loop.stop();
+    }, [isZoomedOut, treeSway]);
+
     // Build animation delay map from pending transitions
     // Stagger: 120ms per ring distance from center, so inner tiles animate first
     const animDelayMap = useMemo(() => {
@@ -2349,12 +2379,13 @@ function IsometricGrid({
                         daysSinceLastXP={daysSinceLastXP}
                         editMode={editMode}
                         selected={!!selectedTrees?.has(`${row},${col}`)}
+                        swayDriver={isZoomedOut ? null : treeSway}
                     />
                 );
             }
         }
         return elements;
-    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode, selectedTrees, isNearViewport]);
+    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode, selectedTrees, isNearViewport, isZoomedOut, treeSway]);
 
     // Center tile position for main tree
     const centerLocalRow = maxCenter - startRow;
