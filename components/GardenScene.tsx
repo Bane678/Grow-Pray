@@ -1740,12 +1740,25 @@ function IsometricGrid({
     ).current;
 
     useEffect(() => {
+        // Stopped when zoomed out. The shimmer is a 0.06-opacity overlay on a
+        // tile drawn ~25px wide - invisible - but with every tile mounted at
+        // that zoom, the shared clock was writing opacity+translateX to
+        // hundreds of views per frame on the UI thread, forever, even with the
+        // garden sitting at alpha 0 behind another tab. The UI thread is also
+        // where scrolling and every native-driver animation run, which is why
+        // a zoomed-out garden made the WHOLE app stutter. Zoomed in, culling
+        // caps the attached views at a few dozen and the clock is cheap.
+        if (isZoomedOut) {
+            windAnim.stopAnimation();
+            windAnim.setValue(0);
+            return;
+        }
         const loop = Animated.loop(
             Animated.timing(windAnim, { toValue: 1, duration: 10000, easing: Easing.linear, useNativeDriver: true })
         );
         loop.start();
         return () => loop.stop();
-    }, []);
+    }, [isZoomedOut]);
 
     // ── Shared tree sway ─────────────────────────────────────────────────────
     // One clock for every planted tree, offset per tree (see AnimatedPlantedTree).
@@ -2182,13 +2195,13 @@ function IsometricGrid({
                         screenY={screenY}
                         zIndex={rRow + rCol}
                         animDelay={animDelayMap.get(`${row},${col}`)}
-                        windShimmer={windPhases[(row + col * 2) % 8]}
+                        windShimmer={isZoomedOut ? undefined : windPhases[(row + col * 2) % 8]}
                     />
                 );
             }
         }
         return result;
-    }, [startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, animDelayMap, treeOccupiedTileSet, isNearViewport]);
+    }, [startRow, endRow, startCol, endCol, rotation, maxLocal, centerOffsetX, getTileState, animDelayMap, treeOccupiedTileSet, isNearViewport, isZoomedOut]);
 
     // Memoize ambient tile effects - embers on dead, dew sparkles on recovered
     const tileEffects = useMemo(() => {
