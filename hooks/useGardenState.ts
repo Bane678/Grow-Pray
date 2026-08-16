@@ -63,6 +63,8 @@ export interface GardenStateResult {
   daysSinceLastXP: number;
   isDecaying: boolean;
   lastXPGainTimestamp: number;
+  /** Dev-only: directly plants a curated, varied layout across the whole grid for screenshots. */
+  debugFillGarden: (currentXP: number) => Promise<void>;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -162,6 +164,15 @@ const DEAD_TREE_REMOVAL_REWARD = 5;
 // Grid expansion
 const GRID_EXPANSION_INCREMENT = 2;
 export const MAX_GRID_SIZE = 21;
+
+// Deterministic 0..1 pseudo-random from two integers (no seeded-RNG dependency needed) -
+// used only by the screenshot-mode debug fill to pick a reproducible, non-uniform layout.
+function hash01(a: number, b: number): number {
+  let h = (a * 374761393 + b * 668265263) ^ (a << 13);
+  h = (h ^ (h >>> 15)) * 1274126177;
+  h = h ^ (h >>> 13);
+  return ((h >>> 0) % 10000) / 10000;
+}
 
 // ─── Tile Recovery Order Algorithm ────────────────────────────────────────────
 // Ring by ring, cross-first then corners within each ring
@@ -828,6 +839,38 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     await saveGarden(updated);
   }, [gardenData, saveGarden]);
 
+  // ─── Debug: fill the garden for screenshots (dev only, never shipped) ────
+  // Directly writes a curated, varied planting across the whole grid -
+  // bypasses tile-state/inventory checks entirely since this is a one-shot
+  // cosmetic snapshot, not real progression. `currentXP` should already be
+  // the large debug XP value the caller just set, so recovered-tile checks
+  // pass and stage math (currentXP - plantedAtXP) resolves correctly.
+  const debugFillGarden = useCallback(async (currentXP: number) => {
+    const treeIds = TREE_CATALOG.map(item => item.id);
+    const plantedTrees: Record<string, PlantedTree> = {};
+    for (let row = 0; row < MAX_GRID_SIZE; row++) {
+      for (let col = 0; col < MAX_GRID_SIZE; col++) {
+        if (hash01(row, col) < 0.22) continue; // natural gaps, not every tile filled
+        const treeType = treeIds[Math.floor(hash01(row + 1, col + 7) * treeIds.length)];
+        const stageRoll = hash01(row + 13, col + 29);
+        // Mostly grown/flourishing, with a minority of younger trees scattered
+        // in for texture so the garden doesn't look uniform.
+        const treeXPTarget = stageRoll < 0.08 ? 5 : stageRoll < 0.18 ? 40 : stageRoll < 0.35 ? 100 : 220;
+        plantedTrees[`${row},${col}`] = { type: treeType, plantedAtXP: Math.max(0, currentXP - treeXPTarget) };
+      }
+    }
+    const updated: GardenData = {
+      gridSize: MAX_GRID_SIZE,
+      tileOverrides: {},
+      deadTreesRemoved: [],
+      plantedTrees,
+      lastExpansionSize: MAX_GRID_SIZE,
+      lastXPGainTimestamp: Date.now(),
+    };
+    setGardenData(updated);
+    await saveGarden(updated);
+  }, [saveGarden]);
+
   return {
     gardenData,
     loading,
@@ -862,5 +905,6 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     daysSinceLastXP,
     isDecaying,
     lastXPGainTimestamp: gardenData.lastXPGainTimestamp,
+    debugFillGarden,
   };
 }

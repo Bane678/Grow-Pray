@@ -2434,6 +2434,10 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
       await AsyncStorage.removeItem('@GrowPray:freezeResolvedDate');
       setMissedPrayers(prayers);
     },
+    debugSetXP: async (value: number) => {
+      setXp(value);
+      await AsyncStorage.setItem(XP_KEY, JSON.stringify(value));
+    },
   };
 }
 
@@ -2849,6 +2853,7 @@ function AppInner() {
   const [showShopModal, setShowShopModal] = useState(false);
   const [showDebugModal, setShowDebugModal] = useState(false);
   const [debugPrayersUnlocked, setDebugPrayersUnlocked] = useState(false);
+  const [screenshotChromeHidden, setScreenshotChromeHidden] = useState(false);
   const [showMultiplierModal, setShowMultiplierModal] = useState(false);
   const [showChallengesModal, setShowChallengesModal] = useState(false);
 
@@ -3503,6 +3508,20 @@ function AppInner() {
       await prayerState.earnCoins(reward, `challenge_${challengeId}`);
     }
   }, [challengesHook, prayerState]);
+
+  // ─── Debug: Screenshot Mode (dev only, never shipped) ───────────────────
+  // Grants enough XP to fully recover the max grid, grants premium so the
+  // full 21x21 size actually displays, then hands the garden a curated
+  // planted-tree layout - all as a direct data write, bypassing coins/
+  // inventory entirely. Doesn't touch real progression logic, so it's safe
+  // to follow with "Reset All Progress" once the shoot is done.
+  const handleScreenshotMode = useCallback(async () => {
+    if (!premium.isPremium) await premium.togglePremiumDebug();
+    const bigXP = 999999; // guarantees every tile in the recovery schedule resolves, regardless of curve tuning
+    await prayerState.debugSetXP(bigXP);
+    await gardenState.debugFillGarden(bigXP);
+    setShowDebugModal(false);
+  }, [premium, prayerState, gardenState]);
 
   // Stable callbacks for modals (prevents re-renders via React.memo)
   // closeSettingsModal removed
@@ -4870,6 +4889,26 @@ function AppInner() {
               </TouchableOpacity>
 
               <TouchableOpacity
+                onPress={handleScreenshotMode}
+                style={{
+                  backgroundColor: '#2d3a52',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#93a5dc',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: '#93a5dc', fontSize: 14, fontWeight: '600' }}>
+                  📸 Screenshot Mode
+                </Text>
+                <Text style={{ color: 'rgba(147,165,220,0.6)', fontSize: 11, marginTop: 4 }}>
+                  Maxes the grid + fills it with a curated garden
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 onPress={() => {
                   // Cycle through multiplier tiers for testing
                   const tiers = [0, 7, 14, 30, 60];
@@ -5137,7 +5176,7 @@ function AppInner() {
       )}
 
       {/* Top Info Bar - Floating overlay with gradient backdrop */}
-      {activeTab === 'garden' && (
+      {activeTab === 'garden' && !screenshotChromeHidden && (
       <View
         pointerEvents="box-none"
         style={{ 
@@ -5207,17 +5246,44 @@ function AppInner() {
       </View>
       {/* End content area */}
 
+      {/* Screenshot Mode: floating toggle to hide/show all chrome for a clean shot.
+          Lives outside the chrome it controls and stays visible in both states,
+          so it can never trap the user the way the old Rest Period bug did. */}
+      {__DEV__ && activeTab === 'garden' && (
+        <TouchableOpacity
+          onPress={() => setScreenshotChromeHidden(v => !v)}
+          activeOpacity={0.7}
+          style={{
+            position: 'absolute',
+            bottom: 36,
+            right: 16,
+            zIndex: 400,
+            width: 36,
+            height: 36,
+            borderRadius: 18,
+            backgroundColor: 'rgba(10,14,28,0.55)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.15)',
+          }}
+        >
+          <MaterialCommunityIcons name={screenshotChromeHidden ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(255,255,255,0.8)" />
+        </TouchableOpacity>
+      )}
+
       {/* Bottom area: Prayer Bar + Tab Bar - liquid glass */}
-      <SafeAreaView 
-        edges={['bottom']} 
-        style={{ 
+      {!(screenshotChromeHidden && activeTab === 'garden') && (
+      <SafeAreaView
+        edges={['bottom']}
+        style={{
           backgroundColor: activeTab === 'garden' ? 'transparent' : 'rgba(10,14,28,0.75)',
           zIndex: 300,
         }}
       >
         {/* Floating Prayer Bar - Hidden during rest or non-garden tabs */}
         {!isResting && activeTab === 'garden' && !prayerState.loading && prayerState.timings && (
-          <FloatingPrayerBar 
+          <FloatingPrayerBar
             timings={prayerState.timings}
             nextPrayer={prayerState.nextPrayer}
             completedPrayers={prayerState.completedPrayers}
@@ -5240,6 +5306,7 @@ function AppInner() {
           />
         )}
       </SafeAreaView>
+      )}
 
 
 
