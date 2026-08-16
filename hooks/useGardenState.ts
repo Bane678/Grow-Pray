@@ -86,53 +86,68 @@ const INITIAL_GRID_SIZE = 5;
 // Ring 9 (indices 284-355) = 19×19   → 72 tiles
 // Ring 10 (indices 356+) = 21×21     → 80 tiles
 //
-// Pacing target: a consistent 5/5-daily user (with the consistency multiplier
-// ramping 1.0x -> 2.0x and the Jummah bonus, NO purchased boosts) reaches the
-// max 21x21 garden in ~18 months. Solved numerically against the real earning
-// curve; per-ring total cost grows at a constant ~1.785x so the taper is
-// smooth rather than the previous curve, whose growth DECELERATED outward
-// (2.0x down to 1.38x) and let a consistent user max the garden in ~5 months.
+// Two things this curve has to do at once, in priority order.
 //
-//   5×5 → 7×7:    ~day 4          ← FREE CAP
-//   7×7 → 9×9:    ~day 12  (premium only)
-//   9×9 → 11×11:  ~3.4 weeks
-//   11×11 → 13×13: ~6.7 weeks
-//   13×13 → 15×15: ~2.9 months
-//   15×15 → 17×17: ~5.2 months
-//   17×17 → 19×19: ~9.8 months
-//   19×19 → 21×21: ~18 months
+// FIRST, hook a new user. The 16th tile - the 5×5 → 7×7 gate - must land on
+// the 5th prayer of day one. A newcomer to a habit app has not yet formed the
+// habit, and making them wait days for the first visible reward is how you
+// lose them. Hence the deliberately un-ring-aligned opening: tiles 0-7 cost 1
+// and 8-19 cost 2, so the gate is 8×1 + 8×2 = 24 XP against a 25 XP first day.
+// This constraint outranks smoothness - do not "tidy" these two bands into
+// ring alignment without re-checking that gate.
 //
-// A 2x XP boost roughly halves all of the above. Note the expansion gate (80%
-// of in-grid tiles recovered) lands only 1 tile into ring 9, so ring 9-10
-// costs barely affect pacing - if the endgame ever needs stretching further,
-// change the 80% gate, not these numbers.
+// SECOND, keep the long game long. Cost then climbs geometrically so the
+// curve bends upward without any single step feeling like a wall - the largest
+// jump (4x, into the second tier) is the one the original shipped with and
+// which tested fine. The first four tiers are identical to that original; the
+// divergence starts at tier 5 and compounds:
 //
-// Rings 1-2 keep completion cost 0 (dead -> recovered in one hop) so the
-// first days still feel responsive; the split phases begin at ring 3.
+//   5×5 → 7×7:     day 1   ← FREE CAP, the hook
+//   7×7 → 9×9:     day 4        (premium only from here)
+//   9×9 → 11×11:   day 9
+//   11×11 → 13×13: 2.7 weeks
+//   13×13 → 15×15: 5.6 weeks
+//   15×15 → 17×17: 2.9 months
+//   17×17 → 19×19: 7.3 months
+//   19×19 → 21×21: 18.2 months  ← max SIZE
+//   every tile recovered:  ~2.6 years
+//
+// Solved numerically against the real earning curve (consistency multiplier
+// ramp + Jummah bonus, no purchased boosts). A 2x XP boost roughly halves all
+// of it.
+//
+// Rings 9-10 deliberately cost LESS per tile than ring 8. They sit past the
+// final expansion gate, so they gate nothing - they are only the last edge
+// filling in. Continuing the geometric there priced them at 800-2200 XP each
+// and pushed a complete garden out to 14 years; flattening them brings that to
+// ~2.6 years without moving any expansion by more than a day or two.
+//
+// Rings 1-2 keep completion cost 0 (dead → recovered in one hop) so the first
+// days stay responsive; the split phases begin at ring 3.
 
 const tileCostToRecover = (tileIndex: number): number => {
-  if (tileIndex < 4) return 4;        // ring 1 diagonals
-  if (tileIndex < 20) return 7;       // ring 2 (5×5 tier)
-  if (tileIndex < 44) return 7;       // ring 3 (7×7 tier)
-  if (tileIndex < 76) return 9;       // ring 4 (9×9 tier)
-  if (tileIndex < 116) return 16;     // ring 5 (11×11 tier)
-  if (tileIndex < 164) return 29;     // ring 6 (13×13 tier)
-  if (tileIndex < 220) return 52;     // ring 7 (15×15 tier)
-  if (tileIndex < 284) return 94;     // ring 8 (17×17 tier)
-  if (tileIndex < 356) return 167;    // ring 9 (19×19 tier)
-  return 298;                          // ring 10 (21×21 tier)
+  if (tileIndex < 8) return 1;        // 5×5 tier (inner) - sized for the day-1 gate
+  if (tileIndex < 20) return 2;       // 5×5 tier (outer) - sized for the day-1 gate
+  if (tileIndex < 44) return 1;       // ring 3  (7×7 tier)
+  if (tileIndex < 76) return 3;       // ring 4  (9×9 tier)
+  if (tileIndex < 116) return 5;      // ring 5  (11×11 tier)
+  if (tileIndex < 164) return 15;     // ring 6  (13×13 tier)
+  if (tileIndex < 220) return 43;     // ring 7  (15×15 tier)
+  if (tileIndex < 284) return 127;    // ring 8  (17×17 tier)
+  if (tileIndex < 356) return 56;     // ring 9  - past the last gate, fill only
+  return 56;                           // ring 10 - past the last gate, fill only
 };
 
 const tileCostToComplete = (tileIndex: number): number => {
   if (tileIndex < 20) return 0;       // rings 1-2: instant complete (dead→recovered in one step)
-  if (tileIndex < 44) return 6;       // ring 3   (per-ring totals: 4, 7, 13,
-  if (tileIndex < 76) return 14;      // ring 4    23, 41, 73, 131, 234, 417,
-  if (tileIndex < 116) return 25;     // ring 5    745 - constant ~1.785x growth)
-  if (tileIndex < 164) return 44;     // ring 6
-  if (tileIndex < 220) return 79;     // ring 7
-  if (tileIndex < 284) return 140;    // ring 8
-  if (tileIndex < 356) return 250;    // ring 9
-  return 447;                          // ring 10
+  if (tileIndex < 44) return 2;       // ring 3   (per-ring totals: 1, 2, 3, 8,
+  if (tileIndex < 76) return 5;       // ring 4    13, 38, 109, 317, then 140
+  if (tileIndex < 116) return 8;      // ring 5    flat for the two ungated
+  if (tileIndex < 164) return 23;     // ring 6    outer rings)
+  if (tileIndex < 220) return 66;     // ring 7
+  if (tileIndex < 284) return 190;    // ring 8
+  if (tileIndex < 356) return 84;     // ring 9
+  return 84;                           // ring 10
 };
 
 // Coin cost to skip a recovering → recovered transition
