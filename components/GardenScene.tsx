@@ -1760,6 +1760,23 @@ function IsometricGrid({
         return () => loop.stop();
     }, [isZoomedOut]);
 
+    // ── Axe badge dimming while a tree is being felled ───────────────────────
+    // One shared value for every axe badge, so the withdrawal eases in and out
+    // instead of every other axe blinking off and back on the instant a chop
+    // starts and ends. It only animates across the two ~220ms transitions, so
+    // unlike a continuous loop it costs nothing while idle.
+    const AXE_DIM = 0.55;   // clearly dimmed, still clearly THERE
+    const axeDim = useRef(new Animated.Value(1)).current;
+    const anyChopping = choppingTrees.size > 0;
+    useEffect(() => {
+        Animated.timing(axeDim, {
+            toValue: anyChopping ? AXE_DIM : 1,
+            duration: 220,
+            easing: Easing.inOut(Easing.quad),
+            useNativeDriver: true,
+        }).start();
+    }, [anyChopping, axeDim]);
+
     // ── Shared tree sway ─────────────────────────────────────────────────────
     // One clock for every planted tree, offset per tree (see AnimatedPlantedTree).
     // Stopped entirely when zoomed out: a 0.03rad lean on a tree drawn at ~25px
@@ -2239,8 +2256,6 @@ function IsometricGrid({
 
     // Memoize dead tree elements
     const deadTreeElements = useMemo(() => {
-        // True while any tree is mid-fell; every OTHER axe badge greys out.
-        const chopBusy = choppingTrees.size > 0;
         return visibleDeadTrees.map(({ row, col }) => {
             const localRow = row - startRow;
             const localCol = col - startCol;
@@ -2297,17 +2312,19 @@ function IsometricGrid({
                             so it withdraws while another tree is being felled -
                             the limit is visible before the tap, not only after
                             one is rejected. */}
-                        <View style={{
+                        <Animated.View style={{
                             position: 'absolute',
                             top: SCALED_DEAD_TREE_HEIGHT * 0.05,
                             left: (SCALED_DEAD_TREE_WIDTH / 2) - 24,
                             width: 48,
                             height: 48,
                             zIndex: 10,
-                            opacity: chopBusy ? 0.25 : 1,
+                            opacity: axeDim,
                             shadowColor: '#ffffff',
                             shadowOffset: { width: 0, height: 0 },
-                            shadowOpacity: chopBusy ? 0 : 0.9,
+                            // Constant: fading this alongside opacity made the
+                            // badge read as vanishing rather than dimming.
+                            shadowOpacity: 0.9,
                             shadowRadius: 3,
                         }}>
                             <Image
@@ -2322,7 +2339,7 @@ function IsometricGrid({
                                 }}
                                 resizeMode="contain"
                             />
-                        </View>
+                        </Animated.View>
                         <Image
                             source={ASSETS.deadTree}
                             style={{ width: SCALED_DEAD_TREE_WIDTH, height: SCALED_DEAD_TREE_HEIGHT }}
