@@ -86,40 +86,53 @@ const INITIAL_GRID_SIZE = 5;
 // Ring 9 (indices 284-355) = 19×19   → 72 tiles
 // Ring 10 (indices 356+) = 21×21     → 80 tiles
 //
-// Pacing (at ~25 XP/day, 5 on-time prayers):
-//   5×5 → 7×7:  Day 1, 5th prayer (25 XP → 16/20 = 80% recovered)  ← FREE CAP
-//   7×7 → 9×9:  ~Day 4  (premium only)
-//   9×9 → 11×11: ~Day 10
-//   11×11 → 13×13: ~Week 3
-//   Progressive difficulty thereafter
+// Pacing target: a consistent 5/5-daily user (with the consistency multiplier
+// ramping 1.0x -> 2.0x and the Jummah bonus, NO purchased boosts) reaches the
+// max 21x21 garden in ~18 months. Solved numerically against the real earning
+// curve; per-ring total cost grows at a constant ~1.785x so the taper is
+// smooth rather than the previous curve, whose growth DECELERATED outward
+// (2.0x down to 1.38x) and let a consistent user max the garden in ~5 months.
 //
-// First tier split: tiles 0-7 cost 1 XP, tiles 8-19 cost 2 XP
-// This ensures the 16th tile (80% threshold) needs cumulative 24 XP
-// which is only reachable on the 5th on-time prayer (25 XP total).
+//   5×5 → 7×7:    ~day 4          ← FREE CAP
+//   7×7 → 9×9:    ~day 12  (premium only)
+//   9×9 → 11×11:  ~3.4 weeks
+//   11×11 → 13×13: ~6.7 weeks
+//   13×13 → 15×15: ~2.9 months
+//   15×15 → 17×17: ~5.2 months
+//   17×17 → 19×19: ~9.8 months
+//   19×19 → 21×21: ~18 months
+//
+// A 2x XP boost roughly halves all of the above. Note the expansion gate (80%
+// of in-grid tiles recovered) lands only 1 tile into ring 9, so ring 9-10
+// costs barely affect pacing - if the endgame ever needs stretching further,
+// change the 80% gate, not these numbers.
+//
+// Rings 1-2 keep completion cost 0 (dead -> recovered in one hop) so the
+// first days still feel responsive; the split phases begin at ring 3.
 
 const tileCostToRecover = (tileIndex: number): number => {
-  if (tileIndex < 8) return 1;        // 5×5 tier (inner): 1 XP to start recovering
-  if (tileIndex < 20) return 2;       // 5×5 tier (outer): 2 XP for slower ramp
-  if (tileIndex < 44) return 2;       // 7×7 tier
-  if (tileIndex < 76) return 3;       // 9×9 tier
-  if (tileIndex < 116) return 5;      // 11×11 tier
-  if (tileIndex < 164) return 8;      // 13×13 tier
-  if (tileIndex < 220) return 14;     // 15×15 tier
-  if (tileIndex < 284) return 22;     // 17×17 tier
-  if (tileIndex < 356) return 32;     // 19×19 tier
-  return 44;                           // 21×21 tier
+  if (tileIndex < 4) return 4;        // ring 1 diagonals
+  if (tileIndex < 20) return 7;       // ring 2 (5×5 tier)
+  if (tileIndex < 44) return 7;       // ring 3 (7×7 tier)
+  if (tileIndex < 76) return 9;       // ring 4 (9×9 tier)
+  if (tileIndex < 116) return 16;     // ring 5 (11×11 tier)
+  if (tileIndex < 164) return 29;     // ring 6 (13×13 tier)
+  if (tileIndex < 220) return 52;     // ring 7 (15×15 tier)
+  if (tileIndex < 284) return 94;     // ring 8 (17×17 tier)
+  if (tileIndex < 356) return 167;    // ring 9 (19×19 tier)
+  return 298;                          // ring 10 (21×21 tier)
 };
 
 const tileCostToComplete = (tileIndex: number): number => {
-  if (tileIndex < 20) return 0;       // 5×5 tier: instant complete (dead→recovered in one step)
-  if (tileIndex < 44) return 2;       // 7×7 tier
-  if (tileIndex < 76) return 4;       // 9×9 tier
-  if (tileIndex < 116) return 7;      // 11×11 tier
-  if (tileIndex < 164) return 12;     // 13×13 tier
-  if (tileIndex < 220) return 21;     // 15×15 tier
-  if (tileIndex < 284) return 33;     // 17×17 tier
-  if (tileIndex < 356) return 48;     // 19×19 tier
-  return 66;                           // 21×21 tier
+  if (tileIndex < 20) return 0;       // rings 1-2: instant complete (dead→recovered in one step)
+  if (tileIndex < 44) return 6;       // ring 3   (per-ring totals: 4, 7, 13,
+  if (tileIndex < 76) return 14;      // ring 4    23, 41, 73, 131, 234, 417,
+  if (tileIndex < 116) return 25;     // ring 5    745 - constant ~1.785x growth)
+  if (tileIndex < 164) return 44;     // ring 6
+  if (tileIndex < 220) return 79;     // ring 7
+  if (tileIndex < 284) return 140;    // ring 8
+  if (tileIndex < 356) return 250;    // ring 9
+  return 447;                          // ring 10
 };
 
 // Coin cost to skip a recovering → recovered transition
