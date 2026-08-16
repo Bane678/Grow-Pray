@@ -139,6 +139,30 @@ let _rewardSound: Audio.Sound | null = null;
   } catch (_) { /* silent fail - sound is non-critical */ }
 })();
 
+// ─── Challenge-claim chime ───────────────────────────────────────────────────
+// A rising major arpeggio rather than a reuse of the prayer XP sound. A
+// challenge is a rarer, larger reward than ticking one prayer, and giving it
+// the same cue would flatten it into the thing the user already hears five
+// times a day. Preloaded for the same reason the reward sound is: the tap and
+// the sound have to land together or the feedback feels detached.
+let _challengeSound: Audio.Sound | null = null;
+(async () => {
+  try {
+    const { sound } = await Audio.Sound.createAsync(
+      require('./assets/sounds/challenge_complete.wav'),
+      { shouldPlay: false, volume: 0.55 }
+    );
+    _challengeSound = sound;
+  } catch (_) { /* silent fail - the haptic still lands */ }
+})();
+
+/** Fire-and-forget; rewinds so back-to-back claims each sound. */
+function playChallengeChime() {
+  const s = _challengeSound;
+  if (!s) return;
+  s.setPositionAsync(0).then(() => s.playAsync()).catch(() => {});
+}
+
 // Custom pixel-art icons
 const ICON_COIN = require('./assets/Garden Assets/Icons/Icon_Coin.png');
 const ICON_FIRE = require('./assets/Garden Assets/Icons/Icon_Fire.png');
@@ -3473,6 +3497,9 @@ function AppInner() {
   const handleClaimChallengeReward = useCallback(async (challengeId: ChallengeId) => {
     const reward = await challengesHook.claimReward(challengeId);
     if (reward > 0) {
+      // Sounded here rather than on the button so it only fires when a reward
+      // was genuinely credited - a double-tap that claims nothing stays silent.
+      playChallengeChime();
       await prayerState.earnCoins(reward, `challenge_${challengeId}`);
     }
   }, [challengesHook, prayerState]);
