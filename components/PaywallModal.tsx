@@ -221,7 +221,7 @@ export function PaywallModal({
       ) : (
       <View style={{
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.85)',
+        backgroundColor: '#0f1526',
         justifyContent: 'center',
         padding: 20,
       }}>
