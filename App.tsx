@@ -4848,6 +4848,28 @@ function AppInner() {
               </TouchableOpacity>
 
               <TouchableOpacity
+                onPress={async () => {
+                  await prayerState.earnCoins(100000);
+                }}
+                style={{
+                  backgroundColor: '#7c5d24',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#fbbf24',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: '#fbbf24', fontSize: 14, fontWeight: '600' }}>
+                  💰 +100,000 Coins
+                </Text>
+                <Text style={{ color: 'rgba(251,191,36,0.6)', fontSize: 11, marginTop: 4 }}>
+                  Current: {prayerState.coins.toLocaleString()} - tap to top up
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
                 onPress={() => {
                   // Cycle through multiplier tiers for testing
                   const tiers = [0, 7, 14, 30, 60];
