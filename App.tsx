@@ -2854,6 +2854,7 @@ function AppInner() {
   const [showDebugModal, setShowDebugModal] = useState(false);
   const [debugPrayersUnlocked, setDebugPrayersUnlocked] = useState(false);
   const [screenshotChromeHidden, setScreenshotChromeHidden] = useState(false);
+  const [lastGeneratedGarden, setLastGeneratedGarden] = useState<{ gridSize: number; treeCount: number } | null>(null);
   const [showMultiplierModal, setShowMultiplierModal] = useState(false);
   const [showChallengesModal, setShowChallengesModal] = useState(false);
 
@@ -3509,17 +3510,16 @@ function AppInner() {
     }
   }, [challengesHook, prayerState]);
 
-  // ─── Debug: Screenshot Mode (dev only, never shipped) ───────────────────
-  // Grants enough XP to fully recover the max grid, grants premium so the
-  // full 21x21 size actually displays, then hands the garden a curated
-  // planted-tree layout - all as a direct data write, bypassing coins/
-  // inventory entirely. Doesn't touch real progression logic, so it's safe
-  // to follow with "Reset All Progress" once the shoot is done.
-  const handleScreenshotMode = useCallback(async () => {
+  // ─── Debug: random garden generator (dev only, never shipped) ───────────
+  // Rolls a fresh garden for App Store screenshots. Premium is granted first
+  // so the larger sizes aren't clamped by the free grid cap. The generator
+  // sets XP itself (it has to land just under the expansion gate - see the
+  // note in useGardenState), so it takes the setter rather than a value.
+  // Purely a data write, so "Reset All Progress" cleans it up afterwards.
+  const handleGenerateGarden = useCallback(async () => {
     if (!premium.isPremium) await premium.togglePremiumDebug();
-    const bigXP = 999999; // guarantees every tile in the recovery schedule resolves, regardless of curve tuning
-    await prayerState.debugSetXP(bigXP);
-    await gardenState.debugFillGarden(bigXP);
+    const { gridSize, treeCount } = await gardenState.debugGenerateGarden(prayerState.debugSetXP);
+    setLastGeneratedGarden({ gridSize, treeCount });
     setShowDebugModal(false);
   }, [premium, prayerState, gardenState]);
 
@@ -4889,7 +4889,7 @@ function AppInner() {
               </TouchableOpacity>
 
               <TouchableOpacity
-                onPress={handleScreenshotMode}
+                onPress={handleGenerateGarden}
                 style={{
                   backgroundColor: '#2d3a52',
                   paddingVertical: 14,
@@ -4901,10 +4901,12 @@ function AppInner() {
                 }}
               >
                 <Text style={{ color: '#93a5dc', fontSize: 14, fontWeight: '600' }}>
-                  📸 Screenshot Mode
+                  🎲 Generate Random Garden
                 </Text>
                 <Text style={{ color: 'rgba(147,165,220,0.6)', fontSize: 11, marginTop: 4 }}>
-                  Maxes the grid + fills it with a curated garden
+                  {lastGeneratedGarden
+                    ? `Last: ${lastGeneratedGarden.gridSize}x${lastGeneratedGarden.gridSize}, ${lastGeneratedGarden.treeCount} trees - tap to reroll`
+                    : 'Random size, planting and tree mix - tap to reroll'}
                 </Text>
               </TouchableOpacity>
 

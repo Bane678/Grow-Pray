@@ -63,8 +63,8 @@ export interface GardenStateResult {
   daysSinceLastXP: number;
   isDecaying: boolean;
   lastXPGainTimestamp: number;
-  /** Dev-only: directly plants a curated, varied layout across the whole grid for screenshots. */
-  debugFillGarden: (currentXP: number) => Promise<void>;
+  /** Dev-only: rolls a random garden (size, density, species, growth) for screenshots. */
+  debugGenerateGarden: (applyXP: (xp: number) => Promise<void>) => Promise<{ gridSize: number; treeCount: number }>;
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -164,15 +164,6 @@ const DEAD_TREE_REMOVAL_REWARD = 5;
 // Grid expansion
 const GRID_EXPANSION_INCREMENT = 2;
 export const MAX_GRID_SIZE = 21;
-
-// Deterministic 0..1 pseudo-random from two integers (no seeded-RNG dependency needed) -
-// used only by the screenshot-mode debug fill to pick a reproducible, non-uniform layout.
-function hash01(a: number, b: number): number {
-  let h = (a * 374761393 + b * 668265263) ^ (a << 13);
-  h = (h ^ (h >>> 15)) * 1274126177;
-  h = h ^ (h >>> 13);
-  return ((h >>> 0) % 10000) / 10000;
-}
 
 // ─── Tile Recovery Order Algorithm ────────────────────────────────────────────
 // Ring by ring, cross-first then corners within each ring
@@ -839,37 +830,91 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     await saveGarden(updated);
   }, [gardenData, saveGarden]);
 
-  // ─── Debug: fill the garden for screenshots (dev only, never shipped) ────
-  // Directly writes a curated, varied planting across the whole grid -
-  // bypasses tile-state/inventory checks entirely since this is a one-shot
-  // cosmetic snapshot, not real progression. `currentXP` should already be
-  // the large debug XP value the caller just set, so recovered-tile checks
-  // pass and stage math (currentXP - plantedAtXP) resolves correctly.
-  const debugFillGarden = useCallback(async (currentXP: number) => {
-    const treeIds = TREE_CATALOG.map(item => item.id);
-    const plantedTrees: Record<string, PlantedTree> = {};
-    for (let row = 0; row < MAX_GRID_SIZE; row++) {
-      for (let col = 0; col < MAX_GRID_SIZE; col++) {
-        if (hash01(row, col) < 0.22) continue; // natural gaps, not every tile filled
-        const treeType = treeIds[Math.floor(hash01(row + 1, col + 7) * treeIds.length)];
-        const stageRoll = hash01(row + 13, col + 29);
-        // Mostly grown/flourishing, with a minority of younger trees scattered
-        // in for texture so the garden doesn't look uniform.
-        const treeXPTarget = stageRoll < 0.08 ? 5 : stageRoll < 0.18 ? 40 : stageRoll < 0.35 ? 100 : 220;
-        plantedTrees[`${row},${col}`] = { type: treeType, plantedAtXP: Math.max(0, currentXP - treeXPTarget) };
+  // ─── Debug: generate a random garden for screenshots (dev only) ──────────
+  // Rolls a fresh garden each call - random size, random planting density,
+  // random species mix and growth stages - so App Store shots can be taken
+  // without playing to that state. Writes garden data directly, bypassing
+  // tile-state and inventory checks; this is a cosmetic snapshot, not real
+  // progression.
+  //
+  // Two constraints shape this, both learned the hard way:
+  //
+  // 1. XP is set JUST BELOW the expansion gate for the chosen size. Tile
+  //    recovery is forced via tileOverrides instead, which canExpandOneStep
+  //    deliberately does not count. If XP alone were pushed high enough to
+  //    recover the tiles, canExpand would flip true and the expansion modal
+  //    would auto-open 500ms later, right over the shot.
+  //
+  // 2. Tree count is capped and density kept moderate. Planted trees are
+  //    viewport-culled, but a fully-planted max grid viewed zoomed out has
+  //    every tree genuinely on screen, so culling cannot help and ~340 live
+  //    tree components drop the frame rate. Normal play never reaches that
+  //    (you would have to buy hundreds of trees); only a debug fill can.
+  const debugGenerateGarden = useCallback(async (
+    applyXP: (xp: number) => Promise<void>,
+  ): Promise<{ gridSize: number; treeCount: number }> => {
+    const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
+
+    // Mix of small, medium and large gardens. MAX_GRID_SIZE is excluded: it is
+    // both the heaviest to render and reads as "finished" rather than inviting.
+    const size = pick([5, 7, 9, 11, 13, 15, 17, 19]);
+
+    // Smallest XP at which this size could expand, minus one - see note 1.
+    let lo = 0;
+    let hi = schedule.length > 0 ? schedule[schedule.length - 1].cumulativeXP : 0;
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      if (canExpandOneStep(mid, schedule, size, MAX_GRID_SIZE).canExpand) hi = mid;
+      else lo = mid + 1;
+    }
+    const targetXP = Math.max(0, lo - 1);
+    await applyXP(targetXP);
+
+    // Force every in-grid tile recovered so the garden reads as established.
+    const center = Math.floor(MAX_GRID_SIZE / 2);
+    const half = Math.floor(size / 2);
+    const tileOverrides: Record<string, TileState> = {};
+    const plantable: string[] = [];
+    for (let row = center - half; row <= center + half; row++) {
+      for (let col = center - half; col <= center + half; col++) {
+        tileOverrides[`${row},${col}`] = 'recovered';
+        // The centre tile renders the original tree separately.
+        if (row === center && col === center) continue;
+        plantable.push(`${row},${col}`);
       }
     }
+
+    // Partial planting looks more like a real garden than wall-to-wall trees,
+    // and keeps the rendered tree count down - see note 2.
+    const density = 0.3 + Math.random() * 0.25;
+    const treeCount = Math.min(90, Math.round(plantable.length * density));
+    for (let i = plantable.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [plantable[i], plantable[j]] = [plantable[j], plantable[i]];
+    }
+
+    // Weighted toward mature trees, with younger ones scattered for texture.
+    // plantedAtXP may go negative - stage is just (currentXP - plantedAtXP),
+    // so this is how a small, low-XP garden can still show grown trees.
+    const treeIds = TREE_CATALOG.map(item => item.id);
+    const stageXP = [8, 40, 100, 220, 220, 400, 400];
+    const plantedTrees: Record<string, PlantedTree> = {};
+    for (const key of plantable.slice(0, treeCount)) {
+      plantedTrees[key] = { type: pick(treeIds), plantedAtXP: targetXP - pick(stageXP) };
+    }
+
     const updated: GardenData = {
-      gridSize: MAX_GRID_SIZE,
-      tileOverrides: {},
+      gridSize: size,
+      tileOverrides,
       deadTreesRemoved: [],
       plantedTrees,
-      lastExpansionSize: MAX_GRID_SIZE,
+      lastExpansionSize: size,
       lastXPGainTimestamp: Date.now(),
     };
     setGardenData(updated);
     await saveGarden(updated);
-  }, [saveGarden]);
+    return { gridSize: size, treeCount };
+  }, [schedule, saveGarden]);
 
   return {
     gardenData,
@@ -905,6 +950,6 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     daysSinceLastXP,
     isDecaying,
     lastXPGainTimestamp: gardenData.lastXPGainTimestamp,
-    debugFillGarden,
+    debugGenerateGarden,
   };
 }
