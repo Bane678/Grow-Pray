@@ -3487,7 +3487,12 @@ function AppInner() {
   const noopResetProgress = useCallback(() => {}, []);
 
   // When any fullscreen modal is open, freeze the garden to free the JS thread
-  const isAnyModalOpen = showChallengesModal || showShopModal || showPaywall || showRestModal || showHistoryModal || activeTab !== 'garden';
+  // Anything that covers the garden. Everything here must be listed, not just
+  // the heavy screens: this now also gates touch on the garden, and a modal
+  // missing from the list leaves live pan/pinch handlers underneath it.
+  const isAnyModalOpen = showChallengesModal || showShopModal || showPaywall || showRestModal
+    || showHistoryModal || showExpansionModal || showMultiplierModal || confirmBulkRemove
+    || removeTreeTarget !== null || activeTab !== 'garden';
 
   // Load freeze inventory from storage (migrates old { single, all } format to a single count)
   useEffect(() => {

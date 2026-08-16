@@ -2704,6 +2704,17 @@ export const GardenScene = React.memo(function GardenScene({
     const frozenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
         if (frozen) {
+            // Touch is detached on the same tick (see pointerEvents below), but
+            // a gesture may already have been mid-flight when the modal opened.
+            // Commit and zero it here so the offset can't be left half-applied,
+            // which would otherwise fight the next drag or pin the garden
+            // against a clamp bound.
+            if (momentumRef.current) { momentumRef.current.stop(); momentumRef.current = null; }
+            clearMomentumClamps();
+            baseX.stopAnimation(v => { lastBaseX.current = v; baseX.setValue(v); });
+            baseY.stopAnimation(v => { lastBaseY.current = v; baseY.setValue(v); });
+            dragX.setValue(0);
+            dragY.setValue(0);
             frozenTimerRef.current = setTimeout(() => {
                 Animated.timing(gardenOpacity, { toValue: 0, duration: 0, useNativeDriver: true }).start();
             }, 80);
@@ -3065,7 +3076,15 @@ export const GardenScene = React.memo(function GardenScene({
                 maxPointers={2}
                 avgTouches
             >
-                <Animated.View style={styles.canvasContainer}>
+                {/* pointerEvents, not just opacity: a modal covering the garden
+                    used to leave these handlers live underneath it. If one
+                    opened while a pan was in flight the handler never received
+                    its END, so dragX/dragY were never committed or reset and
+                    the garden stopped responding to swipes once the modal
+                    closed - while other tabs, with their own handlers, were
+                    fine. Detaching touch while covered means a gesture can
+                    never be left half-finished. */}
+                <Animated.View style={styles.canvasContainer} pointerEvents={frozen ? 'none' : 'auto'}>
                     <PinchGestureHandler
                         ref={pinchRef}
                         simultaneousHandlers={[panRef]}
