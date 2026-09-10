@@ -23,12 +23,13 @@
 </head>
 <body>
   <h1>🌿 Grow Pray — Privacy Policy</h1>
-  <p class="date">Effective Date: June 16, 2026</p>
+  <p class="date">Effective Date: August 17, 2026</p>
 
   <p>Grow Pray ("we", "us", "the app") is committed to protecting your privacy. This policy explains what data we collect and how we use it.</p>
 
   <h2>1. Data We Collect</h2>
-  <p><strong>Location Data:</strong> We request your device location solely to calculate accurate prayer times for your area. Prayer times are computed entirely on your device, and your coordinates are <strong>never sent to any server</strong>.</p>
+  <p><strong>Location Data:</strong> We request your device location solely to calculate accurate prayer times for your area. Prayer times are computed entirely on your device. If you use automatic location, your coordinates <strong>never leave your device</strong>.</p>
+  <p><strong>Manual City Search (optional):</strong> If you choose to search for a city manually in Settings instead of using automatic location, the city name you type is sent to OpenStreetMap's Nominatim service to find matching places, and the coordinates of the city you select are sent to TimeAPI.io to determine that city's timezone. This happens only when you actively search for a city. These requests contain no name, device identifier, or prayer data, and we do not store or receive the results ourselves. See Section 4.</p>
   <p><strong>Prayer &amp; Progress Data:</strong> Your prayer completions, streaks, coins, garden progress, the display name you optionally enter during onboarding, and your settings are stored locally on your device using on-device storage. This data never leaves your device.</p>
   <p><strong>Purchase Data:</strong> If you subscribe to Premium or purchase coins, the transaction is handled by Apple. To manage your subscription entitlement, we use RevenueCat (see Section 4), which receives purchase events and an anonymous, randomly generated app user identifier. We never receive or store your payment card details.</p>
   <p><strong>Notifications:</strong> If you grant notification permission, the app schedules local notifications on your device to remind you of prayer times. No notification data is sent to any server — all scheduling happens entirely on-device.</p>
@@ -50,8 +51,10 @@
   <ul>
     <li><strong>RevenueCat</strong> — to manage in-app subscriptions and purchases. RevenueCat receives purchase transaction information and an anonymous app user identifier to determine your subscription status. It does not receive your name, location, or prayer data. See <a href="https://www.revenuecat.com/privacy/">revenuecat.com/privacy</a>.</li>
     <li><strong>Apple App Store</strong> — for processing in-app purchases and subscriptions. See <a href="https://www.apple.com/legal/privacy/">Apple's Privacy Policy</a>.</li>
+    <li><strong>OpenStreetMap (Nominatim)</strong> — used <em>only</em> when you manually search for a city in Settings. It receives the city name you type in order to return matching places. It does not receive your device location, name, or prayer data. See <a href="https://osmfoundation.org/wiki/Privacy_Policy">the OSM Foundation Privacy Policy</a>.</li>
+    <li><strong>TimeAPI.io</strong> — used <em>only</em> when you select a city from a manual search. It receives the coordinates of that selected city in order to return its timezone, so prayer times display in the city's local time. It does not receive your device location, name, or prayer data. See <a href="https://www.timeapi.io/">timeapi.io</a>.</li>
   </ul>
-  <p>Prayer times are calculated on-device using an open-source astronomical library. No prayer-time service or external API receives your location.</p>
+  <p>Prayer times themselves are always calculated on-device using an open-source astronomical library. No prayer-time service ever receives your location, and if you use automatic location rather than manual city search, no external service receives location data at all.</p>
 
   <h2>5. Children's Privacy</h2>
   <p>Grow Pray does not knowingly collect data from children under 13. The app is rated 4+ and is suitable for all ages.</p>

@@ -95,8 +95,7 @@ section{position:relative;padding:96px 0;overflow:hidden}
 .hero-copy h1 .leaf{color:var(--gold-l)}
 .hero-copy p.sub{font-size:clamp(17px,2vw,21px);color:#cdddd2;max-width:520px;margin:20px 0 30px;font-weight:600}
 .hero-cta{display:flex;gap:14px;flex-wrap:wrap;align-items:center}
-/* Trust strip — sits right under the CTA so the ask and the reassurance read together.
-   PLACEHOLDER numbers: replace the rating + counts with real figures once live. */
+/* Trust strip — sits right under the CTA so the ask and the reassurance read together. */
 .trust-strip{margin-top:26px;display:flex;gap:22px;flex-wrap:wrap;align-items:center}
 .trust-item{display:flex;flex-direction:column;gap:2px}
 .trust-item .big{color:#fff;font-weight:800;font-size:17px;display:flex;align-items:center;gap:6px}
@@ -111,16 +110,22 @@ section{position:relative;padding:96px 0;overflow:hidden}
 .float-tree.t1{left:-46px;width:122px;animation:sway 6s ease-in-out infinite}
 .float-tree.t2{right:-34px;width:92px;bottom:34px;animation:sway 7s ease-in-out infinite reverse}
 
-/* ---------- TESTIMONIALS ---------- */
-/* PLACEHOLDER quotes — swap for real App Store reviews after launch. */
-.quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
-.quote{background:var(--card);border:1px solid var(--card-bd);border-radius:20px;padding:26px 24px;box-shadow:0 18px 40px rgba(0,0,0,.35)}
-.quote .stars{color:var(--gold-l);letter-spacing:3px;font-size:14px;margin-bottom:12px}
-.quote p{color:#dfe9ef;font-weight:600;font-size:15.5px;line-height:1.55;margin-bottom:16px}
-.quote .who{display:flex;align-items:center;gap:10px}
-.quote .who img{width:34px;height:34px}
-.quote .who b{color:#fff;font-size:14px;display:block}
-.quote .who small{color:var(--muted);font-weight:700;font-size:12px}
+/* ---------- TRUST BAND ---------- */
+/* Deliberately lighter than .feat-grid further down the page: no card fill, no
+   shadow, just a rule between three statements. Two heavy card grids stacked in
+   one page compete with each other, and this one is meant to be read on the way
+   past, not studied. */
+.trust{display:grid;grid-template-columns:repeat(3,1fr);gap:0;border-top:1px solid var(--card-bd);border-bottom:1px solid var(--card-bd)}
+.trust .t{padding:30px 28px;border-left:1px solid var(--card-bd)}
+.trust .t:first-child{border-left:0}
+.trust .t img{width:30px;height:30px;margin-bottom:14px;opacity:.9}
+.trust .t b{display:block;color:#fff;font-size:16px;margin-bottom:7px}
+.trust .t p{color:var(--muted);font-size:14.5px;line-height:1.6}
+@media(max-width:820px){
+  .trust{grid-template-columns:1fr}
+  .trust .t{border-left:0;border-top:1px solid var(--card-bd)}
+  .trust .t:first-child{border-top:0}
+}
 
 /* ---------- HOW IT WORKS ---------- */
 .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
@@ -239,7 +244,7 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
   .hero-inner{grid-template-columns:1fr;gap:40px}
   .hero{padding-top:120px;text-align:center}
   .hero-cta,.trust-strip{justify-content:center}
-  .quotes,.steps,.feat-grid{grid-template-columns:1fr}
+  .steps,.feat-grid{grid-template-columns:1fr}
   .plans{grid-template-columns:minmax(0,420px)}
   .arrow{display:none}
   section{padding:72px 0}
@@ -281,13 +286,16 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
         <a href="#" class="store-badge" aria-label="Download on the App Store"><img src="web-assets/app-store-badge.svg" alt="Download on the App Store"></a>
         <a href="#how" class="btn-ghost">See how it works</a>
       </div>
-      <!-- PLACEHOLDER stats: replace with real rating & counts once the app is live. -->
+      <!-- Three plain truths, not metrics. This slot previously carried a
+           "4.9 App Store rating" and "120K+ prayers tracked" for an app that had
+           never shipped. Do not put a rating, install count or usage figure here
+           until there is a real one to cite. -->
       <div class="trust-strip">
-        <div class="trust-item"><span class="big"><span class="stars">★★★★★</span> 4.9</span><small>App Store rating</small></div>
-        <div class="trust-sep"></div>
-        <div class="trust-item"><span class="big">120K+</span><small>prayers tracked</small></div>
-        <div class="trust-sep"></div>
         <div class="trust-item"><span class="big">Free</span><small>to download · no ads, ever</small></div>
+        <div class="trust-sep"></div>
+        <div class="trust-item"><span class="big">Private</span><small>no account · no servers</small></div>
+        <div class="trust-sep"></div>
+        <div class="trust-item"><span class="big">On time</span><small>accurate windows, anywhere</small></div>
       </div>
     </div>
     <div class="hero-visual">
@@ -298,30 +306,35 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
   </div>
 </header>
 
-<!-- ===== TESTIMONIALS ===== -->
+<!-- ===== TRUST ===== -->
+<!-- Sits here, directly after the hero, because this is where a stranger decides
+     whether to trust a worship app at all. Every claim below is verifiable in the
+     source: no analytics, ad or auth SDK is installed, and prayer data has no
+     network path off the device. Do not add a claim here that the code does not
+     already keep. -->
 <section class="social">
   <div class="container">
     <div class="sec-head reveal">
       <div class="guide"><img src="web-assets/seedling.png" alt="" loading="lazy"></div>
-      <span class="eyebrow">Loved by the ummah</span>
-      <h2>Prayer feels different when something grows from it</h2>
+      <span class="eyebrow">Yours alone</span>
+      <h2>Your worship is between you and Allah</h2>
+      <p>No one else is watching — not us, not an advertiser, not a server.</p>
     </div>
-    <!-- PLACEHOLDER testimonials — replace with real App Store reviews after launch. -->
-    <div class="quotes reveal">
-      <div class="quote">
-        <div class="stars">★★★★★</div>
-        <p>"I've tried every prayer app out there. This is the first one that made me *want* to pray Fajr on time — I couldn't let my cherry blossom wither."</p>
-        <div class="who"><img src="web-assets/icon-fire.png" alt="" loading="lazy"><div><b>Aisha R.</b><small>47-day streak</small></div></div>
+    <div class="trust reveal">
+      <div class="t">
+        <img src="web-assets/icon-moon.png" alt="" loading="lazy">
+        <b>Nothing leaves your phone</b>
+        <p>Your prayer history, streaks and garden are stored on your device and nowhere else. There is no server holding a record of your worship.</p>
       </div>
-      <div class="quote">
-        <div class="stars">★★★★★</div>
-        <p>"My kids ask me every evening if I've watered the garden — which really means 'have you prayed Isha, Baba?' It's become our family thing."</p>
-        <div class="who"><img src="web-assets/icon-hands.png" alt="" loading="lazy"><div><b>Yusuf M.</b><small>Family of five</small></div></div>
+      <div class="t">
+        <img src="web-assets/icon-hands.png" alt="" loading="lazy">
+        <b>No account, ever</b>
+        <p>No sign-up, no email, no password to forget. Open the app and start praying — there is nothing to create and nothing to log into.</p>
       </div>
-      <div class="quote">
-        <div class="stars">★★★★★</div>
-        <p>"The gentle reminders before each window closes are perfect — motivating without guilt. And the pixel art is genuinely beautiful."</p>
-        <div class="who"><img src="web-assets/icon-moon.png" alt="" loading="lazy"><div><b>Sara K.</b><small>Golden tree owner</small></div></div>
+      <div class="t">
+        <img src="web-assets/icon-scroll.png" alt="" loading="lazy">
+        <b>No ads, no tracking</b>
+        <p>Not a single advertising or analytics library is in the app. Your habits are not measured, profiled or sold to anyone.</p>
       </div>
     </div>
   </div>
@@ -469,9 +482,10 @@ footer{background:#050a16;padding:56px 0 40px;border-top:1px solid rgba(255,255,
       <div class="plan premium">
         <span class="tag">✦ Premium</span>
         <h3>Golden Garden</h3>
-        <!-- PLACEHOLDER price — match your real App Store subscription price. -->
-        <div class="price">$2.99 <small>/ month</small></div>
-        <p class="blurb">For the most devoted gardeners — and to support development.</p>
+        <!-- Must match App Store Connect exactly: growpray_premium_monthly $6.99/mo,
+             growpray_premium_yearly $44.99/yr, 14-day free trial on both. -->
+        <div class="price">$6.99 <small>/ month</small></div>
+        <p class="blurb">Free for 14 days. Or $44.99 a year — two months saved.</p>
         <ul>
           <li>Everything in the free garden</li>
           <li>The shimmering Golden tree species</li>
@@ -579,11 +593,13 @@ document.querySelectorAll('.reveal').forEach(el=>io.observe(el));
 const leafSet=['web-assets/leaf.png','web-assets/pollen.png','web-assets/sparkle.png'];
 const field=document.querySelector('.particle-field');
 if(field){
-  for(let i=0;i<26;i++){
+  for(let i=0;i<11;i++){
     const p=document.createElement('img');
     p.className='particle';
     p.src=leafSet[i%leafSet.length];
-    const dur=11+Math.random()*12;
+    // ~26-46s to cross the viewport. The drift is meant to be noticed only if
+    // you look for it; at the old 11-23s it read as weather rather than ambience.
+    const dur=26+Math.random()*20;
     p.style.width=(10+Math.random()*20)+'px';
     p.style.left=Math.random()*100+'%';
     p.style.animationDuration=dur+'s';
