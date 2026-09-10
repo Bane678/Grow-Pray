@@ -1,11 +1,11 @@
 import "./global.css";
 import { StatusBar } from 'expo-status-bar';
-import { Text, View, ActivityIndicator, TouchableOpacity, Image, ImageBackground, Animated, Modal, ScrollView, TouchableWithoutFeedback, Pressable, Easing, StyleSheet, Dimensions, Platform, AppState } from 'react-native';
+import { Text, View, ActivityIndicator, TouchableOpacity, Image, ImageBackground, Animated, Modal, ScrollView, TouchableWithoutFeedback, Pressable, Easing, StyleSheet, Dimensions, Platform, AppState, Alert } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView, SafeAreaProvider, initialWindowMetrics } from 'react-native-safe-area-context';
 import { GardenScene } from './components/GardenScene';
-import { useGardenState, TileState, MAX_GRID_SIZE } from './hooks/useGardenState';
+import { useGardenState, TileState, MAX_GRID_SIZE, GardenSizePreset, GardenDensityPreset } from './hooks/useGardenState';
 import { OnboardingScreen } from './components/OnboardingScreen';
 import { ShopModal, TREE_CATALOG } from './components/ShopModal';
 import { PaywallModal } from './components/PaywallModal';
@@ -50,7 +50,7 @@ const NIGHT_SKY = require('./assets/Garden Assets/Icons/Starry_Night_Sky.png');
 
 // Shared day/night computation so any component (SkyBackground, tab page overlays)
 // can react to the same real sunrise/sunset window without duplicating the logic.
-function useIsDay(sunrise?: string, sunset?: string): boolean {
+function useIsDay(sunrise?: string, sunset?: string, debugOverride?: boolean | null): boolean {
   const computeIsDay = useCallback(() => {
     const now = new Date();
     const mins = now.getHours() * 60 + now.getMinutes();
@@ -84,7 +84,9 @@ function useIsDay(sunrise?: string, sunset?: string): boolean {
     };
   }, [computeIsDay]);
 
-  return isDay;
+  // Dev-only: a non-null override wins outright, so Developer Tools can force
+  // day/night for screenshots regardless of the real clock/sunrise-sunset.
+  return debugOverride ?? isDay;
 }
 
 function SkyBackground({
@@ -255,8 +257,14 @@ const THEME = {
   coinMuted: 'rgba(251,191,36,0.12)',
   danger: '#ef4444',           // Missed prayers, destructive
   dangerMuted: 'rgba(239,68,68,0.12)',
-  purple: '#a78bfa',           // Rest mode
+  purple: '#a78bfa',           // Generic purple accent
   purpleMuted: 'rgba(167,139,250,0.12)',
+  // Rest period - moonlight blue. Deliberately the same hue as the Rest Period
+  // row's icon in Settings, so starting a rest from there lands somewhere that
+  // looks related. Cooler and quieter than the peach accent, which reads as
+  // "act now" - the opposite of what a rest period is for.
+  rest: '#93a5dc',
+  restMuted: 'rgba(147,165,220,0.14)',
   divider: 'rgba(255,255,255,0.06)', // Barely visible separators
   tabInactive: 'rgba(156,163,175,0.5)',
 };
@@ -448,7 +456,33 @@ function RestPeriodModal({
   currentStreak: number;
 }) {
   const [selectedDays, setSelectedDays] = useState(5);
-  const dayOptions = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const MIN_DAYS = 1;
+  const MAX_DAYS = 10;
+
+  // Reset to the default each time it opens, so a cancelled pick doesn't
+  // silently persist into the next visit.
+  useEffect(() => {
+    if (visible) setSelectedDays(5);
+  }, [visible]);
+
+  const step = (delta: number) => {
+    setSelectedDays((d) => {
+      const next = Math.min(MAX_DAYS, Math.max(MIN_DAYS, d + delta));
+      if (next !== d) Haptics.selectionAsync();
+      return next;
+    });
+  };
+
+  // Showing the actual return date is more useful than echoing the number
+  // back - "ends Saturday" is what someone is really deciding about.
+  const endLabel = useMemo(() => {
+    const d = new Date();
+    d.setDate(d.getDate() + selectedDays);
+    return d.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'short' });
+  }, [selectedDays]);
+
+  const atMin = selectedDays <= MIN_DAYS;
+  const atMax = selectedDays >= MAX_DAYS;
 
   return (
     <Modal
@@ -457,97 +491,169 @@ function RestPeriodModal({
       animationType="fade"
       onRequestClose={onClose}
     >
+      <TouchableWithoutFeedback onPress={onClose}>
       <View style={{
         flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        backgroundColor: THEME.bgOverlay,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20,
+        padding: 24,
       }}>
+        <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
         <View style={{
           backgroundColor: THEME.bg,
-          borderRadius: 20,
-          padding: 24,
+          borderRadius: 28,
+          borderWidth: 1,
+          borderColor: 'rgba(147,165,220,0.16)',
+          paddingTop: 30,
+          paddingBottom: 22,
+          paddingHorizontal: 22,
           width: '100%',
-          maxWidth: 320,
+          maxWidth: 360,
         }}>
           {/* Header */}
-          <Text style={{
-            fontSize: 20,
-            fontWeight: '700',
-            color: THEME.text,
-            textAlign: 'center',
-            marginBottom: 8,
-            fontFamily: FONTS.display,
-          }}>
-            Set Rest Period
-          </Text>
-          
-          <Text style={{
-            fontSize: 14,
-            color: '#9ca3af',
-            textAlign: 'center',
-            marginBottom: 20,
-          }}>
-            Your streaks will be frozen during this time
-          </Text>
+          <View style={{ alignItems: 'center', marginBottom: 26 }}>
+            <View style={{
+              width: 62,
+              height: 62,
+              borderRadius: 31,
+              backgroundColor: THEME.restMuted,
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginBottom: 14,
+            }}>
+              <Image source={ICON_MOON} style={{ width: 30, height: 30 }} resizeMode="contain" />
+            </View>
+            <Text style={{
+              fontSize: 22,
+              fontWeight: '700',
+              color: THEME.text,
+              fontFamily: FONTS.display,
+            }}>
+              Rest Period
+            </Text>
+            <Text style={{
+              fontSize: 14,
+              lineHeight: 20,
+              color: THEME.textMuted,
+              textAlign: 'center',
+              marginTop: 8,
+              paddingHorizontal: 6,
+            }}>
+              Step away without losing what you've built.
+            </Text>
+          </View>
 
-          {/* Day selector */}
+          {/* Duration stepper - a big legible numeral beats ten cramped chips,
+              and scales to any range without a wrapped grid. */}
           <View style={{
             flexDirection: 'row',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            gap: 8,
-            marginBottom: 24,
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            backgroundColor: 'rgba(255,255,255,0.03)',
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: 'rgba(255,255,255,0.06)',
+            paddingVertical: 18,
+            paddingHorizontal: 18,
           }}>
-            {dayOptions.map((days) => (
-              <TouchableOpacity
-                key={days}
-                onPress={() => setSelectedDays(days)}
-                style={{
-                  width: 50,
-                  height: 50,
-                  borderRadius: 12,
-                  backgroundColor: selectedDays === days 
-                    ? 'rgba(232, 168, 124, 0.3)' 
-                    : 'rgba(255, 255, 255, 0.04)',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  borderWidth: selectedDays === days ? 2 : 0,
-                  borderColor: selectedDays === days 
-                    ? THEME.accent 
-                    : 'transparent',
-                }}
-              >
-                <Text style={{
-                  fontSize: 18,
-                  fontWeight: '600',
-                  color: selectedDays === days ? '#fff' : '#9ca3af',
-                }}>
-                  {days}
-                </Text>
-              </TouchableOpacity>
-            ))}
+            <TouchableOpacity
+              onPress={() => step(-1)}
+              disabled={atMin}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 26,
+                backgroundColor: atMin ? 'rgba(255,255,255,0.03)' : THEME.restMuted,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: atMin ? 0.4 : 1,
+              }}
+            >
+              <MaterialCommunityIcons name="minus" size={24} color={atMin ? THEME.textSecondary : THEME.rest} />
+            </TouchableOpacity>
+
+            <View style={{ alignItems: 'center', minWidth: 110 }}>
+              <Text style={{
+                fontSize: 46,
+                lineHeight: 52,
+                fontWeight: '700',
+                color: THEME.text,
+                fontFamily: FONTS.display,
+              }}>
+                {selectedDays}
+              </Text>
+              <Text style={{ fontSize: 13, color: THEME.textMuted, marginTop: 2 }}>
+                {selectedDays === 1 ? 'day' : 'days'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={() => step(1)}
+              disabled={atMax}
+              activeOpacity={0.7}
+              hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              style={{
+                width: 52,
+                height: 52,
+                borderRadius: 26,
+                backgroundColor: atMax ? 'rgba(255,255,255,0.03)' : THEME.restMuted,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: atMax ? 0.4 : 1,
+              }}
+            >
+              <MaterialCommunityIcons name="plus" size={24} color={atMax ? THEME.textSecondary : THEME.rest} />
+            </TouchableOpacity>
           </View>
 
           <Text style={{
             fontSize: 14,
-            color: THEME.accent,
+            color: THEME.rest,
             textAlign: 'center',
-            marginBottom: 20,
+            marginTop: 16,
+            fontWeight: '600',
           }}>
-            {selectedDays} {selectedDays === 1 ? 'day' : 'days'} selected
+            Back on {endLabel}
           </Text>
 
+          {/* What actually happens - the old copy only mentioned streaks,
+              but notifications are paused too (see useNotifications). */}
+          <View style={{ marginTop: 22, gap: 12 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <MaterialCommunityIcons name="shield-check" size={19} color={THEME.rest} />
+              <Text style={{ fontSize: 14, color: 'rgba(232,224,214,0.62)', flex: 1 }}>
+                {currentStreak > 0
+                  ? `Your ${currentStreak}-day streak stays frozen`
+                  : 'Your streaks stay frozen'}
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <MaterialCommunityIcons name="bell-off-outline" size={19} color={THEME.rest} />
+              <Text style={{ fontSize: 14, color: 'rgba(232,224,214,0.62)', flex: 1 }}>
+                Prayer reminders pause until you're back
+              </Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+              <MaterialCommunityIcons name="sprout-outline" size={19} color={THEME.rest} />
+              <Text style={{ fontSize: 14, color: 'rgba(232,224,214,0.62)', flex: 1 }}>
+                Your garden waits for you
+              </Text>
+            </View>
+          </View>
+
           {/* Buttons */}
-          <View style={{ flexDirection: 'row', gap: 12 }}>
+          <View style={{ flexDirection: 'row', gap: 12, marginTop: 26 }}>
             <TouchableOpacity
               onPress={onClose}
+              activeOpacity={0.7}
               style={{
                 flex: 1,
-                paddingVertical: 14,
-                borderRadius: 12,
-                backgroundColor: 'rgba(255, 255, 255, 0.04)',
+                paddingVertical: 16,
+                borderRadius: 16,
+                backgroundColor: 'rgba(255,255,255,0.04)',
               }}
             >
               <Text style={{
@@ -565,17 +671,18 @@ function RestPeriodModal({
                 onConfirm(selectedDays);
                 onClose();
               }}
+              activeOpacity={0.85}
               style={{
-                flex: 1,
-                paddingVertical: 14,
-                borderRadius: 12,
-                backgroundColor: THEME.accent,
+                flex: 1.25,
+                paddingVertical: 16,
+                borderRadius: 16,
+                backgroundColor: THEME.rest,
               }}
             >
               <Text style={{
-                color: '#000',
+                color: '#0f1526',
                 fontSize: 16,
-                fontWeight: '600',
+                fontWeight: '700',
                 textAlign: 'center',
               }}>
                 Start Rest
@@ -583,65 +690,157 @@ function RestPeriodModal({
             </TouchableOpacity>
           </View>
         </View>
+        </TouchableWithoutFeedback>
       </View>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }
 
 // Rest Overlay - Shows when in rest mode (non-blocking bottom banner)
-function RestOverlay({ 
-  daysRemaining, 
-  onEndRest 
-}: { 
-  daysRemaining: number; 
+function RestOverlay({
+  daysRemaining,
+  totalDays,
+  onEndRest
+}: {
+  daysRemaining: number;
+  totalDays: number;
   onEndRest: () => void;
 }) {
+  // How far through the rest we are. Guarded because totalDays comes from
+  // stored dates and a same-day rest would divide by zero.
+  const elapsed = Math.max(0, totalDays - daysRemaining);
+  const progress = totalDays > 0 ? Math.min(1, Math.max(0, elapsed / totalDays)) : 0;
+
+  // Ending a rest used to unmount the banner on the same tick as the tap, so it
+  // simply blinked out under the user's finger. Let it settle and fade first,
+  // then tell the parent - which is what actually removes it.
+  const exitAnim = useRef(new Animated.Value(0)).current;
+  const exitingRef = useRef(false);
+
+  const handleEnd = useCallback(() => {
+    if (exitingRef.current) return;   // ignore a second tap mid-animation
+    exitingRef.current = true;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    // Kept short: the parent fades the prayer/tab bars back in straight after
+    // this finishes, and the two together want to read as one motion rather
+    // than two separate beats.
+    Animated.timing(exitAnim, {
+      toValue: 1,
+      duration: 190,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => onEndRest());
+  }, [exitAnim, onEndRest]);
+
   return (
-    <View style={{
-      position: 'absolute',
-      bottom: 70,
-      left: 0,
-      right: 0,
-      zIndex: 50,
-      pointerEvents: 'box-none',
+    // Positioning is the caller's job - this sits inside the bottom bar area so
+    // it occupies exactly the space the prayer/tab bars leave empty during a
+    // rest. Anchoring it here rather than in the content area above is what
+    // keeps it at the bottom of the screen instead of floating mid-air.
+    <Animated.View style={{
       alignItems: 'center',
+      paddingHorizontal: 16,
+      opacity: exitAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0] }),
+      transform: [
+        { scale: exitAnim.interpolate({ inputRange: [0, 1], outputRange: [1, 0.96] }) },
+        { translateY: exitAnim.interpolate({ inputRange: [0, 1], outputRange: [0, 8] }) },
+      ],
     }}>
-      <View style={{
-        backgroundColor: 'rgba(20, 28, 50, 0.97)',
-        borderColor: 'rgba(147, 165, 220, 0.25)',
-        borderWidth: 1,
-        marginHorizontal: 24,
-        borderRadius: 14,
-        paddingVertical: 12,
-        paddingHorizontal: 16,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        width: '85%',
+      {/* Same liquid-glass treatment as the prayer bar - this banner sits on
+          screen for days, so it should read as part of the app's chrome
+          rather than a flat panel dropped on top of it. */}
+      <BlurView intensity={40} tint="dark" style={{
+        borderRadius: 22,
+        overflow: 'hidden',
+        width: '100%',
       }}>
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flex: 1 }}>
-          <Image source={ICON_MOON} style={{ width: 18, height: 18 }} resizeMode="contain" />
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: THEME.text, fontWeight: '700', fontSize: 14 }}>Resting</Text>
-            <Text style={{ color: 'rgba(232,224,214,0.55)', fontSize: 11, marginTop: 2 }}>
-              {daysRemaining} {daysRemaining === 1 ? 'day' : 'days'} remaining · streak frozen
-            </Text>
-          </View>
-        </View>
-        <TouchableOpacity
-          onPress={onEndRest}
+        <LinearGradient
+          colors={['rgba(147,165,220,0.16)', 'rgba(147,165,220,0.06)', 'rgba(147,165,220,0.12)']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
           style={{
-            backgroundColor: 'rgba(255,255,255,0.07)',
-            paddingHorizontal: 12,
-            paddingVertical: 7,
-            borderRadius: 10,
-            marginLeft: 12,
+            borderRadius: 22,
+            borderWidth: 1,
+            borderColor: 'rgba(147,165,220,0.22)',
+            paddingVertical: 14,
+            paddingHorizontal: 16,
           }}
         >
-          <Text style={{ color: 'rgba(232,224,214,0.7)', fontSize: 13, fontWeight: '600' }}>End Early</Text>
-        </TouchableOpacity>
-      </View>
-    </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{
+              width: 40,
+              height: 40,
+              borderRadius: 20,
+              backgroundColor: 'rgba(147,165,220,0.16)',
+              alignItems: 'center',
+              justifyContent: 'center',
+              marginRight: 12,
+            }}>
+              <Image source={ICON_MOON} style={{ width: 22, height: 22 }} resizeMode="contain" />
+            </View>
+
+            <View style={{ flex: 1 }}>
+              <Text style={{
+                color: THEME.text,
+                fontWeight: '700',
+                fontSize: 16,
+                fontFamily: FONTS.display,
+              }}>
+                Resting
+              </Text>
+              <Text style={{ color: 'rgba(232,224,214,0.58)', fontSize: 12.5, marginTop: 2 }}>
+                {daysRemaining === 0
+                  ? 'Back tomorrow'
+                  : `${daysRemaining} ${daysRemaining === 1 ? 'day' : 'days'} to go`}
+                {' · streak frozen'}
+              </Text>
+            </View>
+
+            <TouchableOpacity
+              onPress={handleEnd}
+              activeOpacity={0.7}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={{
+                // Solid fill, dark text - not light text on a barely-there
+                // pill. This banner sits on the live garden behind it, and a
+                // light-blue label on a near-transparent chip over a blurred
+                // glass panel that's ALSO tinted light blue washed out
+                // completely against a bright daytime sky. Same fix as the
+                // "Start Rest" button below: guarantee contrast with a solid
+                // background instead of relying on whatever's behind the blur.
+                backgroundColor: THEME.rest,
+                paddingHorizontal: 14,
+                paddingVertical: 9,
+                borderRadius: 12,
+                marginLeft: 10,
+              }}
+            >
+              <Text style={{ color: '#0f1526', fontSize: 13, fontWeight: '700' }}>End</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Progress through the rest - turns an abstract countdown into
+              something you can see shrinking. */}
+          {totalDays > 0 && (
+            <View style={{
+              height: 4,
+              borderRadius: 2,
+              backgroundColor: 'rgba(255,255,255,0.08)',
+              marginTop: 12,
+              overflow: 'hidden',
+            }}>
+              <View style={{
+                width: `${progress * 100}%`,
+                height: '100%',
+                borderRadius: 2,
+                backgroundColor: THEME.rest,
+              }} />
+            </View>
+          )}
+        </LinearGradient>
+      </BlurView>
+    </Animated.View>
   );
 }
 
@@ -1206,7 +1405,6 @@ function FloatingPrayerBar({
   onTogglePrayer,
   getPrayerWindowStatus,
   getMinutesLeftInWindow,
-  streaks,
   debugPrayersUnlocked = false,
 }: {
   timings: Record<string, string> | null;
@@ -1215,7 +1413,6 @@ function FloatingPrayerBar({
   onTogglePrayer: (prayer: string) => void;
   getPrayerWindowStatus: (prayer: string) => 'active' | 'missed' | 'upcoming';
   getMinutesLeftInWindow?: (prayer: string) => number | null;
-  streaks: PrayerStreaks;
   debugPrayersUnlocked?: boolean;
 }) {
   const prayers = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'];
@@ -1365,14 +1562,6 @@ function FloatingPrayerBar({
                     </Text>
                   )}
 
-                  {(streaks[prayer] || 0) > 0 && (
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 1 }}>
-                      <MaterialCommunityIcons name="fire" size={10} color={THEME.warning} />
-                      <Text style={{ fontSize: 9, fontWeight: '700', color: THEME.warning }}>
-                        {streaks[prayer]}
-                      </Text>
-                    </View>
-                  )}
                 </View>
               );
             })}
@@ -2246,9 +2435,21 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
 
     const newCompleted = new Set(completedPrayers);
     const wasCompleted = newCompleted.has(prayer);
-    
+
     if (wasCompleted) {
-      // Uncompleting a prayer - no streak penalty (just undo)
+      // Logging a prayer is one-way for the day in any shipped build.
+      // Un-completing refunds nothing - not the XP, not the coins, not the
+      // streak increment - so tapping a prayer off and on again re-awarded all
+      // three, without limit. A few seconds of tapping could buy a garden that
+      // is meant to take months, and inflate a streak the user never prayed.
+      //
+      // Beyond the exploit, an undo does not belong in the user's hands: the
+      // app's whole value is an honest record of what was actually prayed, and
+      // a tap that can be taken back invites treating the log as provisional.
+      //
+      // Kept in dev builds only, where toggling a prayer off and back on is the
+      // fastest way to exercise streaks, decay and the reward flow by hand.
+      if (!__DEV__) return;
       newCompleted.delete(prayer);
     } else {
       // Completing a prayer
@@ -2853,8 +3054,25 @@ function AppInner() {
   const [showShopModal, setShowShopModal] = useState(false);
   const [showDebugModal, setShowDebugModal] = useState(false);
   const [debugPrayersUnlocked, setDebugPrayersUnlocked] = useState(false);
+  // Screenshot Mode chrome-hide. The bottom tab bar is the one thing that
+  // must NEVER be unmounted while this is on - it's the only way back to
+  // Settings/Developer Tools. It goes invisible (opacity 0, still tappable)
+  // instead, same as the eye icon itself: nothing visible in the shot, but
+  // tapping either one's normal position still works blind. An earlier
+  // version unmounted the tab bar and, separately, the eye icon, which
+  // could combine into a real trap with no way back short of force-quitting.
   const [screenshotChromeHidden, setScreenshotChromeHidden] = useState(false);
+  // null = follow the real clock/sunrise-sunset (normal behaviour).
+  const [debugDayOverride, setDebugDayOverride] = useState<boolean | null>(null);
+  // Hides the iOS status bar. Separate from the chrome toggle on purpose: a
+  // feature screenshot keeps the prayer bar but still shouldn't show a device
+  // clock that contradicts the forced day/night prayer highlights.
+  const [debugStatusBarHidden, setDebugStatusBarHidden] = useState(false);
   const [lastGeneratedGarden, setLastGeneratedGarden] = useState<{ gridSize: number; treeCount: number } | null>(null);
+  // Garden generator presets (Developer Tools). Defaults match what the
+  // generator used to roll on its own, so tapping straight through is unchanged.
+  const [genSize, setGenSize] = useState<GardenSizePreset>('medium');
+  const [genDensity, setGenDensity] = useState<GardenDensityPreset>('partial');
   const [showMultiplierModal, setShowMultiplierModal] = useState(false);
   const [showChallengesModal, setShowChallengesModal] = useState(false);
 
@@ -3516,12 +3734,59 @@ function AppInner() {
   // sets XP itself (it has to land just under the expansion gate - see the
   // note in useGardenState), so it takes the setter rather than a value.
   // Purely a data write, so "Reset All Progress" cleans it up afterwards.
+  // ─── Debug: edit display name (dev only, never shipped) ─────────────────
+  // The name is normally only ever entered once, during onboarding. This
+  // lets it be corrected/changed without replaying the whole onboarding flow.
+  const handleEditName = useCallback(() => {
+    Alert.prompt(
+      'Edit Name',
+      'This is the name used in "Assalamu alaikum, {name}" at the top of the garden.',
+      async (text) => {
+        const trimmed = (text || '').trim();
+        setUserName(trimmed || null);
+        if (trimmed) await AsyncStorage.setItem('@JannahGarden:userName', trimmed);
+        else await AsyncStorage.removeItem('@JannahGarden:userName');
+      },
+      'plain-text',
+      userName || '',
+    );
+  }, [userName]);
+
   const handleGenerateGarden = useCallback(async () => {
     if (!premium.isPremium) await premium.togglePremiumDebug();
-    const { gridSize, treeCount } = await gardenState.debugGenerateGarden(prayerState.debugSetXP);
+    const { gridSize, treeCount } = await gardenState.debugGenerateGarden(
+      prayerState.debugSetXP,
+      { size: genSize, density: genDensity },
+    );
     setLastGeneratedGarden({ gridSize, treeCount });
     setShowDebugModal(false);
-  }, [premium, prayerState, gardenState]);
+  }, [premium, prayerState, gardenState, genSize, genDensity]);
+
+  // ─── Debug: keep prayer highlights in step with a forced sky (dev only) ──
+  // Forcing the sky to night while Dhuhr sits highlighted as the active prayer
+  // looks obviously wrong in a screenshot. When (and only when) the sky is
+  // overridden, pick a prayer that belongs to that half of the day and drive
+  // the highlights from it. Null override = real clock, untouched.
+  const debugPrayerView = useMemo(() => {
+    if (!__DEV__ || debugDayOverride === null) return null;
+    return debugDayOverride
+      ? { active: 'Dhuhr', next: 'Asr' }      // daytime
+      : { active: 'Maghrib', next: 'Isha' };  // night
+  }, [debugDayOverride]);
+
+  const displayNextPrayer = debugPrayerView ? debugPrayerView.next : prayerState.nextPrayer;
+
+  // Everything that isn't the forced-active prayer reports 'upcoming' rather
+  // than 'missed' - a row of red "missed" rings is not what these screenshots
+  // are for. Genuinely completed prayers still win, since the bar checks
+  // completedPrayers before calling this.
+  const displayGetPrayerWindowStatus = useCallback(
+    (prayer: string): 'active' | 'missed' | 'upcoming' => {
+      if (!debugPrayerView) return prayerState.getPrayerWindowStatus(prayer);
+      return prayer === debugPrayerView.active ? 'active' : 'upcoming';
+    },
+    [debugPrayerView, prayerState],
+  );
 
   // Stable callbacks for modals (prevents re-renders via React.memo)
   // closeSettingsModal removed
@@ -3536,9 +3801,17 @@ function AppInner() {
   // Anything that covers the garden. Everything here must be listed, not just
   // the heavy screens: this now also gates touch on the garden, and a modal
   // missing from the list leaves live pan/pinch handlers underneath it.
+  // Leaving the garden tab is a deliberate, lasting switch - unlike a modal,
+  // which can flicker open/closed. GardenScene debounces its hide by 80ms to
+  // ride out those flickers, but the tab pages sit on a translucent background,
+  // so during that 80ms the garden stayed visible THROUGH the new page and then
+  // snapped away - the "flash". Tell the scene to skip the debounce for this
+  // case so the garden is gone on the same frame the page appears.
+  const isOffGardenTab = activeTab !== 'garden';
+
   const isAnyModalOpen = showChallengesModal || showShopModal || showPaywall || showRestModal
     || showHistoryModal || showExpansionModal || showMultiplierModal || confirmBulkRemove
-    || removeTreeTarget !== null || activeTab !== 'garden';
+    || removeTreeTarget !== null || isOffGardenTab;
 
   // Load freeze inventory from storage (migrates old { single, all } format to a single count)
   useEffect(() => {
@@ -3669,6 +3942,19 @@ function AppInner() {
     setGardenRendered(true);
   }, []);
 
+  // Safety valve: first paint is gated on the centre tree image reporting back
+  // (see onCenterTreeLoaded in GardenScene). That is the right signal, but it
+  // is a single point of failure - if it never arrives, the splash sits there
+  // forever and the app is unopenable, with no way in to fix the state that
+  // caused it. A very large garden can delay the first layout pass long enough
+  // to hit this. Lift the splash regardless after a few seconds: showing a
+  // still-settling garden beats showing a splash that never leaves.
+  useEffect(() => {
+    if (gardenRendered) return;
+    const t = setTimeout(() => setGardenRendered(true), 6000);
+    return () => clearTimeout(t);
+  }, [gardenRendered]);
+
   const handlePreparingDone = useCallback(() => {
     setShowPreparing(false);
     // Fade the garden in as the PreparingScreen fades out
@@ -3683,6 +3969,7 @@ function AppInner() {
   // Rest period management
   const {
     isResting,
+    restPeriod,
     startRestPeriod,
     endRestPeriod,
     getDaysRemaining
@@ -3699,6 +3986,26 @@ function AppInner() {
   }, [isResting]);
   
   // Initialize notifications with prayer timings and completed prayers
+  // Ending a rest brings the prayer bar and tab bar back. Both are mounted on
+  // `!isResting`, so without this they appeared fully formed on the same frame
+  // the state flipped - the banner faded politely and then the whole bottom of
+  // the screen snapped in behind it. Fade + lift them into place instead so the
+  // return reads as one continuous motion.
+  const restChromeReveal = useRef(new Animated.Value(isResting ? 0 : 1)).current;
+  useEffect(() => {
+    if (isResting) {
+      // Reset while unmounted so the next reveal starts from hidden.
+      restChromeReveal.setValue(0);
+      return;
+    }
+    Animated.timing(restChromeReveal, {
+      toValue: 1,
+      duration: 340,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start();
+  }, [isResting, restChromeReveal]);
+
   // Pass isResting to disable notifications during rest
   const { 
     notificationsEnabled, 
@@ -3821,12 +4128,28 @@ function AppInner() {
       }
     };
 
-    loadAssets();
+    // Preloading warms the image cache so the garden paints without pop-in. It
+    // is an optimisation, not a requirement - anything not preloaded still
+    // loads lazily when it first renders.
+    //
+    // The catch above only handles a request that REJECTS. In a dev client
+    // every asset is fetched over HTTP from the bundler, so a request that
+    // simply stalls - bundler restarted mid-load, flaky network, VPN routing -
+    // leaves the await pending forever. That never reaches the catch, so
+    // assetsProgress stays false, isReady never flips, and the app sits on the
+    // loading screen permanently with no way in to fix whatever caused it.
+    // A warm cache is worth waiting for, but never indefinitely.
+    let cancelled = false;
+    const timeout = new Promise<void>(resolve => setTimeout(resolve, 15000));
+    Promise.race([loadAssets(), timeout]).then(() => {
+      if (!cancelled) setAssetsProgress({ groundTiles: true, trees: true, uiAssets: true });
+    });
+    return () => { cancelled = true; };
   }, []);
 
   // Day/night state - must be called unconditionally before any early return below,
   // otherwise hook order changes across renders (onboarding -> app) and React throws.
-  const isDay = useIsDay(prayerState.timings?.Sunrise, prayerState.timings?.Sunset);
+  const isDay = useIsDay(prayerState.timings?.Sunrise, prayerState.timings?.Sunset, debugDayOverride);
 
   // Show onboarding for first-time users
   if (showOnboarding === null) {
@@ -3867,7 +4190,7 @@ function AppInner() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
     <SkyBackground isDay={isDay}>
-      <StatusBar style="light" />
+      <StatusBar style="light" hidden={__DEV__ && debugStatusBarHidden} />
       {/* Decode prayer icons off-screen before FloatingPrayerBar first mounts */}
       <PrayerIconsPrerender />
       
@@ -3897,7 +4220,11 @@ function AppInner() {
         justPlantedTile={justPlantedTile}
         onChoppingComplete={handleChoppingComplete}
         frozen={isAnyModalOpen}
+        hideImmediately={isOffGardenTab}
+        isDay={isDay}
+        dataReady={appDataReady}
         onRenderReady={handleGardenRenderReady}
+        onDoubleTap={__DEV__ ? () => setScreenshotChromeHidden(v => !v) : undefined}
       />
       </Animated.View>
       
@@ -3913,7 +4240,7 @@ function AppInner() {
             position: 'absolute',
             bottom: 12,
             right: 12,
-            backgroundColor: 'rgba(34, 197, 94, 0.15)',
+            backgroundColor: '#22c55e',
             borderRadius: 12,
             paddingVertical: 6,
             paddingHorizontal: 10,
@@ -3921,10 +4248,15 @@ function AppInner() {
             alignItems: 'center',
             gap: 4,
             zIndex: 50,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 1 },
+            shadowOpacity: 0.25,
+            shadowRadius: 3,
+            elevation: 3,
           }}
         >
           <Image source={ICON_SEEDLING} style={{ width: 12, height: 12 }} resizeMode="contain" />
-          <Text style={{ fontSize: 11, fontWeight: '600', color: 'rgba(34, 197, 94, 0.8)' }}>Expand</Text>
+          <Text style={{ fontSize: 11, fontWeight: '700', color: '#0f1526' }}>Expand</Text>
         </TouchableOpacity>
       )}
 
@@ -4086,13 +4418,9 @@ function AppInner() {
         </View>
       </Modal>
 
-      {/* Rest Overlay - Shows when in rest mode */}
-      {isResting && (
-        <RestOverlay 
-          daysRemaining={getDaysRemaining()} 
-          onEndRest={endRestPeriod} 
-        />
-      )}
+      {/* Rest Overlay renders down in the bottom bar area, not here - see the
+          bottom SafeAreaView. It has to sit in the same space the prayer and
+          tab bars occupy, or it floats above them with dead space underneath. */}
       
       {/* Reward Toast - unified XP + coins notification */}
       <RewardToast
@@ -4169,8 +4497,16 @@ function AppInner() {
             </Text>
             <TouchableOpacity
               onPress={async () => {
-                await gardenState.confirmExpansion();
-                setShowExpansionModal(false);
+                // The close MUST happen even if the write fails. This modal is
+                // one of the flags behind `isAnyModalOpen`, which freezes the
+                // garden to opacity 0 - so an exception escaping here left the
+                // modal flag stuck on and the garden invisible with no way back
+                // short of a relaunch.
+                try {
+                  await gardenState.confirmExpansion();
+                } finally {
+                  setShowExpansionModal(false);
+                }
                 Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
               }}
               style={{
@@ -4772,6 +5108,7 @@ function AppInner() {
         animationType="fade"
         onRequestClose={() => setShowDebugModal(false)}
       >
+        <TouchableWithoutFeedback onPress={() => setShowDebugModal(false)}>
         <View style={{
           flex: 1,
           backgroundColor: 'rgba(0,0,0,0.7)',
@@ -4779,14 +5116,18 @@ function AppInner() {
           alignItems: 'center',
           padding: 32,
         }}>
+          <TouchableWithoutFeedback onPress={(e) => e.stopPropagation()}>
           <View style={{
             backgroundColor: THEME.bg,
             borderRadius: 20,
-            padding: 24,
-            alignItems: 'center',
             width: '100%',
             maxWidth: 340,
+            maxHeight: '85%',
           }}>
+            <ScrollView
+              contentContainerStyle={{ padding: 24, alignItems: 'center' }}
+              showsVerticalScrollIndicator={true}
+            >
             <Text style={{ fontSize: 32, marginBottom: 8 }}>🐛</Text>
             <Text style={{ fontSize: 18, fontWeight: '700', color: '#ff6b6b', marginBottom: 8 }}>
               Debug: Decay Testing
@@ -4888,8 +5229,94 @@ function AppInner() {
                 </Text>
               </TouchableOpacity>
 
+              {/* Garden generator: pick a size and a planting density, then
+                  roll. Species and maturity stay random within the picks, so
+                  the same pair still gives a different garden each tap. */}
+              <View
+                style={{
+                  backgroundColor: '#2d3a52',
+                  paddingVertical: 12,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#93a5dc',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: '#93a5dc', fontSize: 14, fontWeight: '600', textAlign: 'center' }}>
+                  🎲 Generate Random Garden
+                </Text>
+
+                {([
+                  { label: 'Size', value: genSize, set: setGenSize, opts: [
+                    { key: 'small' as const,  text: 'Small',  hint: '5-7' },
+                    { key: 'medium' as const, text: 'Medium', hint: '9-13' },
+                    { key: 'large' as const,  text: 'Large',  hint: '15-19' },
+                  ] },
+                  { label: 'Trees', value: genDensity, set: setGenDensity, opts: [
+                    { key: 'sparse' as const,  text: 'Sparse',  hint: '10-20%' },
+                    { key: 'partial' as const, text: 'Partial', hint: '30-50%' },
+                    { key: 'dense' as const,   text: 'Dense',   hint: '72-92%' },
+                  ] },
+                ] as const).map((row) => (
+                  <View key={row.label} style={{ marginTop: 10 }}>
+                    <Text style={{ color: 'rgba(147,165,220,0.6)', fontSize: 10, fontWeight: '700', letterSpacing: 1, marginBottom: 5 }}>
+                      {row.label.toUpperCase()}
+                    </Text>
+                    <View style={{ flexDirection: 'row', gap: 6 }}>
+                      {row.opts.map((o) => {
+                        const active = row.value === o.key;
+                        return (
+                          <TouchableOpacity
+                            key={o.key}
+                            onPress={() => { (row.set as (v: string) => void)(o.key); Haptics.selectionAsync(); }}
+                            style={{
+                              flex: 1,
+                              paddingVertical: 8,
+                              borderRadius: 9,
+                              alignItems: 'center',
+                              backgroundColor: active ? '#93a5dc' : 'rgba(147,165,220,0.10)',
+                              borderWidth: 1,
+                              borderColor: active ? '#93a5dc' : 'rgba(147,165,220,0.30)',
+                            }}
+                          >
+                            <Text style={{ color: active ? '#1a2338' : '#93a5dc', fontSize: 12, fontWeight: '700' }}>
+                              {o.text}
+                            </Text>
+                            <Text style={{ color: active ? 'rgba(26,35,56,0.65)' : 'rgba(147,165,220,0.5)', fontSize: 9, marginTop: 1 }}>
+                              {o.hint}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                ))}
+
+                <TouchableOpacity
+                  onPress={handleGenerateGarden}
+                  style={{
+                    marginTop: 12,
+                    backgroundColor: '#93a5dc',
+                    paddingVertical: 11,
+                    borderRadius: 10,
+                    alignItems: 'center',
+                  }}
+                >
+                  <Text style={{ color: '#1a2338', fontSize: 14, fontWeight: '700' }}>
+                    Generate
+                  </Text>
+                </TouchableOpacity>
+
+                <Text style={{ color: 'rgba(147,165,220,0.6)', fontSize: 11, marginTop: 8, textAlign: 'center' }}>
+                  {lastGeneratedGarden
+                    ? `Last: ${lastGeneratedGarden.gridSize}x${lastGeneratedGarden.gridSize}, ${lastGeneratedGarden.treeCount} trees`
+                    : 'Species and maturity stay random - tap to reroll'}
+                </Text>
+              </View>
+
               <TouchableOpacity
-                onPress={handleGenerateGarden}
+                onPress={() => setScreenshotChromeHidden(false)}
                 style={{
                   backgroundColor: '#2d3a52',
                   paddingVertical: 14,
@@ -4901,12 +5328,55 @@ function AppInner() {
                 }}
               >
                 <Text style={{ color: '#93a5dc', fontSize: 14, fontWeight: '600' }}>
-                  🎲 Generate Random Garden
+                  👁️ Force Show UI
                 </Text>
                 <Text style={{ color: 'rgba(147,165,220,0.6)', fontSize: 11, marginTop: 4 }}>
-                  {lastGeneratedGarden
-                    ? `Last: ${lastGeneratedGarden.gridSize}x${lastGeneratedGarden.gridSize}, ${lastGeneratedGarden.treeCount} trees - tap to reroll`
-                    : 'Random size, planting and tree mix - tap to reroll'}
+                  {screenshotChromeHidden
+                    ? 'Chrome is currently hidden - tap to bring it back'
+                    : 'Safety net if double-tap ever leaves chrome stuck hidden'}
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => {
+                  // Auto -> Day -> Night -> Auto
+                  setDebugDayOverride(v => (v === null ? true : v === true ? false : null));
+                }}
+                style={{
+                  backgroundColor: '#3b3a1a',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#e8c874',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: '#e8c874', fontSize: 14, fontWeight: '600' }}>
+                  {debugDayOverride === null ? '🕐 Sky: Auto' : debugDayOverride ? '☀️ Sky: Day' : '🌙 Sky: Night'}
+                </Text>
+                <Text style={{ color: 'rgba(232,200,116,0.6)', fontSize: 11, marginTop: 4 }}>
+                  Tap to cycle - forces the day/night background regardless of the clock
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                onPress={() => setDebugStatusBarHidden(v => !v)}
+                style={{
+                  backgroundColor: debugStatusBarHidden ? '#3a2d52' : '#2d3a52',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  borderWidth: 1,
+                  borderColor: '#93a5dc',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: '#93a5dc', fontSize: 14, fontWeight: '600' }}>
+                  {debugStatusBarHidden ? '📵 Status Bar: Hidden' : '📶 Status Bar: Shown'}
+                </Text>
+                <Text style={{ color: 'rgba(147,165,220,0.6)', fontSize: 11, marginTop: 4 }}>
+                  Hides the iOS clock/battery so it can't contradict the forced sky
                 </Text>
               </TouchableOpacity>
 
@@ -4931,6 +5401,25 @@ function AppInner() {
                 </Text>
                 <Text style={{ color: '#90cdf4', fontSize: 11, marginTop: 4 }}>
                   Perfect days: {consistency.perfectDays} → Tap to cycle
+                </Text>
+              </TouchableOpacity>
+
+              {/* ── Edit display name (dev only) ────────────────── */}
+              <TouchableOpacity
+                onPress={handleEditName}
+                style={{
+                  backgroundColor: '#2d3a52',
+                  paddingVertical: 14,
+                  borderRadius: 12,
+                  alignItems: 'center',
+                  marginTop: 8,
+                }}
+              >
+                <Text style={{ color: '#93a5dc', fontSize: 14, fontWeight: '600' }}>
+                  ✏️ Edit Name
+                </Text>
+                <Text style={{ color: 'rgba(147,165,220,0.6)', fontSize: 11, marginTop: 4 }}>
+                  Current: {userName || '(none set)'}
                 </Text>
               </TouchableOpacity>
 
@@ -5061,8 +5550,11 @@ function AppInner() {
                 Decaying: {gardenState.isDecaying ? 'YES' : 'NO'}
               </Text>
             </View>
+            </ScrollView>
           </View>
+          </TouchableWithoutFeedback>
         </View>
+        </TouchableWithoutFeedback>
       </Modal>
       )}
 
@@ -5225,8 +5717,8 @@ function AppInner() {
             streaks={prayerState.streaks}
             coins={prayerState.coins}
             xp={prayerState.xp}
-            nextPrayer={isResting ? null : prayerState.nextPrayer}
-            nextPrayerTime={(!isResting && prayerState.nextPrayer && prayerState.timings) ? prayerState.timings[prayerState.nextPrayer] : null}
+            nextPrayer={isResting ? null : displayNextPrayer}
+            nextPrayerTime={(!isResting && displayNextPrayer && prayerState.timings) ? prayerState.timings[displayNextPrayer] : null}
             timeUntilNext={isResting ? 'Resting' : prayerState.timeUntilNext}
             ringProgress={isResting ? 0 : prayerState.ringProgress}
             freezeCount={freezeCount}
@@ -5248,34 +5740,18 @@ function AppInner() {
       </View>
       {/* End content area */}
 
-      {/* Screenshot Mode: floating toggle to hide/show all chrome for a clean shot.
-          Lives outside the chrome it controls and stays visible in both states,
-          so it can never trap the user the way the old Rest Period bug did. */}
-      {__DEV__ && activeTab === 'garden' && (
-        <TouchableOpacity
-          onPress={() => setScreenshotChromeHidden(v => !v)}
-          activeOpacity={0.7}
-          style={{
-            position: 'absolute',
-            bottom: 36,
-            right: 16,
-            zIndex: 400,
-            width: 36,
-            height: 36,
-            borderRadius: 18,
-            backgroundColor: 'rgba(10,14,28,0.55)',
-            alignItems: 'center',
-            justifyContent: 'center',
-            borderWidth: 1,
-            borderColor: 'rgba(255,255,255,0.15)',
-          }}
-        >
-          <MaterialCommunityIcons name={screenshotChromeHidden ? 'eye-off-outline' : 'eye-outline'} size={18} color="rgba(255,255,255,0.8)" />
-        </TouchableOpacity>
-      )}
+      {/* Screenshot Mode chrome toggle: no visible control at all - double-tap
+          anywhere on the garden (see GardenScene's onDoubleTap) is the only
+          trigger. The earlier floating eye icon was unreliable to re-tap once
+          invisible, so it's gone entirely rather than patched further; the
+          double-tap gesture and the tab bar (never unmounted, see below) are
+          the only ways to toggle/recover chrome now. */}
 
-      {/* Bottom area: Prayer Bar + Tab Bar - liquid glass */}
-      {!(screenshotChromeHidden && activeTab === 'garden') && (
+      {/* Bottom area: Prayer Bar + Tab Bar - liquid glass.
+          Always mounted - the tab bar living here is the one and only way to
+          reach Settings/Developer Tools, so it must never be conditionally
+          unmounted by Screenshot Mode or anything else. It goes invisible
+          instead when chrome is hidden, same reasoning as the eye icon above. */}
       <SafeAreaView
         edges={['bottom']}
         style={{
@@ -5283,22 +5759,45 @@ function AppInner() {
           zIndex: 300,
         }}
       >
-        {/* Floating Prayer Bar - Hidden during rest or non-garden tabs */}
-        {!isResting && activeTab === 'garden' && !prayerState.loading && prayerState.timings && (
-          <FloatingPrayerBar
-            timings={prayerState.timings}
-            nextPrayer={prayerState.nextPrayer}
-            completedPrayers={prayerState.completedPrayers}
-            onTogglePrayer={handleTogglePrayerWithChallenges}
-            getPrayerWindowStatus={prayerState.getPrayerWindowStatus}
-            getMinutesLeftInWindow={prayerState.getMinutesLeftInWindow}
-            streaks={prayerState.streaks}
-            debugPrayersUnlocked={debugPrayersUnlocked}
-          />
+        {/* Floating Prayer Bar.
+            Deliberately NOT unmounted during a rest. Both bars live in a flex
+            column, so unmounting them shrank this container and the content
+            area above it grew to fill the gap - which re-centred the garden.
+            Ending the rest then snapped it back, and no amount of fading could
+            hide a layout change. Keeping them mounted holds the height constant
+            so the garden never moves; only visibility animates. */}
+        {activeTab === 'garden' && !screenshotChromeHidden && !prayerState.loading && prayerState.timings && (
+          <Animated.View
+            pointerEvents={isResting ? 'none' : 'auto'}
+            style={{
+              opacity: restChromeReveal,
+              transform: [{ translateY: restChromeReveal.interpolate({ inputRange: [0, 1], outputRange: [14, 0] }) }],
+            }}
+          >
+            <FloatingPrayerBar
+              timings={prayerState.timings}
+              nextPrayer={displayNextPrayer}
+              completedPrayers={prayerState.completedPrayers}
+              onTogglePrayer={handleTogglePrayerWithChallenges}
+              getPrayerWindowStatus={displayGetPrayerWindowStatus}
+              getMinutesLeftInWindow={prayerState.getMinutesLeftInWindow}
+              debugPrayersUnlocked={debugPrayersUnlocked}
+            />
+          </Animated.View>
         )}
 
-        {/* Bottom Tab Bar */}
-        {!isResting && (
+        {/* Bottom Tab Bar - never unmounted (see note above, and the Screenshot
+            Mode note): it holds the layout steady during a rest and stays the
+            only route back to Settings. Touch is detached while resting. */}
+        <Animated.View
+          pointerEvents={isResting ? 'none' : 'auto'}
+          style={{
+            opacity: (screenshotChromeHidden && activeTab === 'garden')
+              ? 0.01
+              : restChromeReveal,
+            transform: [{ translateY: restChromeReveal.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
+          }}
+        >
           <BottomTabBar
             activeTab={activeTab}
             onTabChange={(tab) => {
@@ -5306,9 +5805,29 @@ function AppInner() {
             }}
             challengeClaimable={challengesHook.totalClaimable}
           />
+        </Animated.View>
+
+        {/* Rest banner - laid over the (invisible) bars rather than above them,
+            so it reads as sitting at the bottom of the screen and there is no
+            empty gap beneath it. The bars stay mounted underneath purely to
+            hold this height steady, so ending a rest never shifts the garden. */}
+        {isResting && (
+          <View
+            pointerEvents="box-none"
+            style={{ position: 'absolute', left: 0, right: 0, top: 0, bottom: 0, justifyContent: 'center' }}
+          >
+            <RestOverlay
+              daysRemaining={getDaysRemaining()}
+              totalDays={restPeriod
+                ? Math.max(1, Math.round(
+                    (new Date(restPeriod.endDate).getTime() - new Date(restPeriod.startDate).getTime())
+                    / 86400000))
+                : 0}
+              onEndRest={endRestPeriod}
+            />
+          </View>
         )}
       </SafeAreaView>
-      )}
 
 
 

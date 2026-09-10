@@ -433,6 +433,43 @@ export function useNotifications(
       }
     }
     console.log(`Scheduled ${count} prayer alerts across ${window.length} days`);
+
+    // ── Last call before the window runs dry ────────────────────────────────
+    //
+    // Alarms can only be booked a finite distance ahead (PRAYER_SCHEDULE_DAYS),
+    // so once the last one above fires, this app goes silent until it is opened
+    // again and the window is topped back up. The win-back ladder's next rung
+    // isn't until day 15, which would leave a stretch where reminders have
+    // quietly stopped and nothing says so.
+    //
+    // Placed at midday on the final day rather than after its Isha: it needs to
+    // be seen and acted on, and the small offset keeps it clear of that day's
+    // own Dhuhr alert. Any app open reschedules everything, so a regular user
+    // never sees it.
+    const lastDay = window[window.length - 1];
+    const anchor = lastDay?.instants?.Dhuhr ?? lastDay?.instants?.Fajr;
+    if (anchor && !isNaN(anchor.getTime())) {
+      const at = new Date(anchor.getTime() + 30 * 60 * 1000);
+      if (at.getTime() > now) {
+        try {
+          await Notifications.scheduleNotificationAsync({
+            identifier: 'prayer-window-expiry',
+            content: {
+              title: 'Time to top up your reminders',
+              body: 'Open Grow Pray so your prayer times keep arriving on time.',
+              data: { type: 'window-expiry' },
+              sound: 'default',
+              // Housekeeping, not a call to prayer - same lower-importance
+              // channel as the win-back nudges.
+              ...(Platform.OS === 'android' && { channelId: 'garden-decay' }),
+            },
+            trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: at },
+          });
+        } catch (error) {
+          console.error('Failed to schedule window-expiry notice:', error);
+        }
+      }
+    }
   };
 
   /**

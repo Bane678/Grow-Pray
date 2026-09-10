@@ -64,8 +64,32 @@ export interface GardenStateResult {
   isDecaying: boolean;
   lastXPGainTimestamp: number;
   /** Dev-only: rolls a random garden (size, density, species, growth) for screenshots. */
-  debugGenerateGarden: (applyXP: (xp: number) => Promise<void>) => Promise<{ gridSize: number; treeCount: number }>;
+  debugGenerateGarden: (
+    applyXP: (xp: number) => Promise<void>,
+    opts?: { size?: GardenSizePreset; density?: GardenDensityPreset },
+  ) => Promise<{ gridSize: number; treeCount: number }>;
 }
+
+/** Dev-only garden generator presets (see debugGenerateGarden). */
+export type GardenSizePreset = 'small' | 'medium' | 'large';
+export type GardenDensityPreset = 'sparse' | 'partial' | 'dense';
+
+// Grid sizes each preset rolls between. MAX_GRID_SIZE (21) stays out of the
+// pool: it is both the heaviest to render and reads as "finished" rather than
+// inviting. Sizes are always odd - the grid grows by 2 from 5.
+const SIZE_PRESETS: Record<GardenSizePreset, number[]> = {
+  small: [5, 7],
+  medium: [9, 11, 13],
+  large: [15, 17, 19],
+};
+
+// Fraction of plantable tiles that get a tree. Ranges rather than fixed values
+// so repeated rolls at the same preset still differ.
+const DENSITY_PRESETS: Record<GardenDensityPreset, [number, number]> = {
+  sparse: [0.10, 0.20],
+  partial: [0.30, 0.50],
+  dense: [0.72, 0.92],
+};
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -850,14 +874,25 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
   //    every tree genuinely on screen, so culling cannot help and ~340 live
   //    tree components drop the frame rate. Normal play never reaches that
   //    (you would have to buy hundreds of trees); only a debug fill can.
+  //
+  // 3. Growth stage is bounded per ring, never picked freely. In real play a
+  //    tile can't be planted before its ring finishes recovering, and rings
+  //    recover strictly inner-to-outer, so an outer tree can never have had
+  //    more time to grow than an inner one. A naive random stage per tile
+  //    could easily put a flourishing tree at the edge and a sapling in the
+  //    centre - this derives each ring's ceiling from the real recovery
+  //    schedule so that can't happen.
   const debugGenerateGarden = useCallback(async (
     applyXP: (xp: number) => Promise<void>,
+    opts?: { size?: GardenSizePreset; density?: GardenDensityPreset },
   ): Promise<{ gridSize: number; treeCount: number }> => {
     const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
-    // Mix of small, medium and large gardens. MAX_GRID_SIZE is excluded: it is
-    // both the heaviest to render and reads as "finished" rather than inviting.
-    const size = pick([5, 7, 9, 11, 13, 15, 17, 19]);
+    // No preset given: roll across the whole pool, the original behaviour.
+    const sizePool = opts?.size
+      ? SIZE_PRESETS[opts.size]
+      : [...SIZE_PRESETS.small, ...SIZE_PRESETS.medium, ...SIZE_PRESETS.large];
+    const size = pick(sizePool);
 
     // Smallest XP at which this size could expand, minus one - see note 1.
     let lo = 0;
@@ -884,23 +919,87 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
       }
     }
 
-    // Partial planting looks more like a real garden than wall-to-wall trees,
-    // and keeps the rendered tree count down - see note 2.
-    const density = 0.3 + Math.random() * 0.25;
-    const treeCount = Math.min(90, Math.round(plantable.length * density));
+    // Partial planting looks more like a real garden than wall-to-wall trees.
+    // The old flat cap of 90 trees is gone: it silently overrode the density on
+    // anything above ~11x11, so "dense" on a large garden would have come back
+    // looking sparse. Density now means what it says, which does mean
+    // dense + large is genuinely heavy to render (~320 trees on a 19x19) - it
+    // is a screenshot tool, and the tree count is reported back so it is
+    // visible rather than surprising.
+    const [dLo, dHi] = DENSITY_PRESETS[opts?.density ?? 'partial'];
+    const density = dLo + Math.random() * (dHi - dLo);
+    const treeCount = Math.round(plantable.length * density);
     for (let i = plantable.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [plantable[i], plantable[j]] = [plantable[j], plantable[i]];
     }
 
-    // Weighted toward mature trees, with younger ones scattered for texture.
+    // ── Maturity must respect the same rule real play does: an outer ring
+    // can never be planted before the ring inside it finishes recovering, so
+    // it can never have had more time to grow. Rings recover strictly in
+    // order (ring r completes in full before ring r+1 starts - see
+    // generateRecoveryOrder), so the earliest an outer-ring tile could have
+    // been planted is strictly later than the earliest an inner-ring tile
+    // could have been. That gives every ring a hard maturity ceiling -
+    // targetXP minus the XP at which that ring's first tile recovered -
+    // which is non-increasing outward by construction, not by guesswork.
+    const recoveredAtXP = new Map<string, number>();
+    for (const entry of schedule) {
+      if (entry.phase === 'recovered') recoveredAtXP.set(`${entry.row},${entry.col}`, entry.cumulativeXP);
+    }
+    const ringOf = (row: number, col: number) => Math.max(Math.abs(row - center), Math.abs(col - center));
+    const ringEarliestXP = new Map<number, number>();
+    for (const key of plantable) {
+      const [r, c] = key.split(',').map(Number);
+      const ring = ringOf(r, c);
+      const xp = recoveredAtXP.get(key) ?? 0; // centre cross: recovered since XP 0
+      const prev = ringEarliestXP.get(ring);
+      if (prev === undefined || xp < prev) ringEarliestXP.set(ring, xp);
+    }
+    // No tiles beyond the garden's outer ring, so its ceiling is 0 - the
+    // outermost ring's lower bound, keeping it from floating above 0.
+    const ringCeiling = (ring: number) => Math.max(0, targetXP - (ringEarliestXP.get(ring) ?? targetXP));
+
+    // Stage thresholds mirror TREE_STAGES in GardenScene.tsx (sapling 0,
+    // growing 15, grown 75, flourishing 175+) - duplicated rather than
+    // imported since that file pulls in the whole rendering module.
+    const MATURE_XP = 175;
+    const MID_XP = 15;
+
+    // Majority fully grown, a small slice in the middle stages, a few
+    // saplings - by weighted category rather than one flat random draw across
+    // each ring's whole range, which produced too even a mix (as much visibly
+    // young growth as mature).
+    //
     // plantedAtXP may go negative - stage is just (currentXP - plantedAtXP),
-    // so this is how a small, low-XP garden can still show grown trees.
+    // so this is how a small, low-XP garden can still show grown trees near
+    // the centre.
     const treeIds = TREE_CATALOG.map(item => item.id);
-    const stageXP = [8, 40, 100, 220, 220, 400, 400];
     const plantedTrees: Record<string, PlantedTree> = {};
     for (const key of plantable.slice(0, treeCount)) {
-      plantedTrees[key] = { type: pick(treeIds), plantedAtXP: targetXP - pick(stageXP) };
+      const [row, col] = key.split(',').map(Number);
+      const ring = ringOf(row, col);
+      const upper = ringCeiling(ring);
+      const lower = ringCeiling(ring + 1);
+
+      const roll = Math.random();
+      // [targetLo, targetHi]: the XP band this tree is aiming for, before
+      // being clamped to what this ring's ceiling actually allows.
+      const [targetLo, targetHi] = roll < 0.65 ? [MATURE_XP, Math.max(MATURE_XP, upper)]
+        : roll < 0.90 ? [MID_XP, MATURE_XP]
+        : [0, MID_XP];
+
+      const lo = Math.max(lower, targetLo);
+      const hi = Math.min(upper, targetHi);
+      // The target band can be entirely outside what this ring allows - an
+      // outer ring rolled "mature" but its ceiling never reaches 175, or an
+      // old inner ring rolled "sapling" but its floor is already past 15.
+      // Fall back to the ring's own full range so the tree still lands
+      // somewhere valid, rather than clamping to a single boundary value that
+      // would make every such tree in the ring identical.
+      const maturity = lo <= hi ? lo + Math.random() * (hi - lo)
+        : lower + Math.random() * (upper - lower);
+      plantedTrees[key] = { type: pick(treeIds), plantedAtXP: targetXP - maturity };
     }
 
     const updated: GardenData = {

@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
+import React, { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, Animated, Easing, Dimensions } from 'react-native';
 import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler, State, Gesture, GestureDetector } from 'react-native-gesture-handler';
 import { TileState, PlantedTree, TileTransition } from '../hooks/useGardenState';
@@ -76,11 +76,26 @@ const CLOUD_SPECS = [
     { startX: -200, endX: SCREEN_W + 200, y: 0.22, w: 160, h: 36, dur: 98000, alpha: 0.06 },
 ];
 
-const CloudDrift = React.memo(function CloudDrift() {
+const CloudDrift = React.memo(function CloudDrift({ isDay = true }: { isDay?: boolean }) {
     const anims = useRef(CLOUD_SPECS.map((c, i) => {
         const frac = i / CLOUD_SPECS.length;
         return new Animated.Value(c.startX + (c.endX - c.startX) * frac);
     })).current;
+
+    // These "clouds" are flat white capsules. Over the daytime sky, which is
+    // already painted with cloud, they blend in as intended - but over the
+    // night sky they read as grey pills sitting on top of the art. Fade them
+    // out with the sky rather than trying to restyle a capsule into a cloud.
+    // 1500ms matches SkyBackground's day/night crossfade so they leave together.
+    const dayFade = useRef(new Animated.Value(isDay ? 1 : 0)).current;
+    useEffect(() => {
+        Animated.timing(dayFade, {
+            toValue: isDay ? 1 : 0,
+            duration: 1500,
+            useNativeDriver: true,
+        }).start();
+    }, [isDay, dayFade]);
+
     useEffect(() => {
         const loops = CLOUD_SPECS.map((c, i) => {
             const frac = i / CLOUD_SPECS.length;
@@ -99,7 +114,8 @@ const CloudDrift = React.memo(function CloudDrift() {
                 <Animated.View key={`cloud-${i}`} pointerEvents="none" style={{
                     position: 'absolute',
                     top: c.y * SCREEN_H, width: c.w, height: c.h,
-                    borderRadius: c.h / 2, backgroundColor: '#ffffff', opacity: c.alpha,
+                    borderRadius: c.h / 2, backgroundColor: '#ffffff',
+                    opacity: dayFade.interpolate({ inputRange: [0, 1], outputRange: [0, c.alpha] }),
                     transform: [{ translateX: anims[i] }],
                 }} />
             ))}
@@ -756,6 +772,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     editMode,
     selected = false,
     swayDriver = null,
+    dataReady = true,
 }: {
     tileCenterX: number;
     tileCenterY: number;
@@ -769,6 +786,8 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
     selected?: boolean;
     /** Shared 0->1 sway clock for the whole garden; null disables sway. */
     swayDriver?: Animated.Value | null;
+    /** Stored XP/garden data has landed; see the celebration guard below. */
+    dataReady?: boolean;
 }) {
     // Resolve sprite / size / tint (with withering penalty) via shared helper.
     const { effectiveStageIndex, ptWidth, ptHeight, ptAsset, tintStyle, offsetX, offsetY } =
@@ -825,6 +844,16 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
         return () => loop.stop();
     }, [editMode]);
 
+    // True only once a render has already been through here WITH the real data.
+    // On launch `xp` is 0, so every tree first resolves to its earliest stage and
+    // then jumps to its true one the moment storage answers. That jump is a stage
+    // advance by every test below, so a mature garden fired this celebration on
+    // EVERY tree at once - hundreds of JS-driven springs plus a LevelUpFX mount
+    // each, all landing on the JS thread in the same tick. The springs then
+    // advanced a frame at a time, which is the slow-motion popping on load.
+    // Suppressing the first post-hydration transition costs nothing: there was no
+    // level-up to celebrate, only a number arriving.
+    const wasDataReadyRef = useRef(false);
     useEffect(() => {
         // This component is keyed by TILE, not by tree, so after a swap the same
         // instance is suddenly rendering a different tree. Comparing stage alone
@@ -832,7 +861,12 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
         // like a level-up and fired the whole celebration. Only celebrate when
         // the tree that advanced is the same one that was already standing here.
         const sameTree = prevIdentityRef.current === treeIdentity;
-        if (sameTree && effectiveStageIndex > prevStageIndexRef.current) {
+        // Read before updating: on the tick where data lands, both the flag and
+        // the stage change arrive together, so gating on the CURRENT value would
+        // still let the whole garden celebrate.
+        const wasReady = wasDataReadyRef.current;
+        wasDataReadyRef.current = dataReady;
+        if (wasReady && sameTree && effectiveStageIndex > prevStageIndexRef.current) {
             setFxTrigger(n => n + 1);
             Animated.sequence([
                 Animated.spring(treeSizeAnim, { toValue: 1.25, tension: 120, friction: 4, useNativeDriver: false }),
@@ -841,7 +875,7 @@ const AnimatedPlantedTree = React.memo(function AnimatedPlantedTree({
         }
         prevStageIndexRef.current = effectiveStageIndex;
         prevIdentityRef.current = treeIdentity;
-    }, [effectiveStageIndex, treeIdentity]);
+    }, [effectiveStageIndex, treeIdentity, dataReady]);
 
     const posX = tileCenterX - ptWidth / 2 + offsetX;
     const posY = tileCenterY - ptHeight * 0.75 + offsetY;
@@ -1147,6 +1181,19 @@ const AnimatedTile = React.memo(function AnimatedTile({
     const scaleAnim = useRef(new Animated.Value(1)).current;
     const opacityAnim = useRef(new Animated.Value(1)).current;
 
+    // The ripple drops the tile to 0.3 opacity / 0.7 scale and springs it back.
+    // Both halves have to be owned, because the tile can go away in between:
+    //
+    //  - the stagger delay is up to ~1.2s on a big expansion, and culling
+    //    unmounts and remounts tiles freely while it runs. An uncancelled
+    //    timeout fired into a dead component, and a re-run scheduled a second
+    //    one on top of the first, so a tile could be dimmed by a late timer with
+    //    nothing left running to bring it back - it just stayed faded.
+    //  - the same on unmount mid-spring: the tile is left part-way down.
+    //
+    // So: one timer at a time, cancelled on re-run and on unmount, and the
+    // values snapped back to their resting state on the way out.
+    const rippleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
     useEffect(() => {
         if (prevStateRef.current !== state) {
             setPrevState(prevStateRef.current);
@@ -1155,6 +1202,7 @@ const AnimatedTile = React.memo(function AnimatedTile({
             // Run ripple animation with stagger delay
             const delay = animDelay ?? 0;
             const runAnimation = () => {
+                rippleTimerRef.current = null;
                 // Start from small + transparent
                 scaleAnim.setValue(0.7);
                 opacityAnim.setValue(0.3);
@@ -1176,12 +1224,27 @@ const AnimatedTile = React.memo(function AnimatedTile({
             };
 
             if (delay > 0) {
-                setTimeout(runAnimation, delay);
+                if (rippleTimerRef.current) clearTimeout(rippleTimerRef.current);
+                rippleTimerRef.current = setTimeout(runAnimation, delay);
             } else {
                 runAnimation();
             }
         }
     }, [state]);
+
+    // A tile must never be left mid-ripple. Whatever is in flight when this
+    // instance goes away is cancelled and the values are returned to rest, so a
+    // remount at the same key can't inherit a half-faded tile.
+    useEffect(() => () => {
+        if (rippleTimerRef.current) {
+            clearTimeout(rippleTimerRef.current);
+            rippleTimerRef.current = null;
+        }
+        scaleAnim.stopAnimation();
+        opacityAnim.stopAnimation();
+        scaleAnim.setValue(1);
+        opacityAnim.setValue(1);
+    }, [scaleAnim, opacityAnim]);
 
     return (
         <View
@@ -1582,6 +1645,14 @@ interface IsometricGridProps {
     onChoppingComplete?: (row: number, col: number) => void;
     onStageChange?: (stage: string) => void;
     isZoomedOut?: boolean;
+    /**
+     * The garden is covered - another tab is up, or a modal is open. The tiles
+     * stay mounted (see the freeze note in GardenScene) but nothing about them
+     * is visible, so every ambient clock must stop.
+     */
+    paused?: boolean;
+    /** See GardenSceneProps.dataReady - gates the per-tree level-up celebration. */
+    dataReady?: boolean;
     /** Content-space slice currently on screen; anything outside is not rendered. */
     visibleBounds?: { minX: number; maxX: number; minY: number; maxY: number };
     onCenterTreeLoaded?: () => void;
@@ -1614,6 +1685,8 @@ function IsometricGrid({
     onChoppingComplete,
     onStageChange,
     isZoomedOut = false,
+    paused = false,
+    dataReady = true,
     visibleBounds,
     onCenterTreeLoaded,
     panRef,
@@ -1624,7 +1697,14 @@ function IsometricGrid({
     const scaleAnim  = useRef(new Animated.Value(1)).current;
     const centerSwayAnim = useRef(new Animated.Value(0)).current;
 
+    // Only one view, so this is cheap - but an always-running loop keeps the
+    // native animation driver ticking every frame for the life of the app, so
+    // it stops with the rest of them while the garden is covered.
     useEffect(() => {
+        if (paused) {
+            centerSwayAnim.stopAnimation();
+            return;
+        }
         const loop = Animated.loop(Animated.sequence([
             Animated.timing(centerSwayAnim, { toValue:  1, duration: 1750, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
             Animated.timing(centerSwayAnim, { toValue:  0, duration: 1750, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
@@ -1633,7 +1713,7 @@ function IsometricGrid({
         ]));
         loop.start();
         return () => loop.stop();
-    }, []);
+    }, [paused, centerSwayAnim]);
 
     const [prevStageName, setPrevStageName] = useState(currentStage.name);
 
@@ -1654,13 +1734,21 @@ function IsometricGrid({
         });
     }, [gridSize, isDeadTreeRemoved]);
 
-    // Update tree stage when XP changes
+    // Update tree stage when XP changes.
+    // Same hydration guard as the planted trees: on launch xp is 0, so the centre
+    // tree "advances" through every stage the moment storage answers. It is one
+    // native-driven tree so it never lagged, but it did mean a bogus level-up
+    // celebration - glow, bounce, FX burst and an onStageChange callback - on
+    // every single cold start of a mature garden.
+    const wasCenterReadyRef = useRef(false);
     useEffect(() => {
         const newStage = getTreeStage(xp);
+        const wasReady = wasCenterReadyRef.current;
+        wasCenterReadyRef.current = dataReady;
         if (newStage.name !== prevStageName) {
-            // Stage changed! Play celebration animation
             setPrevStageName(newStage.name);
             setCurrentStage(newStage);
+            if (!wasReady) return;   // data landing, not a level-up
             onStageChange?.(newStage.name);
 
             // ── Glow and scale bounce ──────────────────────────────────────────
@@ -1698,7 +1786,7 @@ function IsometricGrid({
         } else {
             setCurrentStage(newStage);
         }
-    }, [xp]);
+    }, [xp, dataReady]);
 
     // Calculate tree dimensions based on current stage
     const treeScale = currentStage.scale;
@@ -1740,15 +1828,20 @@ function IsometricGrid({
     ).current;
 
     useEffect(() => {
-        // Stopped when zoomed out. The shimmer is a 0.06-opacity overlay on a
-        // tile drawn ~25px wide - invisible - but with every tile mounted at
-        // that zoom, the shared clock was writing opacity+translateX to
-        // hundreds of views per frame on the UI thread, forever, even with the
-        // garden sitting at alpha 0 behind another tab. The UI thread is also
-        // where scrolling and every native-driver animation run, which is why
-        // a zoomed-out garden made the WHOLE app stutter. Zoomed in, culling
-        // caps the attached views at a few dozen and the clock is cheap.
-        if (isZoomedOut) {
+        // Stopped when zoomed out, and whenever the garden is covered. The
+        // shimmer is a 0.06-opacity overlay on a tile drawn ~25px wide -
+        // invisible - but with every tile mounted at that zoom, the shared clock
+        // was writing opacity+translateX to hundreds of views per frame on the
+        // UI thread, forever. The UI thread is also where scrolling and every
+        // native-driver animation run, which is why a zoomed-out garden made the
+        // WHOLE app stutter. Zoomed in, culling caps the attached views at a few
+        // dozen and the clock is cheap.
+        //
+        // `paused` covers the other half of that: leaving the garden hides it at
+        // alpha 0 but keeps it mounted, so zoomed in and off on another tab the
+        // clock went right on driving every tile it had - which is the same
+        // stutter, just somewhere the garden isn't even on screen to justify it.
+        if (isZoomedOut || paused) {
             windAnim.stopAnimation();
             windAnim.setValue(0);
             return;
@@ -1758,7 +1851,7 @@ function IsometricGrid({
         );
         loop.start();
         return () => loop.stop();
-    }, [isZoomedOut]);
+    }, [isZoomedOut, paused]);
 
     // ── Axe badge dimming while a tree is being felled ───────────────────────
     // One shared value for every axe badge, so the withdrawal eases in and out
@@ -1783,9 +1876,11 @@ function IsometricGrid({
     // is not perceptible, and skipping it drops one transform update per tree
     // per frame in exactly the view where the garden is largest and the frame
     // budget tightest. Same reasoning as the tile effects and particles above.
+    // Stopped while covered too - a mature garden is hundreds of transform
+    // writes per frame, and none of them land anywhere the user can see.
     const treeSway = useRef(new Animated.Value(0)).current;
     useEffect(() => {
-        if (isZoomedOut) {
+        if (isZoomedOut || paused) {
             treeSway.stopAnimation();
             treeSway.setValue(0);
             return;
@@ -1795,7 +1890,7 @@ function IsometricGrid({
         );
         loop.start();
         return () => loop.stop();
-    }, [isZoomedOut, treeSway]);
+    }, [isZoomedOut, paused, treeSway]);
 
     // Build animation delay map from pending transitions
     // Stagger: 120ms per ring distance from center, so inner tiles animate first
@@ -2410,12 +2505,13 @@ function IsometricGrid({
                         editMode={editMode}
                         selected={!!selectedTrees?.has(`${row},${col}`)}
                         swayDriver={isZoomedOut ? null : treeSway}
+                        dataReady={dataReady}
                     />
                 );
             }
         }
         return elements;
-    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode, selectedTrees, isNearViewport, isZoomedOut, treeSway]);
+    }, [gridSize, rotation, xp, getPlantedTree, getTileState, daysSinceLastXP, draggingKey, editMode, selectedTrees, isNearViewport, isZoomedOut, treeSway, dataReady]);
 
     // Center tile position for main tree
     const centerLocalRow = maxCenter - startRow;
@@ -2527,6 +2623,9 @@ function IsometricGrid({
                     }}
                     resizeMode="contain"
                     onLoad={onCenterTreeLoaded}
+                    // A failed decode must not strand the app on the splash -
+                    // the splash is gated on this one image reporting back.
+                    onError={onCenterTreeLoaded}
                 />
             </Animated.View>
 
@@ -2659,7 +2758,27 @@ interface GardenSceneProps {
     justPlantedTile?: { row: number; col: number; seq: number } | null;
     onChoppingComplete?: (row: number, col: number) => void;
     frozen?: boolean;
+    /**
+     * Skip the freeze debounce and hide on the spot. Set when the freeze comes
+     * from leaving the garden tab, which is deliberate and lasting - the 80ms
+     * debounce only exists to ride out transient modal flicker, and waiting it
+     * out let the garden show through the incoming page.
+     */
+    hideImmediately?: boolean;
+    /** Drives the cloud ambience, which fades out at night (see CloudDrift). */
+    isDay?: boolean;
+    /**
+     * XP and garden data have finished loading from storage. Until this flips,
+     * `xp` is still its initial 0 and every tree resolves to its earliest stage,
+     * so the jump to the real value is a data artefact and not a level-up.
+     * See the celebration guard in AnimatedPlantedTree.
+     */
+    dataReady?: boolean;
     onRenderReady?: () => void;
+    /** Dev-only: fires on a plain double-tap anywhere on the scene. Used as
+     * a reliable fallback for Screenshot Mode's chrome toggle - see the
+     * call site in App.tsx for why. */
+    onDoubleTap?: () => void;
 }
 
 export const GardenScene = React.memo(function GardenScene({
@@ -2683,7 +2802,11 @@ export const GardenScene = React.memo(function GardenScene({
     justPlantedTile,
     onChoppingComplete,
     frozen = false,
+    hideImmediately = false,
+    isDay = true,
+    dataReady = true,
     onRenderReady,
+    onDoubleTap,
 }: GardenSceneProps) {
     // ── Fire onRenderReady when the center tree image actually decodes ──────
     // onLoad fires on the native thread once the bitmap is decoded and ready
@@ -2702,7 +2825,11 @@ export const GardenScene = React.memo(function GardenScene({
     // Delayed 80ms on freeze to filter transient flickers from notifications.
     const gardenOpacity = useRef(new Animated.Value(frozen ? 0 : 1)).current;
     const frozenTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-    useEffect(() => {
+    // useLayoutEffect, not useEffect: the incoming tab page's opacity is applied
+    // during React's commit, so a plain effect would land a frame later and the
+    // garden would still be painted underneath the translucent page for that
+    // frame. Committing the hide synchronously puts both on the same frame.
+    useLayoutEffect(() => {
         if (frozen) {
             // Touch is detached on the same tick (see pointerEvents below), but
             // a gesture may already have been mid-flight when the modal opened.
@@ -2715,9 +2842,15 @@ export const GardenScene = React.memo(function GardenScene({
             baseY.stopAnimation(v => { lastBaseY.current = v; baseY.setValue(v); });
             dragX.setValue(0);
             dragY.setValue(0);
-            frozenTimerRef.current = setTimeout(() => {
-                Animated.timing(gardenOpacity, { toValue: 0, duration: 0, useNativeDriver: true }).start();
-            }, 80);
+            if (hideImmediately) {
+                // Tab switch: no debounce. Anything later than this frame is
+                // visible through the translucent page that just appeared.
+                gardenOpacity.setValue(0);
+            } else {
+                frozenTimerRef.current = setTimeout(() => {
+                    Animated.timing(gardenOpacity, { toValue: 0, duration: 0, useNativeDriver: true }).start();
+                }, 80);
+            }
         } else {
             if (frozenTimerRef.current) {
                 clearTimeout(frozenTimerRef.current);
@@ -2728,7 +2861,7 @@ export const GardenScene = React.memo(function GardenScene({
         return () => {
             if (frozenTimerRef.current) clearTimeout(frozenTimerRef.current);
         };
-    }, [frozen]);
+    }, [frozen, hideImmediately]);
     // ── Particle count based on grown/flourishing trees ───────────────────
     // Compute screen positions of mature trees for tree-anchored pollen motes.
     // Also count mature trees for falling leaves (ambient, not tree-anchored).
@@ -2864,6 +2997,18 @@ export const GardenScene = React.memo(function GardenScene({
 
     const pinchRef = useRef(null);
     const panRef   = useRef(null);
+
+    // Dev-only double-tap-anywhere fallback (see onDoubleTap doc comment).
+    // A new-API Gesture wrapping the old-API PanGestureHandler/PinchGestureHandler
+    // below - this is the supported way the two coexist. numberOfTaps(2)
+    // only fires on two quick, close-together taps, which normal single-tap
+    // planting and pan/pinch gestures don't produce, so it shouldn't compete
+    // with them in practice.
+    const doubleTapGesture = useMemo(() => {
+        const g = Gesture.Tap().numberOfTaps(2).maxDuration(300);
+        if (onDoubleTap) g.onEnd((_e, success) => { if (success) onDoubleTap(); });
+        return g;
+    }, [onDoubleTap]);
 
     // Native-driven: translationX/Y map straight to dragX/Y with no JS hop
     const onPanGestureEvent = Animated.event(
@@ -3064,9 +3209,10 @@ export const GardenScene = React.memo(function GardenScene({
             {/* ── Sky ambience - behind gesture layer ──────────────────────── */}
             <View style={[StyleSheet.absoluteFill, { zIndex: 0 }]} pointerEvents="none">
                 <StarField />
-                <CloudDrift />
+                <CloudDrift isDay={isDay} />
             </View>
 
+            <GestureDetector gesture={doubleTapGesture}>
             <PanGestureHandler
                 ref={panRef}
                 simultaneousHandlers={[pinchRef]}
@@ -3117,14 +3263,21 @@ export const GardenScene = React.memo(function GardenScene({
                                     justPlantedTile={justPlantedTile}
                                     onChoppingComplete={onChoppingComplete}
                                     isZoomedOut={isZoomedOut}
+                                    paused={frozen}
+                                    dataReady={dataReady}
                                     visibleBounds={visibleBounds}
                                     onCenterTreeLoaded={handleCenterTreeLoaded}
                                     panRef={panRef}
                                     pinchRef={pinchRef}
                                 />
-                                {/* Pollen motes - always mounted so we never pay the cost of
-                                    stopping/starting all animation loops on every modal open */}
-                                {!frozen && !isZoomedOut && treePositions.length > 0 && (
+                                {/* Pollen motes - deliberately NOT gated on `frozen`. They sit
+                                    inside the gardenOpacity layer, so freezing already hides
+                                    them; unmounting as well tore down and rebuilt every
+                                    animation loop on each tab switch, which is what made
+                                    returning to the garden feel like it was reloading. At most
+                                    MAX_MOTES (12) native-driven views - a rounding error next
+                                    to the tile shimmer, which is why that one still unmounts. */}
+                                {!isZoomedOut && treePositions.length > 0 && (
                                     <View pointerEvents="none" style={StyleSheet.absoluteFill}>
                                         <FloatingParticles treePositions={treePositions} />
                                     </View>
@@ -3135,12 +3288,16 @@ export const GardenScene = React.memo(function GardenScene({
                     </PinchGestureHandler>
                 </Animated.View>
             </PanGestureHandler>
+            </GestureDetector>
 
             {/* ── Foreground ambience - above garden (leaves only; pollen is inside scaleWrapper) ── */}
-            {!frozen && !isZoomedOut && leafCount > 0 && (
+            {/* Also kept mounted across a freeze (see the pollen note above), but
+                these render OUTSIDE the gardenOpacity layer, so they need it bound
+                explicitly here - otherwise leaves would drift over the other tabs. */}
+            {!isZoomedOut && leafCount > 0 && (
             <Animated.View
                 pointerEvents="none"
-                style={[StyleSheet.absoluteFill, { zIndex: 199, transform: [{ translateX: clampedPanX }, { translateY: clampedPanY }, { scale: displayScale }] }]}
+                style={[StyleSheet.absoluteFill, { zIndex: 199, opacity: gardenOpacity, transform: [{ translateX: clampedPanX }, { translateY: clampedPanY }, { scale: displayScale }] }]}
             >
                 <FallingLeaves count={leafCount} />
             </Animated.View>

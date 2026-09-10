@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   Dimensions,
   Linking,
+  ScrollView,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -20,7 +21,8 @@ const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Apple requires auto-renewing subscriptions to surface functional links to the
 // Terms of Use (EULA) and Privacy Policy on the paywall (Guideline 3.1.2).
-const PRIVACY_POLICY_URL = 'https://bane678.github.io/Grow-Pray/privacy-policy.html';
+// Canonical HTTPS host - the github.io URL 301s to http:// (see SettingsModal).
+const PRIVACY_POLICY_URL = 'https://growpray.com/privacy-policy.html';
 // Apple's standard EULA - used unless you host your own Terms of Use page.
 const TERMS_OF_USE_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
 
@@ -71,6 +73,35 @@ const COMPARISON_ROWS: Array<{
     free: 'Locked',
     premium: 'Unlocked',
   },
+  // The four below were genuinely gated in code but never listed here, so the
+  // paywall undersold what a subscription actually buys. Reading reflections
+  // and the adhkar library are deliberately FREE - only saving, annotating and
+  // the custom/streak dhikr features are premium. Keep this table matched to
+  // the real gates (ReflectionsHub, DailyReflectionCard, DhikrScreen).
+  {
+    label: 'Save Reflections',
+    icon: 'heart-outline',
+    free: 'Locked',
+    premium: 'Unlimited',
+  },
+  {
+    label: 'Verse Notes',
+    icon: 'note-edit-outline',
+    free: 'Locked',
+    premium: 'Unlocked',
+  },
+  {
+    label: 'Custom Dhikr',
+    icon: 'counter',
+    free: 'Locked',
+    premium: 'Unlocked',
+  },
+  {
+    label: 'Dhikr Streak',
+    icon: 'fire',
+    free: 'Not tracked',
+    premium: 'Tracked',
+  },
 ];
 
 const TRIGGER_MESSAGES: Record<string, { title: string; subtitle: string }> = {
@@ -90,13 +121,16 @@ const TRIGGER_MESSAGES: Record<string, { title: string; subtitle: string }> = {
     title: 'Unlock Insights',
     subtitle: 'See your prayer patterns, trends, and consistency over time',
   },
+  // These two used to promise things that are actually free (the whole adhkar
+  // library, and reading/browsing reflections). Only the counting and saving
+  // features are gated - see COMPARISON_ROWS above.
   dhikr_library: {
-    title: 'Full Dhikr Library',
-    subtitle: 'Unlock Morning, Evening, Sleep and Travel adhkar, plus custom counts',
+    title: 'Custom Dhikr',
+    subtitle: 'Set your own dhikr targets and build a dhikr streak',
   },
   reflection_archive: {
-    title: 'Reflection Archive',
-    subtitle: 'Browse every ayah and hadith, and save your favourites',
+    title: 'Save & Annotate',
+    subtitle: 'Keep the verses that move you, and write your own notes on them',
   },
   general: {
     title: 'Upgrade to Premium',
@@ -219,26 +253,16 @@ export function PaywallModal({
           </View>
         </View>
       ) : (
-      <View style={{
-        flex: 1,
-        backgroundColor: '#0f1526',
-        justifyContent: 'center',
-        padding: 20,
-      }}>
-        {/* Close button */}
-        <TouchableOpacity
-          onPress={onClose}
-          style={{
-            position: 'absolute',
-            top: 50,
-            right: 20,
-            zIndex: 10,
-            padding: 8,
-          }}
-        >
-          <MaterialCommunityIcons name="close" size={28} color="#6b7280" />
-        </TouchableOpacity>
-
+      <View style={{ flex: 1, backgroundColor: '#0f1526' }}>
+      {/* flexGrow + justifyContent keeps the old centred layout when everything
+          fits, but lets it scroll instead of clipping when it doesn't - the
+          comparison table grew to 9 rows and a fixed-height View would push the
+          CTA and the required legal links off-screen on shorter devices. */}
+      <ScrollView
+        style={{ flex: 1 }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', padding: 20 }}
+        showsVerticalScrollIndicator={false}
+      >
         {/* Header */}
         <View style={{ alignItems: 'center', marginBottom: 16 }}>
           <Image source={ICON_SPARKLE} style={{ width: 40, height: 40, marginBottom: 6 }} resizeMode="contain" />
@@ -540,6 +564,24 @@ export function PaywallModal({
             </Text>
           </TouchableOpacity>
         </View>
+      </ScrollView>
+
+      {/* Close button - a sibling of the ScrollView, not a child. Absolute
+          positioning inside a scroll container is relative to the CONTENT, so
+          it would scroll off-screen on a short device; out here it stays
+          pinned to the viewport and the paywall is always dismissable. */}
+      <TouchableOpacity
+        onPress={onClose}
+        style={{
+          position: 'absolute',
+          top: 50,
+          right: 20,
+          zIndex: 10,
+          padding: 8,
+        }}
+      >
+        <MaterialCommunityIcons name="close" size={28} color="#6b7280" />
+      </TouchableOpacity>
       </View>
       )}
     </Modal>
