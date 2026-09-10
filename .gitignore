@@ -39,3 +39,13 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Claude Code local permission allowlist (personal, per-machine)
+.claude/settings.local.json
+
+# Unused sky-upscale experiments - kept on disk, not worth versioning.
+# Neither is referenced by the app; the shipped night sky lives at
+# assets/Garden Assets/Icons/Starry_Night_Sky.png
+assets/Background/
+assets/Garden Assets/Icons/Daytime_Test.png
+assets/Garden Assets/Icons/Nightime_Test.png
