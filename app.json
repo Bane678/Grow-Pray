@@ -4,7 +4,7 @@
     "slug": "grow-pray",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/Garden Assets/Icons/Logo_V4_1024.png",
+    "icon": "./assets/Garden Assets/Icons/Logo_V5_1024.png",
     "userInterfaceStyle": "light",
     "backgroundColor": "#0d1b2d",
     "newArchEnabled": true,
@@ -14,7 +14,7 @@
       "backgroundColor": "#0f1526"
     },
     "ios": {
-      "icon": "./assets/Garden Assets/Icons/Logo_V4_1024.png",
+      "icon": "./assets/Garden Assets/Icons/Logo_V5_1024.png",
       "bundleIdentifier": "com.antigravity.growpray",
       "buildNumber": "1",
       "supportsTablet": true,
@@ -26,7 +26,7 @@
     "android": {
       "package": "com.antigravity.growpray",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/Garden Assets/Icons/Logo_V4_1024.png",
+        "foregroundImage": "./assets/Garden Assets/Icons/Logo_V5_1024.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -40,7 +40,7 @@
       ]
     },
     "web": {
-      "favicon": "./assets/Garden Assets/Icons/Logo_V4_1024.png"
+      "favicon": "./assets/Garden Assets/Icons/Logo_V5_1024.png"
     },
     "plugins": [
       "expo-asset",
