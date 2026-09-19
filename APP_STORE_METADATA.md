@@ -36,7 +36,6 @@ Grow Pray turns your daily prayers into a living, growing garden. Every salah yo
 🌿 PRAYER TRACKING MADE BEAUTIFUL
 • Track all 5 daily prayers (Fajr, Dhuhr, Asr, Maghrib, Isha)
 • Accurate prayer times based on your location
-• Grace period support (15-60 minutes configurable)
 • Smart notifications before each prayer window closes
 
 🌳 GROW YOUR GARDEN
@@ -62,7 +61,8 @@ Grow Pray turns your daily prayers into a living, growing garden. Every salah yo
 • Exclusive premium tree varieties
 • 3 free streak freezes every month
 • Prayer insights and trends
-• Priority support
+• Save and annotate your favourite verses
+• Custom dhikr targets and dhikr streaks
 
 🧭 WORSHIP TOOLS
 • Qibla compass to find the direction of the Kaaba
