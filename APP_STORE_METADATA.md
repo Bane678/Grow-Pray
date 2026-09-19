@@ -40,7 +40,7 @@ Grow Pray turns your daily prayers into a living, growing garden. Every salah yo
 • Smart notifications before each prayer window closes
 
 🌳 GROW YOUR GARDEN
-• Start with a 5×5 garden and expand up to 11×11
+• Start with a 5×5 garden and expand it as you keep praying
 • Earn XP and coins for every prayer completed
 • Plant unique tree varieties from the Garden Shop
 • Watch trees grow through 4 stages as you stay consistent
@@ -56,15 +56,12 @@ Grow Pray turns your daily prayers into a living, growing garden. Every salah yo
 • Purchase streak freezes to protect your hard-earned streaks
 • Unlock garden expansions to grow your paradise
 
-🌙 RAMADAN MODE
-• Special 2× XP during the blessed month
-• Exclusive Ramadan content and challenges
-
 💎 PREMIUM FEATURES
 • Unlimited garden size
 • 2× coin earning rate
 • Exclusive premium tree varieties
-• Advanced prayer insights and trends
+• 3 free streak freezes every month
+• Prayer insights and trends
 • Priority support
 
 🧭 WORSHIP TOOLS
@@ -83,7 +80,7 @@ Start growing your garden today. 🌿
 ## Version Info
 
 **Version:** 1.0.0
-**Build:** 1
+**Build:** set by EAS (autoIncrement) - do not hand-edit
 
 **What's New (Release Notes):**
 ```
@@ -97,7 +94,6 @@ Your first release includes:
 • Weekly challenges
 • Streak freeze protection
 • Consistency multiplier rewards
-• Ramadan mode with 2× XP
 • Qibla compass, tasbih, duas & adhkar, and a daily reflection
 • Premium subscription option
 • Beautiful pixel-art garden with gesture controls
@@ -129,10 +125,6 @@ JazakAllahu Khairan for downloading. May your garden flourish! 🤲
 **Caption:** "Complete challenges for bonus rewards"
 **Content:** Challenges modal with progress bars and coin rewards
 
-### Screenshot 6 — Ramadan Mode
-**Caption:** "Special rewards during the blessed month"
-**Content:** Ramadan mode active showing 2× XP indicator
-
 ---
 
 ## App Store Connect — Subscription Configuration
@@ -141,14 +133,14 @@ JazakAllahu Khairan for downloading. May your garden flourish! 🤲
 - **Reference Name:** Grow Pray Premium Monthly
 - **Product ID:** `growpray_premium_monthly`
 - **Price:** $6.99/month
-- **Free Trial:** 7 days
+- **Free Trial:** 14 days
 - **Description:** Unlimited garden, 2× coins, premium trees, priority support
 
 ### Yearly Plan
 - **Reference Name:** Grow Pray Premium Yearly
 - **Product ID:** `growpray_premium_yearly`
 - **Price:** $44.99/year ($3.75/month — 46% savings)
-- **Free Trial:** 7 days
+- **Free Trial:** 14 days
 - **Description:** All premium features at 46% savings. Best value!
 
 ### Subscription Group
@@ -181,7 +173,7 @@ To test:
 4. Visit the Shop to see purchasable items
 
 Subscription: The app offers a premium subscription ($6.99/month or $44.99/year)
-with a 7-day free trial. Premium unlocks unlimited garden size, 2× coins,
+with a 14-day free trial. Premium unlocks unlimited garden size, 2× coins,
 and exclusive tree varieties (Golden Tree and Ancient Cedar).
 
 No login required. All data is stored locally on device.
