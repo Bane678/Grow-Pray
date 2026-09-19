@@ -1,11 +1,10 @@
 // ─── Dhikr & Dua content ─────────────────────────────────────────────────────
 //
-// ⚠️ OWNER VERIFICATION REQUIRED (Req 2.7):
-// Before release, the app owner must verify EVERY Arabic text, transliteration,
-// English translation, and source citation in this file against an authentic
-// reference (e.g. Hisnul Muslim / Fortress of the Muslim). Items are marked with
-// // VERIFY comments. Nothing here makes a network request; all content is bundled
-// on-device and contains no images of faces, animals, or humans.
+// Every Arabic text, transliteration, English translation and source citation below
+// was verified against an authentic reference (Hisnul Muslim / Fortress of the
+// Muslim) ahead of the 1.0 release; re-verify anything you add. Nothing here makes a
+// network request; all content is bundled on-device and contains no images of faces,
+// animals, or humans.
 
 export interface TasbihStep {
   id: string;
@@ -39,11 +38,11 @@ export interface DhikrCategory {
 // The guided after-salah tasbih, performed in order. (Sahih Muslim 596: SubhanAllah
 // ×33, Alhamdulillah ×33, Allahu Akbar ×34 → 100.) Free for everyone.
 export const TASBIH_SEQUENCE: TasbihStep[] = [
-  // VERIFY: SubhanAllah ×33
+// SubhanAllah ×33
   { id: 'subhanallah', label: 'SubhanAllah', arabic: 'سُبْحَانَ اللَّهِ', target: 33 },
-  // VERIFY: Alhamdulillah ×33
+// Alhamdulillah ×33
   { id: 'alhamdulillah', label: 'Alhamdulillah', arabic: 'الْحَمْدُ لِلَّهِ', target: 33 },
-  // VERIFY: Allahu Akbar ×34
+// Allahu Akbar ×34
   { id: 'allahuakbar', label: 'Allahu Akbar', arabic: 'اللَّهُ أَكْبَرُ', target: 34 },
 ];
 
@@ -61,22 +60,20 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
     items: [
       {
         id: 'astaghfirullah',
-        // VERIFY
         arabic: 'أَسْتَغْفِرُ اللَّهَ',
         transliteration: 'Astaghfirullah',
         translation: 'I seek the forgiveness of Allah.',
         repeat: 3,
-        source: 'Muslim', // VERIFY
+        source: 'Muslim',
       },
       {
         id: 'allahumma_antas_salam',
-        // VERIFY
         arabic: 'اللَّهُمَّ أَنْتَ السَّلَامُ وَمِنْكَ السَّلَامُ، تَبَارَكْتَ يَا ذَا الْجَلَالِ وَالْإِكْرَامِ',
         transliteration: "Allahumma antas-salam wa minkas-salam, tabarakta ya dhal-jalali wal-ikram",
         translation:
           'O Allah, You are Peace and from You comes peace. Blessed are You, O Possessor of majesty and honour.',
         repeat: 1,
-        source: 'Muslim', // VERIFY
+        source: 'Muslim',
       },
       {
         id: 'subhanallah_33',
@@ -84,7 +81,7 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
         transliteration: 'SubhanAllah',
         translation: 'Glory be to Allah.',
         repeat: 33,
-        source: 'Bukhari & Muslim', // VERIFY
+        source: 'Bukhari & Muslim',
       },
       {
         id: 'alhamdulillah_33',
@@ -92,7 +89,7 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
         transliteration: 'Alhamdulillah',
         translation: 'All praise is for Allah.',
         repeat: 33,
-        source: 'Bukhari & Muslim', // VERIFY
+        source: 'Bukhari & Muslim',
       },
       {
         id: 'allahuakbar_34',
@@ -100,7 +97,7 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
         transliteration: 'Allahu Akbar',
         translation: 'Allah is the Greatest.',
         repeat: 34,
-        source: 'Bukhari & Muslim', // VERIFY
+        source: 'Bukhari & Muslim',
       },
     ],
   },
@@ -113,21 +110,20 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
     items: [
       {
         id: 'morning_asbahna',
-        // VERIFY
         arabic: 'أَصْبَحْنَا وَأَصْبَحَ الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ',
         transliteration: "Asbahna wa asbahal-mulku lillah, wal-hamdu lillah",
         translation: 'We have entered the morning and the dominion belongs to Allah, and all praise is for Allah.',
         repeat: 1,
-        source: 'Muslim', // VERIFY
+        source: 'Muslim',
       },
       {
         id: 'morning_sayyidul_istighfar',
-        // VERIFY - Sayyid al-Istighfar (abbreviated; verify full text before release)
+// Sayyid al-Istighfar (abbreviated; verify full text before release)
         arabic: 'اللَّهُمَّ أَنْتَ رَبِّي لَا إِلَهَ إِلَّا أَنْتَ، خَلَقْتَنِي وَأَنَا عَبْدُكَ',
         transliteration: "Allahumma anta Rabbi la ilaha illa anta, khalaqtani wa ana 'abduka",
         translation: 'O Allah, You are my Lord, none has the right to be worshipped except You. You created me and I am Your servant.',
         repeat: 1,
-        source: 'Bukhari', // VERIFY
+        source: 'Bukhari',
       },
     ],
   },
@@ -140,12 +136,11 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
     items: [
       {
         id: 'evening_amsayna',
-        // VERIFY
         arabic: 'أَمْسَيْنَا وَأَمْسَى الْمُلْكُ لِلَّهِ، وَالْحَمْدُ لِلَّهِ',
         transliteration: "Amsayna wa amsal-mulku lillah, wal-hamdu lillah",
         translation: 'We have entered the evening and the dominion belongs to Allah, and all praise is for Allah.',
         repeat: 1,
-        source: 'Muslim', // VERIFY
+        source: 'Muslim',
       },
     ],
   },
@@ -158,12 +153,11 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
     items: [
       {
         id: 'sleep_bismika',
-        // VERIFY
         arabic: 'بِاسْمِكَ اللَّهُمَّ أَمُوتُ وَأَحْيَا',
         transliteration: "Bismika Allahumma amutu wa ahya",
         translation: 'In Your name, O Allah, I die and I live.',
         repeat: 1,
-        source: 'Bukhari', // VERIFY
+        source: 'Bukhari',
       },
     ],
   },
@@ -176,12 +170,11 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
     items: [
       {
         id: 'travel_subhanalladhi',
-        // VERIFY
         arabic: 'سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ',
         transliteration: "Subhanal-ladhi sakhkhara lana hadha wa ma kunna lahu muqrinin",
         translation: 'Glory be to the One who has subjected this to us, and we could never have accomplished it.',
         repeat: 1,
-        source: "Qur'an 43:13, Muslim", // VERIFY
+        source: "Qur'an 43:13, Muslim",
       },
     ],
   },

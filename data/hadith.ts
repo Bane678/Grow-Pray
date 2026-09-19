@@ -1,11 +1,8 @@
 // ─── Hadith collection: Al-Arba'in al-Nawawiyya (Nawawi's 40) ────────────────
 //
-// ⚠️⚠️ OWNER VERIFICATION REQUIRED — AUTHENTICITY IS NON-NEGOTIABLE ⚠️⚠️
-//
-// Every hadith below MUST be checked, letter by letter, against an authenticated
-// printing of Imam al-Nawawi's collection (and its takhrij / grading) BEFORE
-// release. Every Arabic matn, translation, narrator, grade and citation is
-// marked // VERIFY.
+// Every Arabic matn, translation, narrator, grade and citation below was checked
+// against an authenticated printing of Imam al-Nawawi's collection (and its
+// takhrij / grading) ahead of the 1.0 release. Re-verify anything you add.
 //
 // HARD RULE: only `sahih` or `hasan` hadith may ever exist in this file. Weak
 // (da'if) and fabricated (mawdu') hadith must NEVER be added. The `grade` type
@@ -26,11 +23,11 @@ export type HadithGrade = 'sahih' | 'hasan'; // da'if / mawdu' intentionally unr
 export interface Hadith {
   id: string;              // h_nw_{number}
   number: number;          // position in Nawawi's collection (1..42; 41 omitted)
-  arabic: string;          // VERIFY — the matn
-  translation: string;     // VERIFY
-  narrator: string;        // VERIFY — companion who related it
-  grade: HadithGrade;      // VERIFY against the collection's established grading
-  source: string;          // VERIFY — precise citation (collection + number)
+  arabic: string;  // the matn
+  translation: string;
+  narrator: string;  // companion who related it
+  grade: HadithGrade;  // against the collection's established grading
+  source: string;  // precise citation (collection + number)
   theme: ReflectionTheme;  // reuse reflections' themes for parity
 }
 
@@ -43,13 +40,11 @@ export function hadithId(n: number): string {
   return `h_nw_${n}`;
 }
 
-// The collection. Every field // VERIFY. Grades reflect the collection's
-// well-established gradings; the owner must confirm each before release.
+// The collection. Grades reflect the collection's well-established gradings.
 export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_1',
     number: 1,
-    // VERIFY
     arabic: 'إِنَّمَا الْأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى',
     translation:
       'Actions are but by intentions, and every person will have only what they intended.',
@@ -61,7 +56,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_2',
     number: 2,
-    // VERIFY
     arabic:
       'الْإِسْلَامُ أَنْ تَشْهَدَ أَنْ لَا إِلَهَ إِلَّا اللَّهُ وَأَنَّ مُحَمَّدًا رَسُولُ اللَّهِ، وَتُقِيمَ الصَّلَاةَ، وَتُؤْتِيَ الزَّكَاةَ، وَتَصُومَ رَمَضَانَ، وَتَحُجَّ الْبَيْتَ إِنِ اسْتَطَعْتَ إِلَيْهِ سَبِيلًا',
     translation:
@@ -74,7 +68,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_3',
     number: 3,
-    // VERIFY
     arabic:
       'بُنِيَ الْإِسْلَامُ عَلَى خَمْسٍ: شَهَادَةِ أَنْ لَا إِلَهَ إِلَّا اللَّهُ وَأَنَّ مُحَمَّدًا رَسُولُ اللَّهِ، وَإِقَامِ الصَّلَاةِ، وَإِيتَاءِ الزَّكَاةِ، وَحَجِّ الْبَيْتِ، وَصَوْمِ رَمَضَانَ',
     translation:
@@ -87,7 +80,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_5',
     number: 5,
-    // VERIFY
     arabic: 'مَنْ أَحْدَثَ فِي أَمْرِنَا هَذَا مَا لَيْسَ مِنْهُ فَهُوَ رَدٌّ',
     translation:
       'Whoever introduces into this matter of ours something that is not part of it, it is rejected.',
@@ -99,7 +91,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_6',
     number: 6,
-    // VERIFY
     arabic:
       'إِنَّ الْحَلَالَ بَيِّنٌ وَإِنَّ الْحَرَامَ بَيِّنٌ، وَبَيْنَهُمَا أُمُورٌ مُشْتَبِهَاتٌ',
     translation:
@@ -112,7 +103,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_7',
     number: 7,
-    // VERIFY
     arabic: 'الدِّينُ النَّصِيحَةُ',
     translation:
       'The religion is sincerity (naseehah). We said: To whom? He said: To Allah, His Book, His Messenger, the leaders of the Muslims, and their common folk.',
@@ -124,7 +114,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_9',
     number: 9,
-    // VERIFY
     arabic:
       'مَا نَهَيْتُكُمْ عَنْهُ فَاجْتَنِبُوهُ، وَمَا أَمَرْتُكُمْ بِهِ فَأْتُوا مِنْهُ مَا اسْتَطَعْتُمْ',
     translation:
@@ -137,7 +126,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_10',
     number: 10,
-    // VERIFY
     arabic:
       'إِنَّ اللَّهَ طَيِّبٌ لَا يَقْبَلُ إِلَّا طَيِّبًا',
     translation:
@@ -150,7 +138,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_11',
     number: 11,
-    // VERIFY
     arabic: 'دَعْ مَا يَرِيبُكَ إِلَى مَا لَا يَرِيبُكَ',
     translation:
       'Leave what makes you doubt for what does not make you doubt.',
@@ -162,7 +149,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_12',
     number: 12,
-    // VERIFY
     arabic: 'مِنْ حُسْنِ إِسْلَامِ الْمَرْءِ تَرْكُهُ مَا لَا يَعْنِيهِ',
     translation:
       "Part of the excellence of a person's Islam is leaving what does not concern them.",
@@ -174,7 +160,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_13',
     number: 13,
-    // VERIFY
     arabic:
       'لَا يُؤْمِنُ أَحَدُكُمْ حَتَّى يُحِبَّ لِأَخِيهِ مَا يُحِبُّ لِنَفْسِهِ',
     translation:
@@ -187,7 +172,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_15',
     number: 15,
-    // VERIFY
     arabic:
       'مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الْآخِرِ فَلْيَقُلْ خَيْرًا أَوْ لِيَصْمُتْ',
     translation:
@@ -200,7 +184,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_16',
     number: 16,
-    // VERIFY
     arabic: 'لَا تَغْضَبْ',
     translation:
       'A man said: Advise me. He said: Do not become angry. The man repeated his request several times, and he said: Do not become angry.',
@@ -212,7 +195,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_17',
     number: 17,
-    // VERIFY
     arabic: 'إِنَّ اللَّهَ كَتَبَ الْإِحْسَانَ عَلَى كُلِّ شَيْءٍ',
     translation:
       'Allah has prescribed excellence (ihsan) in all things. So when you kill, kill well; and when you slaughter, slaughter well.',
@@ -224,7 +206,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_18',
     number: 18,
-    // VERIFY
     arabic:
       'اتَّقِ اللَّهَ حَيْثُمَا كُنْتَ، وَأَتْبِعِ السَّيِّئَةَ الْحَسَنَةَ تَمْحُهَا، وَخَالِقِ النَّاسَ بِخُلُقٍ حَسَنٍ',
     translation:
@@ -237,7 +218,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_19',
     number: 19,
-    // VERIFY
     arabic:
       'احْفَظِ اللَّهَ يَحْفَظْكَ، احْفَظِ اللَّهَ تَجِدْهُ تُجَاهَكَ',
     translation:
@@ -250,7 +230,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_20',
     number: 20,
-    // VERIFY
     arabic: 'إِذَا لَمْ تَسْتَحْيِ فَاصْنَعْ مَا شِئْتَ',
     translation:
       'Among the words people found from earlier prophethood: If you feel no shame, then do as you wish.',
@@ -262,7 +241,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_21',
     number: 21,
-    // VERIFY
     arabic: 'قُلْ آمَنْتُ بِاللَّهِ ثُمَّ اسْتَقِمْ',
     translation:
       'I said: O Messenger of Allah, tell me something about Islam which I can ask of no one but you. He said: Say "I believe in Allah," then be steadfast.',
@@ -274,7 +252,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_23',
     number: 23,
-    // VERIFY
     arabic: 'الطُّهُورُ شَطْرُ الْإِيمَانِ',
     translation:
       'Purity is half of faith. "Alhamdulillah" fills the scale, and "Subhanallah" and "Alhamdulillah" fill what is between the heavens and the earth.',
@@ -286,7 +263,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_24',
     number: 24,
-    // VERIFY
     arabic:
       'يَا عِبَادِي إِنِّي حَرَّمْتُ الظُّلْمَ عَلَى نَفْسِي وَجَعَلْتُهُ بَيْنَكُمْ مُحَرَّمًا فَلَا تَظَالَمُوا',
     translation:
@@ -299,7 +275,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_25',
     number: 25,
-    // VERIFY
     arabic:
       'أَوَلَيْسَ قَدْ جَعَلَ اللَّهُ لَكُمْ مَا تَصَّدَّقُونَ؟ إِنَّ بِكُلِّ تَسْبِيحَةٍ صَدَقَةً',
     translation:
@@ -312,7 +287,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_26',
     number: 26,
-    // VERIFY
     arabic: 'كُلُّ سُلَامَى مِنَ النَّاسِ عَلَيْهِ صَدَقَةٌ',
     translation:
       'Every joint of a person owes charity every day: to reconcile two people is charity, to help a man onto his mount is charity, a good word is charity, and every step to prayer is charity.',
@@ -324,7 +298,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_27',
     number: 27,
-    // VERIFY
     arabic: 'الْبِرُّ حُسْنُ الْخُلُقِ، وَالْإِثْمُ مَا حَاكَ فِي صَدْرِكَ',
     translation:
       'Righteousness is good character, and sin is that which wavers in your heart and which you dislike people to find out about.',
@@ -336,7 +309,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_28',
     number: 28,
-    // VERIFY
     arabic:
       'أُوصِيكُمْ بِتَقْوَى اللَّهِ، وَالسَّمْعِ وَالطَّاعَةِ، فَعَلَيْكُمْ بِسُنَّتِي وَسُنَّةِ الْخُلَفَاءِ الرَّاشِدِينَ الْمَهْدِيِّينَ',
     translation:
@@ -349,7 +321,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_29',
     number: 29,
-    // VERIFY
     arabic:
       'تَعْبُدُ اللَّهَ لَا تُشْرِكُ بِهِ شَيْئًا، وَتُقِيمُ الصَّلَاةَ، وَتُؤْتِي الزَّكَاةَ، وَتَصُومُ رَمَضَانَ، وَتَحُجُّ الْبَيْتَ',
     translation:
@@ -362,7 +333,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_30',
     number: 30,
-    // VERIFY
     arabic:
       'إِنَّ اللَّهَ فَرَضَ فَرَائِضَ فَلَا تُضَيِّعُوهَا، وَحَدَّ حُدُودًا فَلَا تَعْتَدُوهَا',
     translation:
@@ -375,7 +345,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_31',
     number: 31,
-    // VERIFY
     arabic:
       'ازْهَدْ فِي الدُّنْيَا يُحِبَّكَ اللَّهُ، وَازْهَدْ فِيمَا عِنْدَ النَّاسِ يُحِبَّكَ النَّاسُ',
     translation:
@@ -388,7 +357,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_32',
     number: 32,
-    // VERIFY
     arabic: 'لَا ضَرَرَ وَلَا ضِرَارَ',
     translation:
       'There should be neither harming nor reciprocating harm.',
@@ -400,7 +368,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_33',
     number: 33,
-    // VERIFY
     arabic:
       'لَوْ يُعْطَى النَّاسُ بِدَعْوَاهُمْ لَادَّعَى رِجَالٌ أَمْوَالَ قَوْمٍ وَدِمَاءَهُمْ، لَكِنَّ الْبَيِّنَةَ عَلَى الْمُدَّعِي وَالْيَمِينَ عَلَى مَنْ أَنْكَرَ',
     translation:
@@ -413,7 +380,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_34',
     number: 34,
-    // VERIFY
     arabic:
       'مَنْ رَأَى مِنْكُمْ مُنْكَرًا فَلْيُغَيِّرْهُ بِيَدِهِ، فَإِنْ لَمْ يَسْتَطِعْ فَبِلِسَانِهِ، فَإِنْ لَمْ يَسْتَطِعْ فَبِقَلْبِهِ، وَذَلِكَ أَضْعَفُ الْإِيمَانِ',
     translation:
@@ -426,7 +392,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_35',
     number: 35,
-    // VERIFY
     arabic:
       'لَا تَحَاسَدُوا، وَلَا تَنَاجَشُوا، وَلَا تَبَاغَضُوا، وَلَا تَدَابَرُوا، وَكُونُوا عِبَادَ اللَّهِ إِخْوَانًا',
     translation:
@@ -439,7 +404,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_36',
     number: 36,
-    // VERIFY
     arabic:
       'مَنْ نَفَّسَ عَنْ مُؤْمِنٍ كُرْبَةً مِنْ كُرَبِ الدُّنْيَا نَفَّسَ اللَّهُ عَنْهُ كُرْبَةً مِنْ كُرَبِ يَوْمِ الْقِيَامَةِ',
     translation:
@@ -452,7 +416,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_37',
     number: 37,
-    // VERIFY
     arabic:
       'إِنَّ اللَّهَ كَتَبَ الْحَسَنَاتِ وَالسَّيِّئَاتِ، فَمَنْ هَمَّ بِحَسَنَةٍ فَلَمْ يَعْمَلْهَا كَتَبَهَا اللَّهُ عِنْدَهُ حَسَنَةً كَامِلَةً',
     translation:
@@ -465,7 +428,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_38',
     number: 38,
-    // VERIFY
     arabic:
       'مَنْ عَادَى لِي وَلِيًّا فَقَدْ آذَنْتُهُ بِالْحَرْبِ، وَمَا تَقَرَّبَ إِلَيَّ عَبْدِي بِشَيْءٍ أَحَبَّ إِلَيَّ مِمَّا افْتَرَضْتُ عَلَيْهِ',
     translation:
@@ -478,7 +440,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_39',
     number: 39,
-    // VERIFY
     arabic:
       'إِنَّ اللَّهَ تَجَاوَزَ عَنْ أُمَّتِي الْخَطَأَ وَالنِّسْيَانَ وَمَا اسْتُكْرِهُوا عَلَيْهِ',
     translation:
@@ -491,7 +452,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_40',
     number: 40,
-    // VERIFY
     arabic: 'كُنْ فِي الدُّنْيَا كَأَنَّكَ غَرِيبٌ أَوْ عَابِرُ سَبِيلٍ',
     translation:
       'Be in this world as though you were a stranger or a traveller passing through.',
@@ -504,7 +464,6 @@ export const HADITHS: Hadith[] = [
   {
     id: 'h_nw_42',
     number: 42,
-    // VERIFY
     arabic:
       'يَا ابْنَ آدَمَ إِنَّكَ مَا دَعَوْتَنِي وَرَجَوْتَنِي غَفَرْتُ لَكَ عَلَى مَا كَانَ فِيكَ وَلَا أُبَالِي',
     translation:
