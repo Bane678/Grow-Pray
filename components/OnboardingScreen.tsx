@@ -21,7 +21,7 @@ import * as Notifications from 'expo-notifications';
 import * as Haptics from 'expo-haptics';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { PREMIUM_PLANS, type LocalizedPrices } from '../hooks/usePremium';
+import { PREMIUM_PLANS, FREE_LIMITS, PREMIUM_LIMITS, type LocalizedPrices } from '../hooks/usePremium';
 import { usePrayerTimes, Timings } from '../hooks/usePrayerTimes';
 import { FONTS } from '../theme/typography';
 import { GardenGrowthPreview } from './GardenGrowthPreview';
@@ -1314,44 +1314,47 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               keep the whole page on one screen. */}
           <GardenScaleShowcase height={SCREEN_HEIGHT * 0.165} />
 
-          {/* What's free comes FIRST - the Qur'an is never behind a lock, and
-              saying so is the strongest trust move on this screen. */}
-          <View style={nstyles.freeStripTight}>
-            <Text style={nstyles.freeStripLabel}>YOURS FREE, ALWAYS</Text>
-            {/* No "your garden" here: a garden is what the app IS, not
-                something being granted, so listing it reads as padding. */}
-            <Text style={nstyles.freeStripTextTight}>
-              Full Qur'an · Nawawi's 40 · Prayer times · Duas
-            </Text>
-          </View>
-
           {/* Title - references the garden (a game object), never the niyyah */}
           <Text style={nstyles.paywallTitleTight}>Help it flourish.</Text>
 
-          {/* Benefits.
-              Four, in a fixed two-column grid rather than six bordered pills
-              wrapping into ragged rows - the pill chrome was six more outlines
-              and fills stacked directly under the already-outlined free strip,
-              which is what made this page feel crowded. Gold is carried by the
-              icons alone now, so the accent still reads as premium without
-              every line shouting.
+          {/* Free vs premium, side by side.
+              This screen used to state the two halves separately - a bordered
+              "yours free" strip, then a detached list of premium perks - which
+              left the reader to hold one in their head while reading the other
+              and work out the difference themselves. Nobody does that on a
+              paywall. Putting both in one row per feature makes the gap the
+              thing you actually see, and it is the gap that sells.
 
-              "Grow beyond 7x7" rather than "Unlimited garden": naming the free
-              cap is what makes this a gate worth paying to lift. A garden on
-              its own is not a premium feature - every user has one. */}
-          <View style={nstyles.benefitsTight}>
+              Five rows, not nine: the in-app paywall carries the full table,
+              but this one has to share a single unscrolled screen with the
+              hero, the plans and the CTA. Every value below is the real gate -
+              FREE_LIMITS / PREMIUM_LIMITS and the premiumOnly tree flags. */}
+          <View style={nstyles.cmpTable}>
+            <View style={nstyles.cmpHeadRow}>
+              <View style={{ flex: 1 }} />
+              <Text style={nstyles.cmpHeadFree}>FREE</Text>
+              <Text style={nstyles.cmpHeadPrem}>PREMIUM</Text>
+            </View>
             {[
-              { icon: 'grid' as const, text: 'Grow beyond 7×7' },
-              { icon: 'circle-multiple' as const, text: '2× coin earning' },
-              { icon: 'tree' as const, text: 'Golden Tree & Cedar' },
-              { icon: 'snowflake' as const, text: '3 freezes monthly' },
-            ].map((b, i) => (
-              <View key={i} style={nstyles.benefitItem}>
-                <MaterialCommunityIcons name={b.icon} size={14} color="#d9a75f" />
-                <Text style={nstyles.benefitItemText} numberOfLines={1}>{b.text}</Text>
+              { label: 'Garden size',      free: `${FREE_LIMITS.maxGridSize}×${FREE_LIMITS.maxGridSize}`, prem: 'Unlimited' },
+              { label: 'Coin earning',     free: '1×',          prem: `${PREMIUM_LIMITS.coinMultiplier}×` },
+              { label: 'Premium trees',    free: 'Locked',      prem: 'Unlocked' },
+              { label: 'Streak freezes',   free: 'None',        prem: `${PREMIUM_LIMITS.monthlyFreeFreezes} / month` },
+              { label: 'Insights & notes', free: 'Locked',      prem: 'Unlocked' },
+            ].map((r, i, arr) => (
+              <View key={r.label} style={[nstyles.cmpRow, i === arr.length - 1 && nstyles.cmpRowLast]}>
+                <Text style={nstyles.cmpFeature} numberOfLines={1}>{r.label}</Text>
+                <Text style={nstyles.cmpFree} numberOfLines={1}>{r.free}</Text>
+                <Text style={nstyles.cmpPrem} numberOfLines={1}>{r.prem}</Text>
               </View>
             ))}
           </View>
+
+          {/* The anti-paywall promise still earns its place, but as one quiet
+              line rather than a bordered box competing with the table. */}
+          <Text style={nstyles.cmpFootnote}>
+            The full Qur'an, Nawawi's 40, prayer times and duas stay free for everyone, always.
+          </Text>
 
           {/* Plan selector.
               Full-width rows rather than side-by-side cards: yearly has four
@@ -2773,14 +2776,6 @@ const nstyles = StyleSheet.create({
     paddingHorizontal: 14,
     marginBottom: 16,
   },
-  freeStripLabel: {
-    color: '#f0c27a',
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 1.4,
-    marginBottom: 3,
-  },
-  freeStripText: { color: 'rgba(247,241,232,0.8)', fontSize: 12.5, lineHeight: 18 },
 
   // Summary additions
   freeRow: {
@@ -2847,17 +2842,6 @@ const nstyles = StyleSheet.create({
     paddingTop: 10,
     paddingBottom: 14,
   },
-  freeStripTight: {
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: 'rgba(240,194,122,0.35)',
-    backgroundColor: 'rgba(240,194,122,0.08)',
-    paddingVertical: 7,
-    paddingHorizontal: 12,
-    marginTop: 6,
-    marginBottom: 10,
-  },
-  freeStripTextTight: { color: 'rgba(247,241,232,0.82)', fontSize: 11.5, lineHeight: 16 },
   paywallTitleTight: {
     color: '#ffffff',
     fontSize: 25,
@@ -2867,27 +2851,58 @@ const nstyles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 10,
   },
-  benefitsTight: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    rowGap: 8,
-    marginBottom: 12,
-    paddingHorizontal: 2,
+  // ─── Free vs premium table ────────────────────────────────────────────────
+  // No outer border or fill: the row rules alone carry the structure, so the
+  // comparison reads as information rather than as another boxed panel.
+  cmpTable: { marginBottom: 8 },
+  cmpHeadRow: { flexDirection: 'row', alignItems: 'center', paddingBottom: 5 },
+  cmpHeadFree: {
+    width: 68,
+    textAlign: 'center',
+    color: 'rgba(247,241,232,0.40)',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 1.1,
   },
-  // Half-width so the four land as a steady 2x2 grid. Ragged centre-wrapped
-  // rows were a large part of what made this page feel noisy.
-  benefitItem: {
-    width: '50%',
+  cmpHeadPrem: {
+    width: 84,
+    textAlign: 'center',
+    color: '#f0c27a',
+    fontSize: 9.5,
+    fontWeight: '800',
+    letterSpacing: 1.1,
+  },
+  cmpRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    paddingRight: 8,
+    paddingVertical: 5,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.06)',
   },
-  benefitItemText: {
-    color: 'rgba(247,241,232,0.88)',
+  cmpRowLast: { borderBottomWidth: 0 },
+  cmpFeature: { flex: 1, color: 'rgba(247,241,232,0.88)', fontSize: 12.5 },
+  // Free column deliberately dimmer than premium - the eye should land on the
+  // right-hand column, which is the one being sold.
+  cmpFree: {
+    width: 68,
+    textAlign: 'center',
+    color: 'rgba(247,241,232,0.42)',
     fontSize: 12,
-    fontWeight: '600',
-    flexShrink: 1,
+  },
+  cmpPrem: {
+    width: 84,
+    textAlign: 'center',
+    color: '#e8c97e',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cmpFootnote: {
+    color: 'rgba(247,241,232,0.45)',
+    fontSize: 10.5,
+    lineHeight: 14,
+    textAlign: 'center',
+    marginBottom: 10,
+    paddingHorizontal: 4,
   },
   // ─── Reflections card ──────────────────────────────────────────────────────
   reflWrap: { alignItems: 'center', paddingHorizontal: 4 },
