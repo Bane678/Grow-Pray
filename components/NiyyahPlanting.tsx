@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet, Pressable, Easing } from 'react-native';
+import { View, Image, Animated, StyleSheet, Pressable, Easing } from 'react-native';
 import Svg, { Circle, Ellipse, Path, Defs, RadialGradient, Stop } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
 
@@ -150,8 +150,38 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
     return () => bobLoop.current?.stop();
   }, [planted]);
 
+  // True only for the very first pass of the effect below. It separates the two
+  // ways this component can find itself planted, which need opposite handling.
+  const firstPass = useRef(true);
+
   useEffect(() => {
-    if (planted) return;
+    const isFirstPass = firstPass.current;
+    firstPass.current = false;
+
+    if (planted) {
+      // Mounting ALREADY planted means the user has come back to this step
+      // after continuing past it. Every animated value starts at 0 on a fresh
+      // mount, and the ceremony that would normally drive them to their end
+      // state has already happened in a previous mount - so without this the
+      // tile renders bare: no sapling (sprout 0), the seed sitting back on top
+      // of undisturbed earth, and the hold gesture disabled because `planted`
+      // is true. That reads as a broken planter. Snap straight to the settled
+      // end state instead.
+      //
+      // A live plant (planted flipping false -> true while mounted) must NOT
+      // take this path, or it would jump to the end and skip the animation
+      // finish() is in the middle of playing.
+      if (isFirstPass) {
+        holdRing.setValue(1);
+        holdSeed.setValue(1);
+        seedGone.setValue(1);
+        burst.setValue(1);
+        sparkle.setValue(1);
+        sprout.setValue(1);
+        settle.setValue(0); // the soil springs back to rest at the end
+      }
+      return;
+    }
     holdRing.setValue(0);
     holdSeed.setValue(0);
     burst.setValue(0);
@@ -367,6 +397,55 @@ export function NiyyahPlanting({ planted, onPlanted }: NiyyahPlantingProps) {
     </Pressable>
   );
 }
+
+/**
+ * The settled end state on its own - earth, the warm light pooled on it, and
+ * the sapling standing in it. No ring, no seed, no gesture.
+ *
+ * Shares TILE_CY, SAPLING_TOP and SAPLING_ANCHOR with the ceremony above, so
+ * the trunk base lands on the tile exactly where it does there. It exists
+ * because the "first prayer" screen was drawing its own copy of this scene from
+ * loose numbers, and those numbers had drifted: a square 92x92 box for a sprite
+ * that is not square, anchored ~22px above the soil, leaving the sapling
+ * floating off the tile. Anything that needs to show a planted tile should use
+ * this rather than rebuild it.
+ */
+export function PlantedTile() {
+  return (
+    <View style={plantedStyles.stage}>
+      <View style={plantedStyles.glowWrap}>
+        <RadialGlow size={GLOW_SIZE} color="#d9a75f" intensity={0.5} id="plantedTileGlow" />
+      </View>
+      <Image source={TILE_RECOVERED} resizeMode="contain" style={styles.tile} />
+      <Image source={SAPLING} resizeMode="contain" style={plantedStyles.sapling} />
+      <View style={plantedStyles.bloomWrap}>
+        <RadialGlow size={BLOOM_SIZE} color="#f8deb2" intensity={0.62} id="plantedTileBloom" />
+      </View>
+    </View>
+  );
+}
+
+// No ring to leave room for, so the stage stops just below the earth.
+const PLANTED_STAGE_H = TILE_CY + TILE_H / 2 + 10;
+
+const plantedStyles = StyleSheet.create({
+  stage: { width: STAGE_W, height: PLANTED_STAGE_H, alignItems: 'center' },
+  glowWrap: {
+    position: 'absolute',
+    width: GLOW_SIZE,
+    height: GLOW_SIZE,
+    top: TILE_CY + 10 - GLOW_SIZE / 2,
+    transform: [{ scale: 1.12 }],
+  },
+  sapling: { position: 'absolute', width: SAPLING_W, height: SAPLING_H, top: SAPLING_TOP },
+  bloomWrap: {
+    position: 'absolute',
+    width: BLOOM_SIZE,
+    height: BLOOM_SIZE,
+    top: TILE_CY - BLOOM_SIZE / 2,
+    opacity: 0.45,
+  },
+});
 
 const styles = StyleSheet.create({
   stage: { width: STAGE_W, height: STAGE_H, alignItems: 'center' },

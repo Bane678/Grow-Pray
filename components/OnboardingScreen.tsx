@@ -26,7 +26,7 @@ import { usePrayerTimes, Timings } from '../hooks/usePrayerTimes';
 import { FONTS } from '../theme/typography';
 import { GardenGrowthPreview } from './GardenGrowthPreview';
 import { GardenScaleShowcase } from './GardenScaleShowcase';
-import { NiyyahPlanting, Seed } from './NiyyahPlanting';
+import { NiyyahPlanting, PlantedTile, Seed } from './NiyyahPlanting';
 
 const ICON_LOCATION = require('../assets/Garden Assets/Icons/Icon_Location.png');
 const ICON_BELL = require('../assets/Garden Assets/Icons/Icon_Bell.png');
@@ -36,7 +36,6 @@ const OB_PLAN     = require('../assets/Garden Assets/Icons/Onboarding_Plan.png')
 // (The old AI-generated paywall hero is gone - the paywall now uses the
 //  GardenScaleShowcase animation instead. Asset kept on disk, unused here.)
 // The seed the user plants during onboarding sprouts into the Basic sapling.
-const SAPLING_BASIC = require('../assets/Garden Assets/Tree Types/Basic Trees/Sapling_converted.png');
 
 // Tree sprites + tiles for the redesigned free-warning animated transformation (card 21).
 // The whole sequence uses the premium Golden Tree across its real growth stages, so the
@@ -126,7 +125,7 @@ type InsightCard = {
 
 const STEPS: Step[] = [
   // 0 - Opening: the promise, with the loop shown live
-  { kind: 'welcome', title: 'Salaam.', body: 'Five daily prayers. One living garden. Every salah you keep is planted - and everything you grow stays on this phone.', cta: 'Bismillah' },
+  { kind: 'welcome', title: 'Salaam.', body: 'Every salah you keep plants something. Week by week a garden grows out of your prayers - yours alone, on this phone, with no account to create.', cta: 'Bismillah' },
 
   // 1 - Ayah (Qur'an 29:45)
   {
@@ -471,7 +470,6 @@ const transformStyles = StyleSheet.create({
 
 // Canvas size shared by the planting ceremony and the first-prayer sprout beat,
 // so the tile sits in exactly the same place across both screens.
-const PLANT_STAGE_SIZE = 230;
 
 // ── Prayer-time helpers for the payoff screens ─────────────────────────────────
 const PRAYER_SEQ = ['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const;
@@ -543,6 +541,9 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
   // niyyah, and the adaptive first-prayer answer.
   const [locGranted, setLocGranted] = useState(false);
   const [planted, setPlanted] = useState(false);
+  // Set when the user continues past the planting step. From then on the
+  // ceremony is over - see goBack.
+  const [niyyahCommitted, setNiyyahCommitted] = useState(false);
   const [firstPrayerAnswer, setFirstPrayerAnswer] = useState<'yes' | 'no' | null>(null);
 
   const dynamicSteps = STEPS;
@@ -788,7 +789,11 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     // Leaving the planting step backwards un-plants the seed, so the user can
     // change their niyyah and plant again. Without this the tile stays in its
     // planted state and the hold gesture is permanently disabled.
-    if (currentStep.kind === 'niyyahPlanting' && planted) {
+    //
+    // Only while the niyyah is still uncommitted, though: once they have
+    // continued past this step the seed stays planted no matter how they
+    // navigate back to it.
+    if (currentStep.kind === 'niyyahPlanting' && planted && !niyyahCommitted) {
       setPlanted(false);
       AsyncStorage.removeItem(SEED_PENDING_KEY).catch(() => {});
       AsyncStorage.removeItem(NIYYAH_KEY).catch(() => {});
@@ -830,6 +835,13 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     if (currentStep.kind === 'madhab' && selectedMadhab) {
       await AsyncStorage.setItem(MADHAB_KEY, selectedMadhab);
       onMadhabChange?.(selectedMadhab);
+    }
+    // Continuing past the planting step commits the niyyah. Before this point
+    // going back re-opens the ceremony so the intention can be changed; after
+    // it, the seed is in the ground for good and coming back here only ever
+    // shows it planted.
+    if (currentStep.kind === 'niyyahPlanting' && planted) {
+      setNiyyahCommitted(true);
     }
     if (step === TOTAL_STEPS - 1) {
       await finishOnboarding();
@@ -1237,11 +1249,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <View style={nstyles.plantWrap}>
             <StarRow />
             <View style={nstyles.plantTileArea}>
-              <View style={{ width: PLANT_STAGE_SIZE, height: PLANT_STAGE_SIZE, alignItems: 'center', justifyContent: 'center' }}>
-                <View style={nstyles.plantGlow} />
-                <Image source={TILE_RECOVERED} style={nstyles.plantTile} resizeMode="contain" />
-                <Image source={SAPLING_BASIC} style={nstyles.sproutImg} resizeMode="contain" />
-              </View>
+              <PlantedTile />
             </View>
             <Text style={[styles.title, { textAlign: 'center' }]}>Your first prayer - planted.</Text>
             <Text style={[styles.body, { textAlign: 'center' }]}>
@@ -1612,9 +1620,9 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
             <View style={styles.pillarHeroOverlay} />
           </View>
           <View style={styles.pillarContent}>
-            <Text style={styles.pillarTitle}>Your personalised path</Text>
+            <Text style={styles.pillarTitle}>This is where you start.</Text>
             <Text style={styles.pillarBody}>
-              {`You ${routineLabel[routine ?? 'starting'] ?? 'are on a journey'} and want to ${goalLabel[goal ?? 'consistency'] ?? 'build better habits'}. Here is what Grow Pray will focus on for you:`}
+              {`You ${routineLabel[routine ?? 'starting'] ?? 'are on a journey'} and want to ${goalLabel[goal ?? 'consistency'] ?? 'build better habits'}. Grow Pray will put these first:`}
             </Text>
             {/* Pinned first, gold: the anti-lock message. The Qur'an is an
                 acquisition asset here, never a padlock. */}
@@ -2738,15 +2746,6 @@ const nstyles = StyleSheet.create({
     paddingHorizontal: 6,
   },
   plantTileArea: { alignItems: 'center', justifyContent: 'center', marginVertical: 8 },
-  plantGlow: {
-    position: 'absolute',
-    width: 150,
-    height: 150,
-    borderRadius: 75,
-    backgroundColor: 'rgba(217,167,95,0.14)',
-  },
-  plantTile: { width: 140, height: 70 },
-  sproutImg: { position: 'absolute', width: 92, height: 92, top: 24 },
   plantHint: {
     color: 'rgba(247,241,232,0.55)',
     fontSize: 14,
