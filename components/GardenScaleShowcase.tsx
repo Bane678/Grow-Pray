@@ -71,7 +71,7 @@ export const GARDEN_STAGES: GardenStage[] = [
 
 const GROUND = require('../assets/Garden Assets/Ground Tiles/Recovered_Tile.png');
 
-const STAGE_MS = 1400;   // how long each stage holds
+const STAGE_MS = 1900;   // how long each stage holds
 const FADE_MS = 520;     // cross-fade duration
 
 // Natural bounds of the composition in garden units, with the tile centre at 0.

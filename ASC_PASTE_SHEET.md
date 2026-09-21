@@ -3,6 +3,13 @@
 Everything you type into App Store Connect, ready to copy. Work top to bottom.
 URLs are the live growpray.com ones (already verified loading over HTTPS).
 
+> ⚠️ This sheet duplicates the listing copy held in `APP_STORE_METADATA.md`.
+> The two drifted once already: this one went on advertising a Ramadan Mode
+> that does not exist, a configurable grace period that was never built, an
+> 11×11 garden cap, and a 7-day trial, months after those were corrected in the
+> other file. **Change both, or change neither.** Every claim here should be
+> checkable against the code before it goes to Apple.
+
 Sign in: https://appstoreconnect.apple.com → **Apps** → **Grow Pray**.
 
 ---
@@ -85,11 +92,10 @@ Grow Pray turns your daily prayers into a living, growing garden. Every salah yo
 🌿 PRAYER TRACKING MADE BEAUTIFUL
 • Track all 5 daily prayers (Fajr, Dhuhr, Asr, Maghrib, Isha)
 • Accurate prayer times based on your location
-• Grace period support (15-60 minutes configurable)
 • Smart notifications before each prayer window closes
 
 🌳 GROW YOUR GARDEN
-• Start with a 5×5 garden and expand up to 11×11
+• Start with a 5×5 garden and expand it as you keep praying
 • Earn XP and coins for every prayer completed
 • Plant unique tree varieties from the Garden Shop
 • Watch trees grow through 4 stages as you stay consistent
@@ -105,16 +111,14 @@ Grow Pray turns your daily prayers into a living, growing garden. Every salah yo
 • Purchase streak freezes to protect your hard-earned streaks
 • Unlock garden expansions to grow your paradise
 
-🌙 RAMADAN MODE
-• Special 2× XP during the blessed month
-• Exclusive Ramadan content and challenges
-
 💎 PREMIUM FEATURES
 • Unlimited garden size
 • 2× coin earning rate
 • Exclusive premium tree varieties
-• Advanced prayer insights and trends
-• Priority support
+• 3 free streak freezes every month
+• Save and annotate your favourite verses
+• Custom dhikr targets and dhikr streaks
+• Prayer insights and trends
 
 🧭 WORSHIP TOOLS
 • Qibla compass to find the direction of the Kaaba
@@ -150,7 +154,6 @@ Your first release includes:
 • Weekly challenges
 • Streak freeze protection
 • Consistency multiplier rewards
-• Ramadan mode with 2× XP
 • Qibla compass, tasbih, duas & adhkar, and a daily reflection
 • Premium subscription option
 • Beautiful pixel-art garden with gesture controls
@@ -168,7 +171,7 @@ To test the app:
 2. Tap any prayer button to mark it complete and watch the tree grow
 3. Visit the Shop (bag icon) to see purchasable trees and items
 
-Subscription: $6.99/month or $44.99/year with a 7-day free trial.
+Subscription: $6.99/month or $44.99/year with a 14-day free trial.
 Premium unlocks unlimited garden size, 2× coins, and exclusive trees.
 
 No login required. All data is stored locally on device. No ads.

@@ -1318,27 +1318,37 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               saying so is the strongest trust move on this screen. */}
           <View style={nstyles.freeStripTight}>
             <Text style={nstyles.freeStripLabel}>YOURS FREE, ALWAYS</Text>
+            {/* No "your garden" here: a garden is what the app IS, not
+                something being granted, so listing it reads as padding. */}
             <Text style={nstyles.freeStripTextTight}>
-              Full Qur'an · Nawawi's 40 · Prayer times · Duas · Your garden
+              Full Qur'an · Nawawi's 40 · Prayer times · Duas
             </Text>
           </View>
 
           {/* Title - references the garden (a game object), never the niyyah */}
           <Text style={nstyles.paywallTitleTight}>Help it flourish.</Text>
 
-          {/* Benefits - conveniences and the personal layer only */}
+          {/* Benefits.
+              Four, in a fixed two-column grid rather than six bordered pills
+              wrapping into ragged rows - the pill chrome was six more outlines
+              and fills stacked directly under the already-outlined free strip,
+              which is what made this page feel crowded. Gold is carried by the
+              icons alone now, so the accent still reads as premium without
+              every line shouting.
+
+              "Grow beyond 7x7" rather than "Unlimited garden": naming the free
+              cap is what makes this a gate worth paying to lift. A garden on
+              its own is not a premium feature - every user has one. */}
           <View style={nstyles.benefitsTight}>
             {[
-              { icon: 'grid' as const, text: 'Unlimited garden' },
-              { icon: 'circle-multiple' as const, text: '2x coins & XP' },
+              { icon: 'grid' as const, text: 'Grow beyond 7×7' },
+              { icon: 'circle-multiple' as const, text: '2× coin earning' },
               { icon: 'tree' as const, text: 'Golden Tree & Cedar' },
               { icon: 'snowflake' as const, text: '3 freezes monthly' },
-              { icon: 'chart-line' as const, text: 'Advanced insights' },
-              { icon: 'pencil-plus-outline' as const, text: 'Annotate verses' },
             ].map((b, i) => (
-              <View key={i} style={nstyles.benefitPillTight}>
-                <MaterialCommunityIcons name={b.icon} size={13} color="#d9a75f" />
-                <Text style={nstyles.benefitPillTextTight}>{b.text}</Text>
+              <View key={i} style={nstyles.benefitItem}>
+                <MaterialCommunityIcons name={b.icon} size={14} color="#d9a75f" />
+                <Text style={nstyles.benefitItemText} numberOfLines={1}>{b.text}</Text>
               </View>
             ))}
           </View>
@@ -2860,22 +2870,25 @@ const nstyles = StyleSheet.create({
   benefitsTight: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 6,
+    rowGap: 8,
     marginBottom: 12,
+    paddingHorizontal: 2,
   },
-  benefitPillTight: {
+  // Half-width so the four land as a steady 2x2 grid. Ragged centre-wrapped
+  // rows were a large part of what made this page feel noisy.
+  benefitItem: {
+    width: '50%',
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 5,
-    paddingHorizontal: 9,
-    paddingVertical: 5,
-    borderRadius: 999,
-    backgroundColor: 'rgba(217,167,95,0.10)',
-    borderWidth: 1,
-    borderColor: 'rgba(217,167,95,0.22)',
+    gap: 6,
+    paddingRight: 8,
   },
-  benefitPillTextTight: { color: '#e8c97e', fontSize: 11, fontWeight: '600' },
+  benefitItemText: {
+    color: 'rgba(247,241,232,0.88)',
+    fontSize: 12,
+    fontWeight: '600',
+    flexShrink: 1,
+  },
   // ─── Reflections card ──────────────────────────────────────────────────────
   reflWrap: { alignItems: 'center', paddingHorizontal: 4 },
   reflEyebrow: {
