@@ -1,7 +1,13 @@
 import React, { useRef, useState, useEffect, useLayoutEffect, useMemo, useCallback } from 'react';
 import { View, Text, StyleSheet, Image, Animated, Easing, Dimensions } from 'react-native';
 import { GestureHandlerRootView, PinchGestureHandler, PanGestureHandler, State, Gesture, GestureDetector } from 'react-native-gesture-handler';
-import { TileState, PlantedTree, TileTransition } from '../hooks/useGardenState';
+import { TileState, PlantedTree, TileTransition, MAX_GRID_SIZE } from '../hooks/useGardenState';
+
+// Centre of the MAX_GRID_SIZE coordinate space every tile position is expressed
+// against. Derived rather than written as a literal: three places used to hard
+// code 10 for the shipped 21x21 grid, and on a larger grid `maxCenter - half`
+// goes negative, putting every tile at an out-of-range coordinate.
+const GRID_CENTER = Math.floor(MAX_GRID_SIZE / 2);
 import { TREE_CATALOG } from './ShopModal';
 import { Audio } from 'expo-av';
 import * as Haptics from 'expo-haptics';
@@ -521,7 +527,7 @@ const generateDeadTreePositions = (maxGridSize: number) => {
 };
 
 // All possible dead tree positions (computed once)
-const ALL_DEAD_TREE_POSITIONS = generateDeadTreePositions(21); // MAX_GRID_SIZE from hook
+const ALL_DEAD_TREE_POSITIONS = generateDeadTreePositions(MAX_GRID_SIZE);
 
 // Rotates local grid coordinates to simulate camera orbiting the garden.
 // This changes which tiles appear in front/back - the actual isometric camera rotation.
@@ -1723,7 +1729,7 @@ function IsometricGrid({
 
     // Dead trees visible in current grid
     const visibleDeadTrees = useMemo(() => {
-        const maxCenter = 10; // center of MAX_GRID_SIZE=21
+        const maxCenter = GRID_CENTER;
         const half = Math.floor(gridSize / 2);
         return ALL_DEAD_TREE_POSITIONS.filter(({ row, col }) => {
             // Must be within current visible grid
@@ -1794,8 +1800,8 @@ function IsometricGrid({
     const scaledTreeHeight = TREE_HEIGHT * treeScale * TREE_SQUASH;
     const treeAsset = ASSETS[currentStage.asset as keyof typeof ASSETS];
 
-    // We render only the visible portion of the MAX_GRID_SIZE=21 coordinate space
-    const maxCenter = 10; // Math.floor(21 / 2)
+    // We render only the visible portion of the MAX_GRID_SIZE coordinate space
+    const maxCenter = GRID_CENTER;
     const half = Math.floor(gridSize / 2);
     const startRow = maxCenter - half;
     const endRow = maxCenter + half;
@@ -2869,7 +2875,7 @@ export const GardenScene = React.memo(function GardenScene({
         const positions: { x: number; y: number; isFlourishing: boolean }[] = [];
         let grownCount = 0;
         const half = Math.floor(gridSize / 2);
-        const maxCenter = 10;
+        const maxCenter = GRID_CENTER;
         const startRow = maxCenter - half;
         const startCol = maxCenter - half;
         const maxLocal = gridSize - 1;
@@ -3059,7 +3065,14 @@ export const GardenScene = React.memo(function GardenScene({
     // garden fits (with a little margin) and no further - a small garden can't
     // shrink to a speck, a large one can zoom out enough to see all of it.
     const fitScale = Math.min(SCREEN_W / contentW, SCREEN_H / contentH);
-    const MIN_SCALE = Math.max(0.14, Math.min(0.9, fitScale * 0.9));
+    // MARKETING BUILD: floor dropped from 0.14 to 0.04.
+    //
+    // 0.14 was calibrated to the shipped 21x21 grid - fitting that on screen
+    // needs roughly 0.143, so the floor sat just under it and enforced "pull
+    // back until the whole garden fits, and no further". On a 41x41 the fit
+    // scale is about 0.073, so the old floor would clamp the zoom well before
+    // the garden fitted and the outer rings could never be brought into frame.
+    const MIN_SCALE = Math.max(0.04, Math.min(0.9, fitScale * 0.9));
     const MAX_SCALE = 4;
 
     // The pannable "environment" - a bounded region, larger than the garden and

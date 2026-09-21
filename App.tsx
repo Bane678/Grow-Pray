@@ -5252,8 +5252,11 @@ function AppInner() {
                     { key: 'small' as const,  text: 'Small',  hint: '5-7' },
                     { key: 'medium' as const, text: 'Medium', hint: '9-13' },
                     { key: 'large' as const,  text: 'Large',  hint: '15-19' },
+                    { key: 'huge' as const,   text: 'Huge',   hint: '23-31' },
+                    { key: 'max' as const,    text: 'Max',    hint: `${MAX_GRID_SIZE}x${MAX_GRID_SIZE}` },
                   ] },
                   { label: 'Trees', value: genDensity, set: setGenDensity, opts: [
+                    { key: 'empty' as const,   text: 'Empty',   hint: 'no trees' },
                     { key: 'sparse' as const,  text: 'Sparse',  hint: '10-20%' },
                     { key: 'partial' as const, text: 'Partial', hint: '30-50%' },
                     { key: 'dense' as const,   text: 'Dense',   hint: '72-92%' },

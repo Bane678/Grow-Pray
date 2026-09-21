@@ -70,22 +70,42 @@ export interface GardenStateResult {
   ) => Promise<{ gridSize: number; treeCount: number }>;
 }
 
-/** Dev-only garden generator presets (see debugGenerateGarden). */
-export type GardenSizePreset = 'small' | 'medium' | 'large';
-export type GardenDensityPreset = 'sparse' | 'partial' | 'dense';
+// MARKETING BUILD: raised from the shipped value of 21 so the garden can be
+// grown far past what the App Store build allows, for filming. Must stay odd -
+// the grid expands by 2 from 5, and the coordinate space is centred.
+//
+// Raising this alone is not enough; see the notes in GardenScene.tsx on the
+// derived centre and the zoom floor, both of which were calibrated to 21.
+export const MAX_GRID_SIZE = 41;
 
-// Grid sizes each preset rolls between. MAX_GRID_SIZE (21) stays out of the
-// pool: it is both the heaviest to render and reads as "finished" rather than
-// inviting. Sizes are always odd - the grid grows by 2 from 5.
+/** Dev-only garden generator presets (see debugGenerateGarden). */
+export type GardenSizePreset = 'small' | 'medium' | 'large' | 'huge' | 'max';
+export type GardenDensityPreset = 'empty' | 'sparse' | 'partial' | 'dense';
+
+// Grid sizes each preset rolls between. Sizes are always odd - the grid grows
+// by 2 from 5.
+//
+// MARKETING BUILD: on the shipped branch MAX_GRID_SIZE was deliberately kept
+// out of the pool, being both the heaviest to render and reading as "finished"
+// rather than inviting. Here it is the point: "huge" and "max" exist so a
+// filming session can reach sizes the App Store build will not allow.
 const SIZE_PRESETS: Record<GardenSizePreset, number[]> = {
   small: [5, 7],
   medium: [9, 11, 13],
   large: [15, 17, 19],
+  huge: [23, 27, 31],
+  max: [MAX_GRID_SIZE],
 };
 
 // Fraction of plantable tiles that get a tree. Ranges rather than fixed values
 // so repeated rolls at the same preset still differ.
+// MARKETING BUILD: "empty" added for the bare-garden phase of the video series.
+// It is also by far the lightest thing to render - no tree components at all,
+// and with the garden zoomed out the tile shimmer and sway are already stopped,
+// leaving static images only. That is what makes the oversized grids on this
+// branch filmable.
 const DENSITY_PRESETS: Record<GardenDensityPreset, [number, number]> = {
+  empty: [0, 0],
   sparse: [0.10, 0.20],
   partial: [0.30, 0.50],
   dense: [0.72, 0.92],
@@ -187,7 +207,6 @@ const DEAD_TREE_REMOVAL_REWARD = 5;
 
 // Grid expansion
 const GRID_EXPANSION_INCREMENT = 2;
-export const MAX_GRID_SIZE = 21;
 
 // ─── Tile Recovery Order Algorithm ────────────────────────────────────────────
 // Ring by ring, cross-first then corners within each ring

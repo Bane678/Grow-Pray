@@ -49,7 +49,9 @@ export const FREE_LIMITS = {
 } as const;
 
 export const PREMIUM_LIMITS = {
-  maxGridSize: 21,         // Unlimited garden (up to 21×21)
+  // MARKETING BUILD: matches the raised MAX_GRID_SIZE so premium is not the
+  // thing capping the garden during filming. Shipped value is 21.
+  maxGridSize: 41,         // Unlimited garden (up to 41×41 on this branch)
   coinMultiplier: 2,       // 2× coins
   monthlyFreeFreezes: 3,   // 3 free freezes on 1st of month
   premiumTrees: true,      // Can buy premium trees
