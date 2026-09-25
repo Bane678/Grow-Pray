@@ -2552,8 +2552,12 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     setRewardPopup({ visible: false, xp: 0, baseXp: 0, multiplier: 1, coins: 0 });
   };
 
-  // Debug: same as togglePrayerCompleted but bypasses the active-window check
+  // Debug: same as togglePrayerCompleted but bypasses the active-window check.
+  // Only reachable from the Developer Tools modal, which is itself behind
+  // __DEV__ - but the function body still ships as dead code, so it refuses to
+  // run in a release build rather than relying on that alone.
   const debugTogglePrayer = async (prayer: string) => {
+    if (!__DEV__) return;
     const newCompleted = new Set(completedPrayers);
     const wasCompleted = newCompleted.has(prayer);
     if (wasCompleted) {
@@ -2630,12 +2634,16 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     prayerHistory,
     detectedMethodKey,
     upcoming,
+    // Same reasoning as debugTogglePrayer: unreachable in a release build, but
+    // guarded rather than trusted to stay that way.
     debugSimulateMissed: async (prayers: string[]) => {
+      if (!__DEV__) return;
       // Clear the freeze-resolved guard so the prompt can fire again
       await AsyncStorage.removeItem('@GrowPray:freezeResolvedDate');
       setMissedPrayers(prayers);
     },
     debugSetXP: async (value: number) => {
+      if (!__DEV__) return;
       setXp(value);
       await AsyncStorage.setItem(XP_KEY, JSON.stringify(value));
     },
@@ -4172,6 +4180,7 @@ function AppInner() {
             onMadhabChange={setMadhab}
             onPurchaseMonthly={premium.purchaseMonthly}
             onPurchaseYearly={premium.purchaseYearly}
+            onRestore={premium.restorePurchases}
             prices={premium.prices}
           />
         <PrayerIconsPrerender />

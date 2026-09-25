@@ -886,6 +886,9 @@ export function useGardenState(xp: number, coins: number, onSpendCoins?: (amount
     applyXP: (xp: number) => Promise<void>,
     opts?: { size?: GardenSizePreset; density?: GardenDensityPreset },
   ): Promise<{ gridSize: number; treeCount: number }> => {
+    // Only ever invoked from the __DEV__ Developer Tools modal; refuses to run
+    // in a release build rather than relying on that gate alone.
+    if (!__DEV__) return { gridSize: 0, treeCount: 0 };
     const pick = <T,>(arr: T[]): T => arr[Math.floor(Math.random() * arr.length)];
 
     // No preset given: roll across the whole pool, the original behaviour.

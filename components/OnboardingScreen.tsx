@@ -29,6 +29,13 @@ import { GardenGrowthPreview } from './GardenGrowthPreview';
 import { GardenScaleShowcase } from './GardenScaleShowcase';
 import { NiyyahPlanting, PlantedTile, Seed } from './NiyyahPlanting';
 
+// Guideline 3.1.2: every screen that sells an auto-renewing subscription has to
+// carry functional Terms of Use and Privacy Policy links plus a way to restore.
+// These two onboarding screens sell one, so they need them exactly as the
+// in-app PaywallModal does - same URLs, kept in step with it by hand.
+const TERMS_OF_USE_URL = 'https://www.apple.com/legal/internet-services/itunes/dev/stdeula/';
+const PRIVACY_POLICY_URL = 'https://growpray.com/privacy-policy.html';
+
 const ICON_LOCATION = require('../assets/Garden Assets/Icons/Icon_Location.png');
 const ICON_BELL = require('../assets/Garden Assets/Icons/Icon_Bell.png');
 // Onboarding hero images
@@ -77,6 +84,7 @@ type OnboardingScreenProps = {
   onMadhabChange?: (madhab: 'hanafi' | 'standard') => void;
   onPurchaseMonthly?: () => Promise<boolean>;
   onPurchaseYearly?: () => Promise<boolean>;
+  onRestore?: () => Promise<boolean>;
   /**
    * Store prices in the user's own currency. Optional so the component can be
    * rendered standalone; falls back to the USD constants in PREMIUM_PLANS.
@@ -516,7 +524,7 @@ function lastBegunPrayerOf(timings: Timings): PrayerName {
 }
 
 
-export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly, onPurchaseYearly, prices: pricesProp }: OnboardingScreenProps) {
+export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly, onPurchaseYearly, onRestore, prices: pricesProp }: OnboardingScreenProps) {
   // USD constants are the last resort - used only if the store lookup hasn't
   // landed yet or the component is rendered without the prop.
   const prices: LocalizedPrices = pricesProp ?? {
@@ -538,6 +546,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
   const [insightCard, setInsightCard] = useState<InsightCard | null>(null);
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('yearly');
   const [purchasing, setPurchasing] = useState(false);
+  const [restoring, setRestoring] = useState(false);
   // New-flow state: location grant (drives the live-times payoff), the planted
   // niyyah, and the adaptive first-prayer answer.
   const [locGranted, setLocGranted] = useState(false);
@@ -767,6 +776,41 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       setPurchasing(false);
     }
   };
+
+  // A returning subscriber reinstalling the app meets these screens before any
+  // other part of the UI, so restore has to be reachable from here - not just
+  // from the in-app paywall they would have to buy their way past to reach.
+  const handleRestore = async () => {
+    if (restoring) return;
+    setRestoring(true);
+    try {
+      const ok = await onRestore?.();
+      if (ok) await finishOnboarding();
+    } catch (_) {
+      // Nothing to restore, or the store was unreachable - stay put.
+    } finally {
+      setRestoring(false);
+    }
+  };
+
+  // Guideline 3.1.2 furniture, shared by the two screens that sell a
+  // subscription. Kept identical on both so neither can drift out of
+  // compliance on its own.
+  const renderPurchaseLegal = () => (
+    <View style={nstyles.legalRow}>
+      <TouchableOpacity onPress={handleRestore} disabled={restoring} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={nstyles.legalLink}>{restoring ? 'Restoring…' : 'Restore'}</Text>
+      </TouchableOpacity>
+      <Text style={nstyles.legalDot}>·</Text>
+      <TouchableOpacity onPress={() => { Linking.openURL(TERMS_OF_USE_URL).catch(() => {}); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={nstyles.legalLink}>Terms of Use</Text>
+      </TouchableOpacity>
+      <Text style={nstyles.legalDot}>·</Text>
+      <TouchableOpacity onPress={() => { Linking.openURL(PRIVACY_POLICY_URL).catch(() => {}); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+        <Text style={nstyles.legalLink}>Privacy Policy</Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   const goBack = () => {
     if (insightCard) {
@@ -1493,6 +1537,8 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <TouchableOpacity onPress={goNext} style={nstyles.ghostButtonTight}>
             <Text style={nstyles.ghostButtonText}>Continue with the free garden</Text>
           </TouchableOpacity>
+
+          {renderPurchaseLegal()}
         </View>
       );
     }
@@ -1509,7 +1555,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       const trialDays = PREMIUM_PLANS.yearly.trialDays;
       const ceilings = [
         { icon: 'grid-off' as const, text: 'Garden stops at 7×7, permanently' },
-        { icon: 'speedometer-slow' as const, text: 'Coins & XP earn at half the rate' },
+        { icon: 'speedometer-slow' as const, text: 'Coins earn at half the rate' },
         { icon: 'snowflake-off' as const, text: 'No free monthly streak freezes' },
         { icon: 'tree-outline' as const, text: 'Golden Tree & Ancient Cedar stay locked' },
         { icon: 'chart-line' as const, text: 'No insight into your prayer patterns' },
@@ -1565,6 +1611,8 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <TouchableOpacity onPress={finishOnboarding} style={nstyles.ghostButtonTight}>
             <Text style={nstyles.ghostButtonText}>No thanks, keep the free garden</Text>
           </TouchableOpacity>
+
+          {renderPurchaseLegal()}
         </View>
       );
     }
@@ -3114,6 +3162,22 @@ const nstyles = StyleSheet.create({
     textAlign: 'center',
     marginTop: 7,
   },
+  // Guideline 3.1.2 links. Deliberately quiet but tappable - hitSlop does the
+  // work so the row can stay small enough not to fight the CTA above it.
+  legalRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+    gap: 6,
+  },
+  legalLink: {
+    color: 'rgba(247,241,232,0.42)',
+    fontSize: 10.5,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
+  },
+  legalDot: { color: 'rgba(247,241,232,0.28)', fontSize: 10.5 },
   ghostButtonTight: {
     marginTop: 10,
     height: 42,
