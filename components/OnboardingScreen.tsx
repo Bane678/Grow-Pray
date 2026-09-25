@@ -5,6 +5,7 @@ import {
   Easing,
   Image,
   KeyboardAvoidingView,
+  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -857,45 +858,48 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     animateToStep(step + 1);
   };
 
-  const handleLocation = async (request: boolean) => {
-    if (request) {
-      let granted = false;
-      try {
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        granted = status === 'granted';
-      } catch {
-        granted = false;
-      }
-      await AsyncStorage.setItem('@GrowPray:locationPrompted', 'true');
-      if (granted) {
-        // Don't advance - this card morphs into the "Your times are live"
-        // payoff state, and the user continues from there.
-        setLocationDenied(false);
-        setLocGranted(true);
-        return;
-      }
-      // Hard OS-level denial: show the settings caption; the skip button
-      // remains as the way forward.
-      setLocationDenied(true);
+  // App Review guideline 5.1.1(iv): a priming card may explain why we need the
+  // permission, but it must lead straight into the system prompt - it cannot
+  // offer a way to bypass it. So this is the card's only exit, and the way past
+  // the step appears afterwards, in whichever state iOS leaves us in.
+  const handleLocation = async () => {
+    let granted = false;
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      granted = status === 'granted';
+    } catch {
+      granted = false;
+    }
+    await AsyncStorage.setItem('@GrowPray:locationPrompted', 'true');
+    if (granted) {
+      // Don't advance - this card morphs into the "Your times are live"
+      // payoff state, and the user continues from there.
+      setLocationDenied(false);
+      setLocGranted(true);
       return;
     }
-    await AsyncStorage.setItem('@GrowPray:locationPrompted', 'skipped');
-    goNext();
+    // Declined at the OS level. The card becomes the "carry on without it"
+    // state, which is where the user moves on from.
+    setLocationDenied(true);
   };
 
-  const handleNotifications = async (request: boolean) => {
+  // Same 5.1.1(iv) rule as handleLocation - the priming card always ends in the
+  // system prompt, and only the outcome decides what the user sees next.
+  const handleNotifications = async () => {
     let granted = false;
-    if (request) {
-      try {
-        const { status } = await Notifications.requestPermissionsAsync();
-        granted = status === 'granted';
-      } catch {
-        granted = false;
-      }
+    try {
+      const { status } = await Notifications.requestPermissionsAsync();
+      granted = status === 'granted';
+    } catch {
+      granted = false;
     }
-    setNotifDenied(!granted);
-    await AsyncStorage.setItem('@GrowPray:notificationsPrompted', request ? 'true' : 'skipped');
-    goNext();
+    await AsyncStorage.setItem('@GrowPray:notificationsPrompted', 'true');
+    if (granted) {
+      setNotifDenied(false);
+      goNext();
+      return;
+    }
+    setNotifDenied(true);
   };
 
   const renderSelectCard = (kind: 'singleSelect' | 'multiSelect' | 'empathySelect') => {
@@ -1098,25 +1102,47 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           </View>
         );
       }
-      // State 1: priming (kept verbatim - it's the best screen in the old flow).
+      // State 3: declined at the OS level. Because the priming card has to lead
+      // straight into the system prompt, this is the first point where a way
+      // past the step can legitimately appear.
+      if (locationDenied) {
+        return (
+          <View style={styles.panelTall}>
+            <View style={styles.iconWrap}>
+              <Image source={ICON_LOCATION} style={styles.iconImage} />
+            </View>
+            <Text style={styles.title}>No location - that's fine.</Text>
+            <Text style={styles.body}>
+              Prayer times need somewhere to work from. Turn location on in Settings,
+              or just set your city by hand once you're inside.
+            </Text>
+            <TouchableOpacity
+              onPress={() => { Linking.openSettings().catch(() => {}); }}
+              style={styles.primaryButton}
+            >
+              <Text style={styles.primaryButtonText}>Open Settings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={goNext} style={styles.secondaryButton}>
+              <Text style={styles.secondaryText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
+      // State 1: priming. One way out, and it is the system prompt.
       return (
         <View style={styles.panelTall}>
           <View style={styles.iconWrap}>
             <Image source={ICON_LOCATION} style={styles.iconImage} />
           </View>
           <Text style={styles.title}>Location</Text>
-          <Text style={styles.body}>Enable location permission to find your local prayer times and calculate qibla direction.</Text>
+          <Text style={styles.body}>Grow Pray uses your location to work out your local prayer times and the direction of qibla.</Text>
           <View style={styles.helperRow}>
             <MaterialCommunityIcons name="shield-check-outline" size={16} color="#e6bf81" />
             <Text style={styles.helperText}>Your location never leaves your phone.</Text>
           </View>
-          <TouchableOpacity onPress={() => handleLocation(true)} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Enable location</Text>
+          <TouchableOpacity onPress={handleLocation} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>Continue</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleLocation(false)} style={styles.secondaryButton}>
-            <Text style={styles.secondaryText}>Skip for now</Text>
-          </TouchableOpacity>
-          {locationDenied ? <Text style={styles.caption}>You can enable this later in settings.</Text> : null}
         </View>
       );
     }
@@ -1125,6 +1151,30 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       // Primed with the user's actual next prayer when times are available -
       // the strongest honest "why" for the permission.
       const next = liveTimings ? nextPrayerOf(liveTimings) : null;
+      // Declined at the OS level - same reasoning as the location card.
+      if (notifDenied) {
+        return (
+          <View style={styles.panelTall}>
+            <View style={styles.iconWrap}>
+              <Image source={ICON_BELL} style={styles.iconImage} />
+            </View>
+            <Text style={styles.title}>No reminders for now.</Text>
+            <Text style={styles.body}>
+              Everything else works exactly the same. You can switch prayer
+              reminders on whenever you like, in Settings.
+            </Text>
+            <TouchableOpacity
+              onPress={() => { Linking.openSettings().catch(() => {}); }}
+              style={styles.primaryButton}
+            >
+              <Text style={styles.primaryButtonText}>Open Settings</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={goNext} style={styles.secondaryButton}>
+              <Text style={styles.secondaryText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        );
+      }
       return (
         <View style={styles.panelTall}>
           <View style={styles.iconWrap}>
@@ -1134,19 +1184,15 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           <Text style={styles.body}>
             {next
               ? `${next.name} is at ${fmt12(next.time)}${next.tomorrow ? ' tomorrow' : ' today'}. Want a quiet heads-up before each prayer?`
-              : 'Enable to receive prayer notifications. You can customise reminder styles later.'}
+              : 'A quiet heads-up before each prayer. You can change the reminder style later.'}
           </Text>
           <View style={styles.helperRow}>
             <MaterialCommunityIcons name="bell-ring-outline" size={16} color="#e6bf81" />
             <Text style={styles.helperText}>Gentle reminders, never noisy.</Text>
           </View>
-          <TouchableOpacity onPress={() => handleNotifications(true)} style={styles.primaryButton}>
-            <Text style={styles.primaryButtonText}>Enable notifications</Text>
+          <TouchableOpacity onPress={handleNotifications} style={styles.primaryButton}>
+            <Text style={styles.primaryButtonText}>Continue</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => handleNotifications(false)} style={styles.secondaryButton}>
-            <Text style={styles.secondaryText}>Maybe later</Text>
-          </TouchableOpacity>
-          {notifDenied ? <Text style={styles.caption}>You can enable this later in settings.</Text> : null}
         </View>
       );
     }
