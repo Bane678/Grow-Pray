@@ -157,12 +157,30 @@ export function QuranReader({ isSaved, toggleSave, onOpenAnnotate, reading }: Qu
   const pendingIndex = useRef(0);
   const scrollAttempts = useRef(0);
 
+  // useReading hands back a fresh object every render, so the hook's actions
+  // are reached through refs. Depending on `reading` directly would rebuild
+  // renderVerse on every recorded scroll tick and break VerseRow's memo at
+  // precisely the moment the list is being scrolled.
+  const recordRef = useRef(reading.recordQuran);
+  const toggleBookmarkRef = useRef(reading.toggleBookmark);
+  useEffect(() => {
+    recordRef.current = reading.recordQuran;
+    toggleBookmarkRef.current = reading.toggleBookmark;
+  }, [reading.recordQuran, reading.toggleBookmark]);
+
   const openSurah = useCallback((s: QuranSurah, ayah?: number) => {
     Haptics.selectionAsync();
     const target = ayah != null ? Math.min(Math.max(ayah, 1), s.total_verses) : 1;
     pendingIndex.current = target - 1;
     scrollAttempts.current = 0;
     setActive(s);
+    // Record the move immediately instead of waiting for onViewableItemsChanged.
+    // That event only fires when the set of viewable KEYS changes, so stepping
+    // between two surahs while near the top of both (Al-Baqarah -> Ali 'Imran
+    // at ayah 1, say) produced no event at all and left "Continue reading"
+    // pointing at the surah just left. Opening a surah IS the position change,
+    // so it should not be inferred from scrolling.
+    recordRef.current(s.id, target);
   }, []);
 
   const backToIndex = useCallback(() => {
@@ -175,9 +193,6 @@ export function QuranReader({ isSaved, toggleSave, onOpenAnnotate, reading }: Qu
   // is built once and reads everything it needs through refs.
   const activeRef = useRef<QuranSurah | null>(null);
   useEffect(() => { activeRef.current = active; }, [active]);
-
-  const recordRef = useRef(reading.recordQuran);
-  useEffect(() => { recordRef.current = reading.recordQuran; }, [reading.recordQuran]);
 
   const viewabilityConfig = useRef({ itemVisiblePercentThreshold: 40 }).current;
   const onViewableItemsChanged = useRef((info: { viewableItems: Array<{ item?: QuranVerse }> }) => {
@@ -194,10 +209,10 @@ export function QuranReader({ isSaved, toggleSave, onOpenAnnotate, reading }: Qu
     if (!active) return;
     const index = pendingIndex.current;
     const t = setTimeout(() => {
-      // Verse keys repeat across surahs (1, 2, 3 ...), so FlatList treats the
-      // next surah as the same rows re-rendered and keeps the old offset.
-      // Stepping from ayah 200 of Al-Baqarah into Ali 'Imran has to land at
-      // the top, not wherever the previous surah happened to be scrolled to.
+      // Belt and braces alongside the surah-scoped keyExtractor: the keys now
+      // differ between chapters, but the underlying ScrollView can still hold
+      // its contentOffset across a data swap. Stepping from ayah 200 of
+      // Al-Baqarah into Ali 'Imran has to land at the top.
       if (index <= 0) {
         listRef.current?.scrollToOffset({ offset: 0, animated: false });
         return;
@@ -231,15 +246,19 @@ export function QuranReader({ isSaved, toggleSave, onOpenAnnotate, reading }: Qu
     [toggleSave],
   );
 
-  const onToggleBookmark = useCallback(
-    (id: string) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      reading.toggleBookmark(id);
-    },
-    [reading],
-  );
+  const onToggleBookmark = useCallback((id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleBookmarkRef.current(id);
+  }, []);
 
   // ── Index-level derived data ────────────────────────────────────────────────
+  // Reactive membership for the rows - reading.isBookmarked reads a ref, which
+  // is stable but would not re-render anything when a bookmark is toggled.
+  const bookmarkedIds = useMemo(
+    () => new Set(reading.bookmarks.map((b) => b.id)),
+    [reading.bookmarks],
+  );
+
   const bookmarkCounts = useMemo(() => {
     const counts = new Map<number, number>();
     for (const b of reading.bookmarks) {
@@ -284,13 +303,13 @@ export function QuranReader({ isSaved, toggleSave, onOpenAnnotate, reading }: Qu
         verse={item}
         surahNum={active!.id}
         saved={isSaved(ayahId(active!.id, item.id))}
-        bookmarked={reading.isBookmarked(ayahId(active!.id, item.id))}
+        bookmarked={bookmarkedIds.has(ayahId(active!.id, item.id))}
         onToggleSave={onToggleSave}
         onToggleBookmark={onToggleBookmark}
         onAnnotate={onOpenAnnotate}
       />
     ),
-    [active, isSaved, reading, onToggleSave, onToggleBookmark, onOpenAnnotate],
+    [active, isSaved, bookmarkedIds, onToggleSave, onToggleBookmark, onOpenAnnotate],
   );
 
   // ── Surah index ──
@@ -438,9 +457,13 @@ export function QuranReader({ isSaved, toggleSave, onOpenAnnotate, reading }: Qu
         ref={listRef}
         style={styles.fill}
         data={active.verses}
-        keyExtractor={(v) => String(v.id)}
+        // Scoped to the surah: ayah numbers restart at 1 in every chapter, so a
+        // bare v.id made FlatList treat Ali 'Imran ayah 5 as the same row as
+        // Al-Baqarah ayah 5 - no viewability change to report, and a retained
+        // scroll offset to go with it.
+        keyExtractor={(v) => `${active.id}:${v.id}`}
         renderItem={renderVerse}
-        extraData={[isSaved, reading.bookmarks]}
+        extraData={[isSaved, bookmarkedIds]}
         showsVerticalScrollIndicator={false}
         initialNumToRender={10}
         maxToRenderPerBatch={10}
