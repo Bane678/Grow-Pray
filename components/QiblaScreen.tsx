@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated } from 'react-native
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle, Line } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { FONTS } from '../theme/typography';
 import { useQibla } from '../hooks/useQibla';
 
@@ -88,6 +89,7 @@ export const QiblaScreen = React.memo(function QiblaScreen({
   onClose,
 }: QiblaScreenProps) {
   const { bearing, heading, aligned, status, accuracy } = useQibla({ manualCoords, active });
+  const insets = useSafeAreaInsets();
   const wasAligned = useRef(false);
 
   // The rose rotates via a CONTINUOUS per-frame chase (like Apple's Compass),
@@ -156,10 +158,23 @@ export const QiblaScreen = React.memo(function QiblaScreen({
 
   return (
     <View style={styles.root}>
-      <View style={styles.header}>
+      {/* The header owns its own top inset rather than relying on a
+          SafeAreaView above it. This screen is presented inside a Modal, which
+          is a separate native view hierarchy, so the SafeAreaView wrapping it
+          resolved a top inset of zero - the title and the close button sat
+          under the clock and battery, and the X was effectively unreachable.
+          useSafeAreaInsets reads the provider through React context, which
+          does cross the Modal boundary, and is seeded by initialWindowMetrics
+          at startup. The floor keeps it off the edge on a device with no
+          notch, where insets.top is legitimately 0. */}
+      <View style={[styles.header, { paddingTop: Math.max(insets.top, 12) + 4 }]}>
         <Text style={styles.headerTitle}>Qibla</Text>
-        <TouchableOpacity onPress={onClose} style={styles.closeBtn} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-          <MaterialCommunityIcons name="close" size={24} color="#9ca3af" />
+        <TouchableOpacity
+          onPress={onClose}
+          style={styles.closeBtn}
+          hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+        >
+          <MaterialCommunityIcons name="close" size={22} color="#e8e0d6" />
         </TouchableOpacity>
       </View>
 
@@ -262,11 +277,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingTop: 8,
-    paddingBottom: 8,
+    // paddingTop is applied inline from the safe-area inset.
+    paddingBottom: 10,
   },
   headerTitle: { fontSize: 24, fontWeight: '800', color: '#e8e0d6', fontFamily: FONTS.display },
-  closeBtn: { padding: 4 },
+  closeBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: 'rgba(255,255,255,0.07)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 
   fallback: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 10 },
   fallbackTitle: { fontSize: 18, fontWeight: '800', color: '#e8e0d6', fontFamily: FONTS.display },

@@ -5049,7 +5049,9 @@ function AppInner() {
         animationType="slide"
         onRequestClose={() => setShowQibla(false)}
       >
-        <SafeAreaView edges={['top', 'bottom']} style={{ flex: 1, backgroundColor: '#0f1526' }}>
+        {/* Only the bottom edge here - QiblaScreen applies its own top inset,
+            because a SafeAreaView inside a Modal resolved it as zero. */}
+        <SafeAreaView edges={['bottom']} style={{ flex: 1, backgroundColor: '#0f1526' }}>
           <QiblaScreen
             manualCoords={manualCoords ? { lat: manualCoords.lat, lng: manualCoords.lng } : null}
             active={showQibla}
