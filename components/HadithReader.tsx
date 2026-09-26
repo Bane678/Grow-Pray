@@ -1,4 +1,4 @@
-import React, { useMemo, useCallback, useRef, useEffect } from 'react';
+import React, { useMemo, useCallback, useRef, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, FlatList } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
@@ -104,6 +104,7 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
   const hadiths = useMemo(() => getHadiths(), []);
   const listRef = useRef<FlatList<Hadith>>(null);
   const scrollAttempts = useRef(0);
+  const [bookmarksOpen, setBookmarksOpen] = useState(false);
 
   // useReading hands back a fresh object every render, so its actions are
   // reached through refs - depending on `reading` directly would rebuild
@@ -158,9 +159,14 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
   );
 
   const jumpTo = useCallback((index: number) => {
-    if (index <= 0) return;
+    if (index < 0) return;
     Haptics.selectionAsync();
     scrollAttempts.current = 0;
+    setBookmarksOpen(false);   // get the tray out of the way of what was tapped
+    if (index === 0) {
+      listRef.current?.scrollToOffset({ offset: 0, animated: false });
+      return;
+    }
     try { listRef.current?.scrollToIndex({ index, animated: false }); } catch { /* retried below */ }
   }, []);
 
@@ -197,9 +203,64 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
 
   return (
     <View style={styles.fill}>
+      {/* Fixed, outside the list. These used to be ListHeaderComponent, which
+          meant the only way to reach your bookmarks was to scroll the whole
+          collection back to the top - and adding the first bookmark while
+          scrolled down grew the header and shunted the content under your
+          thumb. Out here they are always one tap away and the list never
+          moves on its own. */}
       <View style={styles.collectionHeader}>
-        <Text style={styles.collectionTitle}>{HADITH_COLLECTION.title}</Text>
-        <Text style={styles.collectionSub}>{HADITH_COLLECTION.subtitle}</Text>
+        <View style={styles.collectionTop}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.collectionTitle}>{HADITH_COLLECTION.title}</Text>
+            <Text style={styles.collectionSub}>{HADITH_COLLECTION.subtitle}</Text>
+          </View>
+
+          {resumeHadith && resumeIndex > 0 && (
+            <TouchableOpacity
+              style={styles.headBtn}
+              onPress={() => jumpTo(resumeIndex)}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons name="book-clock-outline" size={16} color={HADITH_ACCENT} />
+              <Text style={styles.headBtnText}>{resumeHadith.number}</Text>
+            </TouchableOpacity>
+          )}
+
+          {hadithBookmarks.length > 0 && (
+            <TouchableOpacity
+              style={[styles.headBtn, bookmarksOpen && styles.headBtnOn]}
+              onPress={() => { Haptics.selectionAsync(); setBookmarksOpen((v) => !v); }}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+              activeOpacity={0.8}
+            >
+              <MaterialCommunityIcons
+                name={bookmarksOpen ? 'bookmark' : 'bookmark-multiple-outline'}
+                size={16}
+                color={bookmarksOpen ? '#0f1526' : HADITH_ACCENT}
+              />
+              <Text style={[styles.headBtnText, bookmarksOpen && styles.headBtnTextOn]}>
+                {hadithBookmarks.length}
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
+        {bookmarksOpen && hadithBookmarks.length > 0 && (
+          <View style={styles.bmChips}>
+            {hadithBookmarks.map(({ h, index }) => (
+              <TouchableOpacity
+                key={h.id}
+                style={styles.bmChip}
+                onPress={() => jumpTo(index)}
+                activeOpacity={0.8}
+              >
+                <Text style={styles.bmChipText}>{h.number}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
       </View>
       <FlatList
         ref={listRef}
@@ -217,52 +278,6 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
         viewabilityConfig={viewabilityConfig}
         onViewableItemsChanged={onViewableItemsChanged}
         onScrollToIndexFailed={onScrollToIndexFailed}
-        ListHeaderComponent={
-          <View>
-            {/* One flat list of 41, so "continue" is a scroll rather than a
-                navigation - but the user still should not have to hunt for it. */}
-            {resumeHadith && resumeIndex > 0 ? (
-              <TouchableOpacity
-                style={styles.resumeCard}
-                onPress={() => jumpTo(resumeIndex)}
-                activeOpacity={0.85}
-              >
-                <View style={styles.resumeIcon}>
-                  <MaterialCommunityIcons name="script-text-outline" size={18} color="#0f1526" />
-                </View>
-                <View style={{ flex: 1, minWidth: 0 }}>
-                  <Text style={styles.resumeLabel}>Continue reading</Text>
-                  <Text style={styles.resumeWhere} numberOfLines={1}>
-                    Hadith {resumeHadith.number} of {hadiths.length}
-                  </Text>
-                </View>
-                <MaterialCommunityIcons name="chevron-right" size={22} color={HADITH_ACCENT} />
-              </TouchableOpacity>
-            ) : null}
-
-            {/* Short collection, so numbered chips beat a collapsible list. */}
-            {hadithBookmarks.length > 0 && (
-              <View style={styles.bmBlock}>
-                <View style={styles.bmHeader}>
-                  <MaterialCommunityIcons name="bookmark-multiple-outline" size={16} color={HADITH_ACCENT} />
-                  <Text style={styles.bmHeaderText}>Bookmarks</Text>
-                </View>
-                <View style={styles.bmChips}>
-                  {hadithBookmarks.map(({ h, index }) => (
-                    <TouchableOpacity
-                      key={h.id}
-                      style={styles.bmChip}
-                      onPress={() => jumpTo(index)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={styles.bmChipText}>{h.number}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </View>
-            )}
-          </View>
-        }
       />
     </View>
   );
@@ -271,48 +286,24 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
 const styles = StyleSheet.create({
   fill: { flex: 1 },
 
-  // ── Continue reading ──
-  resumeCard: {
+  // ── Fixed header controls ──
+  collectionTop: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 11,
-    paddingVertical: 11,
-    paddingHorizontal: 12,
-    borderRadius: 14,
-    backgroundColor: 'rgba(143,191,159,0.12)',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 6,
+    borderRadius: 10,
+    backgroundColor: 'rgba(143,191,159,0.14)',
     borderWidth: 1,
     borderColor: 'rgba(143,191,159,0.32)',
-    marginBottom: 12,
   },
-  resumeIcon: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    backgroundColor: HADITH_ACCENT,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resumeLabel: {
-    fontSize: 10.5,
-    fontWeight: '800',
-    color: HADITH_ACCENT,
-    letterSpacing: 0.4,
-    textTransform: 'uppercase',
-  },
-  resumeWhere: { fontSize: 14, fontWeight: '700', color: '#e8e0d6', marginTop: 2 },
+  headBtnOn: { backgroundColor: HADITH_ACCENT, borderColor: HADITH_ACCENT },
+  headBtnText: { fontSize: 12, fontWeight: '800', color: HADITH_ACCENT },
+  headBtnTextOn: { color: '#0f1526' },
 
-  // ── Bookmark jump chips ──
-  bmBlock: {
-    marginBottom: 12,
-    borderRadius: 14,
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.05)',
-    paddingBottom: 10,
-  },
-  bmHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 10, paddingHorizontal: 12 },
-  bmHeaderText: { flex: 1, fontSize: 13, fontWeight: '700', color: '#e8e0d6' },
-  bmChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, paddingHorizontal: 12 },
+  bmChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 },
   bmChip: {
     minWidth: 32,
     paddingHorizontal: 9,
