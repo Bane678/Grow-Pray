@@ -172,7 +172,7 @@ export const DHIKR_CATEGORIES: DhikrCategory[] = [
         id: 'travel_subhanalladhi',
         arabic: 'سُبْحَانَ الَّذِي سَخَّرَ لَنَا هَذَا وَمَا كُنَّا لَهُ مُقْرِنِينَ',
         transliteration: "Subhanal-ladhi sakhkhara lana hadha wa ma kunna lahu muqrinin",
-        translation: 'Glorified be He Who hath subdued these unto us, and we were not capable of subduing them.',
+        translation: 'Glory to Him Who has subjected these to our use, for we could never have accomplished this by ourselves.',
         repeat: 1,
         source: "Qur'an 43:13, Muslim",
       },

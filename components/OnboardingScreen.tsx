@@ -139,7 +139,7 @@ const STEPS: Step[] = [
   // 1 - Ayah (Qur'an 29:45)
   {
     kind: 'ayah',
-    quote: 'Lo! worship preserveth from lewdness and iniquity.',
+    quote: 'For Prayer restrains from shameful and unjust deeds.',
     source: 'Qur\'an 29:45',
     cta: 'Continue',
     image: OB_AYAH,

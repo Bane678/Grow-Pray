@@ -2,17 +2,19 @@
 //
 // SOURCES:
 //   Arabic     - Tanzil (Uthmani script), via the `quran-json` dataset.
-//   Translation - "The Meaning of the Glorious Koran" by Marmaduke Pickthall
-//                 (1930), which is in the public domain.
+//   Translation - "The Holy Qur'an: Text, Translation and Commentary" by
+//                 Abdullah Yusuf Ali (1934), which is in the public domain.
 //
 // The translation was previously Saheeh International, which is under
 // copyright and was not licensed for this app. It was replaced wholesale
 // ahead of release - all 6,236 ayat, swapped verse-for-verse against
-// alquran.cloud's `en.pickthall` edition with the surah and ayah counts
-// asserted equal before writing. The excerpts in data/reflections.ts,
+// alquran.cloud's `en.yusufali` edition with the surah and ayah counts
+// asserted equal before writing. (Pickthall was used briefly in between and
+// replaced for being too archaic to read comfortably.) The excerpts in
+// data/reflections.ts,
 // data/adhkar.ts, the onboarding ayah card and the win-back notification were
-// moved to Pickthall in the same pass; if you add another verse quote
-// anywhere, take it from Pickthall too.
+// moved to Yusuf Ali in the same pass; if you add another verse quote
+// anywhere, take it from Yusuf Ali too.
 //
 // Verified counts: 114 surahs / 6,236 ayat. No network requests - everything
 // ships in the bundle.
@@ -26,7 +28,7 @@ import { Reflection } from './reflections';
 export interface QuranVerse {
   id: number;          // ayah number within the surah (1-based)
   text: string;        // Arabic (Uthmani)
-  translation: string; // English (Pickthall, public domain)
+  translation: string; // English (Yusuf Ali, public domain)
 }
 
 export interface QuranSurah {

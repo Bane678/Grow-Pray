@@ -17,6 +17,7 @@ import { AnnotationEditor, AnnotationPreview, VersePaper } from './AnnotationEdi
 import { QuranReader } from './QuranReader';
 import { HadithReader } from './HadithReader';
 import { useVerseShare } from './VerseShareCard';
+import { useReading } from '../hooks/useReading';
 
 const ACCENT = '#e8a87c';
 // Per-kind accent so Qur'an vs Hadith read distinctly throughout the hub.
@@ -157,6 +158,9 @@ export function ReflectionsHub({
   onOpenPaywall,
 }: ReflectionsHubProps) {
   const [tab, setTab] = useState<HubTab>(initialTab);
+  // One instance shared by both readers so the Qur'an and Hadith positions and
+  // the single bookmark list stay consistent across a tab switch.
+  const reading = useReading();
   const [filter, setFilter] = useState<KindFilter>('all');
   const [editorEntry, setEditorEntry] = useState<SavedReflectionEntry | null>(null);
   const { shareVerse, shareSurface } = useVerseShare();
@@ -319,12 +323,14 @@ export function ReflectionsHub({
               isSaved={isSaved}
               toggleSave={onToggleSave}
               onOpenAnnotate={openAnnotateById}
+              reading={reading}
             />
           ) : tab === 'hadith' ? (
             <HadithReader
               isSaved={isSaved}
               toggleSave={onToggleSave}
               onOpenAnnotate={openAnnotateById}
+              reading={reading}
             />
           ) : filteredSaved.length === 0 ? (
             <View style={styles.emptyWrap}>

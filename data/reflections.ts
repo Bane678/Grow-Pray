@@ -27,7 +27,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ',
-    translation: 'Therefore remember Me, I will remember you. Give thanks to Me, and reject not Me.',
+    translation: 'Then do ye remember Me; I will remember you. Be grateful to Me, and reject not Faith.',
     source: "Qur'an 2:152",
   },
   {
@@ -35,7 +35,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'الَّذِينَ آمَنُوا وَتَطْمَئِنُّ قُلُوبُهُم بِذِكْرِ اللَّهِ ۗ أَلَا بِذِكْرِ اللَّهِ تَطْمَئِنُّ الْقُلُوبُ',
-    translation: 'Who have believed and whose hearts have rest in the remembrance of Allah. Verily in the remembrance of Allah do hearts find rest!',
+    translation: 'Those who believe, and whose hearts find satisfaction in the remembrance of Allah: for without doubt in the remembrance of Allah do hearts find satisfaction.',
     source: "Qur'an 13:28",
   },
   {
@@ -43,7 +43,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'إِنَّ الصَّلَاةَ تَنْهَىٰ عَنِ الْفَحْشَاءِ وَالْمُنكَرِ',
-    translation: 'Lo! worship preserveth from lewdness and iniquity.',
+    translation: 'For Prayer restrains from shameful and unjust deeds.',
     source: "Qur'an 29:45",
   },
   {
@@ -51,7 +51,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'إِنَّنِي أَنَا اللَّهُ لَا إِلَٰهَ إِلَّا أَنَا فَاعْبُدْنِي وَأَقِمِ الصَّلَاةَ لِذِكْرِي',
-    translation: 'Lo! I, even I, am Allah. There is no Allah save Me. So serve Me and establish worship for My remembrance.',
+    translation: 'Verily, I am Allah: there is no god but I. So serve thou Me (only), and establish regular prayer for celebrating My praise.',
     source: "Qur'an 20:14",
   },
   {
@@ -59,7 +59,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'وَاسْتَعِينُوا بِالصَّبْرِ وَالصَّلَاةِ ۚ وَإِنَّهَا لَكَبِيرَةٌ إِلَّا عَلَى الْخَاشِعِينَ',
-    translation: 'Seek help in patience and prayer; and truly it is hard save for the humble-minded.',
+    translation: 'Seek (Allah\'s) help with patient perseverance and prayer: it is indeed hard, except to those who bring a lowly spirit.',
     source: "Qur'an 2:45",
   },
   {
@@ -67,7 +67,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'يَا أَيُّهَا الَّذِينَ آمَنُوا اسْتَعِينُوا بِالصَّبْرِ وَالصَّلَاةِ ۚ إِنَّ اللَّهَ مَعَ الصَّابِرِينَ',
-    translation: 'O ye who believe! Seek help in steadfastness and prayer. Lo! Allah is with the steadfast.',
+    translation: 'O ye who believe! Seek help with patient perseverance and prayer; for Allah is with those who patiently persevere.',
     source: "Qur'an 2:153",
   },
   {
@@ -75,7 +75,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'قَدْ أَفْلَحَ الْمُؤْمِنُونَ ۝ الَّذِينَ هُمْ فِي صَلَاتِهِمْ خَاشِعُونَ',
-    translation: 'Successful indeed are the believers, who are humble in their prayers.',
+    translation: 'The believers must (eventually) win through, those who humble themselves in their prayers.',
     source: "Qur'an 23:1–2",
   },
   {
@@ -83,7 +83,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'قَدْ أَفْلَحَ مَن تَزَكَّىٰ ۝ وَذَكَرَ اسْمَ رَبِّهِ فَصَلَّىٰ',
-    translation: 'He is successful who groweth, and remembereth the name of his Lord, so prayeth.',
+    translation: 'But those will prosper who purify themselves, and glorify the name of their Guardian-Lord, and (lift their hearts) in prayer.',
     source: "Qur'an 87:14–15",
   },
   {
@@ -91,7 +91,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'وَأَقِمِ الصَّلَاةَ طَرَفَيِ النَّهَارِ وَزُلَفًا مِّنَ اللَّيْلِ ۚ إِنَّ الْحَسَنَاتِ يُذْهِبْنَ السَّيِّئَاتِ',
-    translation: 'Establish worship at the two ends of the day and in some watches of the night. Lo! good deeds annul ill-deeds.',
+    translation: 'And establish regular prayers at the two ends of the day and at the approaches of the night: for those things that are good remove those that are evil.',
     source: "Qur'an 11:114",
   },
   {
@@ -99,7 +99,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'فَإِذَا قَضَيْتُمُ الصَّلَاةَ فَاذْكُرُوا اللَّهَ قِيَامًا وَقُعُودًا وَعَلَىٰ جُنُوبِكُمْ',
-    translation: 'When ye have performed the act of worship, remember Allah, standing, sitting and reclining.',
+    translation: 'When ye pass (congregational) prayers, celebrate Allah\'s praises, standing, sitting down, or lying down on your sides.',
     source: "Qur'an 4:103",
   },
   {
@@ -107,7 +107,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'وَمَا خَلَقْتُ الْجِنَّ وَالْإِنسَ إِلَّا لِيَعْبُدُونِ',
-    translation: 'I created the jinn and humankind only that they might worship Me.',
+    translation: 'I have only created Jinns and men, that they may serve Me.',
     source: "Qur'an 51:56",
   },
   {
@@ -115,7 +115,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'يَا أَيُّهَا الَّذِينَ آمَنُوا إِذَا نُودِيَ لِلصَّلَاةِ مِن يَوْمِ الْجُمُعَةِ فَاسْعَوْا إِلَىٰ ذِكْرِ اللَّهِ',
-    translation: 'O ye who believe! When the call is heard for the prayer of the day of congregation, haste unto remembrance of Allah.',
+    translation: 'O ye who believe! When the call is proclaimed to prayer on Friday (the Day of Assembly), hasten earnestly to the Remembrance of Allah.',
     source: "Qur'an 62:9",
   },
   {
@@ -123,7 +123,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'prayer',
     arabic: 'إِنَّمَا الْمُؤْمِنُونَ الَّذِينَ إِذَا ذُكِرَ اللَّهُ وَجِلَتْ قُلُوبُهُمْ',
-    translation: 'They only are the (true) believers whose hearts feel fear when Allah is mentioned.',
+    translation: 'For, Believers are those who, when Allah is mentioned, feel a tremor in their hearts.',
     source: "Qur'an 8:2",
   },
 
@@ -133,7 +133,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'general',
     arabic: 'وَإِذَا سَأَلَكَ عِبَادِي عَنِّي فَإِنِّي قَرِيبٌ ۖ أُجِيبُ دَعْوَةَ الدَّاعِ إِذَا دَعَانِ',
-    translation: 'And when My servants question thee concerning Me, then surely I am nigh. I answer the prayer of the suppliant when he crieth unto Me.',
+    translation: 'When My servants ask thee concerning Me, I am indeed close (to them): I listen to the prayer of every suppliant when he calleth on Me.',
     source: "Qur'an 2:186",
   },
   {
@@ -141,7 +141,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'general',
     arabic: 'وَقَالَ رَبُّكُمُ ادْعُونِي أَسْتَجِبْ لَكُمْ',
-    translation: 'And your Lord hath said: Pray unto Me and I will hear your prayer.',
+    translation: 'And your Lord says: Call on Me; I will answer your prayer.',
     source: "Qur'an 40:60",
   },
   {
@@ -149,7 +149,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'general',
     arabic: 'فَإِنَّ مَعَ الْعُسْرِ يُسْرًا ۝ إِنَّ مَعَ الْعُسْرِ يُسْرًا',
-    translation: 'But lo! with hardship goeth ease. Lo! with hardship goeth ease.',
+    translation: 'So, verily, with every difficulty, there is relief. Verily, with every difficulty there is relief.',
     source: "Qur'an 94:5–6",
   },
   {
@@ -157,7 +157,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'general',
     arabic: 'لَا يُكَلِّفُ اللَّهُ نَفْسًا إِلَّا وُسْعَهَا',
-    translation: 'Allah tasketh not a soul beyond its scope.',
+    translation: 'On no soul doth Allah place a burden greater than it can bear.',
     source: "Qur'an 2:286",
   },
   {
@@ -165,7 +165,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'general',
     arabic: 'وَمَن يَتَوَكَّلْ عَلَى اللَّهِ فَهُوَ حَسْبُهُ',
-    translation: 'And whosoever putteth his trust in Allah, He will suffice him.',
+    translation: 'And if any one puts his trust in Allah, sufficient is Allah for him.',
     source: "Qur'an 65:3",
   },
   {
@@ -173,7 +173,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'general',
     arabic: 'قُلْ يَا عِبَادِيَ الَّذِينَ أَسْرَفُوا عَلَىٰ أَنفُسِهِمْ لَا تَقْنَطُوا مِن رَّحْمَةِ اللَّهِ',
-    translation: 'Say: O My slaves who have been prodigal to their own hurt! Despair not of the mercy of Allah.',
+    translation: 'Say: O my Servants who have transgressed against their souls! Despair not of the Mercy of Allah.',
     source: "Qur'an 39:53",
   },
   {
@@ -181,7 +181,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'general',
     arabic: 'وَلَا تَهِنُوا وَلَا تَحْزَنُوا وَأَنتُمُ الْأَعْلَوْنَ إِن كُنتُم مُّؤْمِنِينَ',
-    translation: 'Faint not nor grieve, for ye will overcome them if ye are (indeed) believers.',
+    translation: 'So lose not heart, nor fall into despair: for ye must gain mastery if ye are true in Faith.',
     source: "Qur'an 3:139",
   },
   {
@@ -189,7 +189,7 @@ export const REFLECTIONS: Reflection[] = [
     kind: 'ayah',
     theme: 'general',
     arabic: 'لَئِن شَكَرْتُمْ لَأَزِيدَنَّكُمْ',
-    translation: 'If ye give thanks, I will give you more.',
+    translation: 'If ye are grateful, I will add more (favours) unto you.',
     source: "Qur'an 14:7",
   },
 

@@ -100,7 +100,7 @@ const WIN_BACK_LADDER: { days: number; title: string; body: string }[] = [
   {
     days: 30,
     title: 'The door is always open',
-    body: '"Despair not of the mercy of Allah." - Qur\'an 39:53',
+    body: '"Despair not of the Mercy of Allah." - Qur\'an 39:53',
   },
 ];
 
