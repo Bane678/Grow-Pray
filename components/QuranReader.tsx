@@ -252,8 +252,8 @@ export function QuranReader({ isSaved, toggleSave, onOpenAnnotate, reading }: Qu
   }, []);
 
   // ── Index-level derived data ────────────────────────────────────────────────
-  // Reactive membership for the rows - reading.isBookmarked reads a ref, which
-  // is stable but would not re-render anything when a bookmark is toggled.
+  // Membership as a plain Set, so a row's `bookmarked` prop is a boolean the
+  // memo can compare rather than a function call into the hook.
   const bookmarkedIds = useMemo(
     () => new Set(reading.bookmarks.map((b) => b.id)),
     [reading.bookmarks],

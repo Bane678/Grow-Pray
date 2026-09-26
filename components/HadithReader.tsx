@@ -105,6 +105,18 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
   const listRef = useRef<FlatList<Hadith>>(null);
   const scrollAttempts = useRef(0);
 
+  // useReading hands back a fresh object every render, so its actions are
+  // reached through refs - depending on `reading` directly would rebuild
+  // renderItem on every recorded scroll tick and defeat HadithCard's memo.
+  const toggleBookmarkRef = useRef(reading.toggleBookmark);
+  useEffect(() => { toggleBookmarkRef.current = reading.toggleBookmark; }, [reading.toggleBookmark]);
+
+  // Membership computed during render, so a tap shows immediately.
+  const bookmarkedIds = useMemo(
+    () => new Set(reading.bookmarks.map((b) => b.id)),
+    [reading.bookmarks],
+  );
+
   const onToggleSave = useCallback(
     (id: string) => {
       Haptics.selectionAsync();
@@ -113,13 +125,10 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
     [toggleSave],
   );
 
-  const onToggleBookmark = useCallback(
-    (id: string) => {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-      reading.toggleBookmark(id);
-    },
-    [reading],
-  );
+  const onToggleBookmark = useCallback((id: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    toggleBookmarkRef.current(id);
+  }, []);
 
   // ── Position tracking ───────────────────────────────────────────────────────
   // FlatList refuses a changing onViewableItemsChanged identity, so the handler
@@ -143,12 +152,10 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
 
   // Bookmarked hadith, in collection order, each carrying the list index it
   // sits at so a tap is a direct scroll rather than a search.
-  const hadithBookmarks = useMemo(() => {
-    const marked = new Set(reading.bookmarks.map((b) => b.id));
-    return hadiths
-      .map((h, index) => ({ h, index }))
-      .filter(({ h }) => marked.has(h.id));
-  }, [reading.bookmarks, hadiths]);
+  const hadithBookmarks = useMemo(
+    () => hadiths.map((h, index) => ({ h, index })).filter(({ h }) => bookmarkedIds.has(h.id)),
+    [bookmarkedIds, hadiths],
+  );
 
   const jumpTo = useCallback((index: number) => {
     if (index <= 0) return;
@@ -179,13 +186,13 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
       <HadithCard
         hadith={item}
         saved={isSaved(item.id)}
-        bookmarked={reading.isBookmarked(item.id)}
+        bookmarked={bookmarkedIds.has(item.id)}
         onToggleSave={onToggleSave}
         onToggleBookmark={onToggleBookmark}
         onAnnotate={onOpenAnnotate}
       />
     ),
-    [isSaved, reading, onToggleSave, onToggleBookmark, onOpenAnnotate],
+    [isSaved, bookmarkedIds, onToggleSave, onToggleBookmark, onOpenAnnotate],
   );
 
   return (
@@ -200,7 +207,7 @@ export function HadithReader({ isSaved, toggleSave, onOpenAnnotate, reading }: H
         data={hadiths}
         keyExtractor={(h) => h.id}
         renderItem={renderItem}
-        extraData={[isSaved, reading.bookmarks]}
+        extraData={[isSaved, bookmarkedIds]}
         showsVerticalScrollIndicator={false}
         initialNumToRender={8}
         maxToRenderPerBatch={8}

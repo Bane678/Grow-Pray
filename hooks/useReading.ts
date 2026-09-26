@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── Reading position & bookmarks ──────────────────────────────────────────────
@@ -151,23 +151,30 @@ export function useReading(): ReadingState {
   }, []);
 
   // ── Bookmarks ───────────────────────────────────────────────────────────────
-  // Written straight through: they are deliberate taps, not a scroll firehose.
-  const bookmarkIds = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    bookmarkIds.current = new Set(bookmarks.map((b) => b.id));
-  }, [bookmarks]);
-
-  const isBookmarked = useCallback((id: string) => bookmarkIds.current.has(id), []);
+  // Derived DURING render, not in an effect. Held in a ref this was always one
+  // render stale: a tap set the new list, the row re-rendered and asked a ref
+  // the effect had not refreshed yet, and since refs do not re-render, the
+  // icon only caught up when something unrelated next rendered the list. That
+  // is the lag - the bookmark was right in state and wrong on screen.
+  const bookmarkIds = useMemo(() => new Set(bookmarks.map((b) => b.id)), [bookmarks]);
+  const isBookmarked = useCallback((id: string) => bookmarkIds.has(id), [bookmarkIds]);
 
   const toggleBookmark = useCallback((id: string) => {
-    setBookmarks((prev) => {
-      const next = prev.some((b) => b.id === id)
+    setBookmarks((prev) => (
+      prev.some((b) => b.id === id)
         ? prev.filter((b) => b.id !== id)
-        : [...prev, { id, at: Date.now() }];
-      AsyncStorage.setItem(BOOKMARKS_KEY, JSON.stringify(next)).catch(() => {});
-      return next;
-    });
+        : [...prev, { id, at: Date.now() }]
+    ));
   }, []);
+
+  // Persist after commit rather than inside the updater - a write in there is
+  // a side effect during render, and would also fire twice under StrictMode.
+  // Gated on `loaded` so the empty initial state cannot clobber stored
+  // bookmarks before hydration lands.
+  useEffect(() => {
+    if (!loaded) return;
+    AsyncStorage.setItem(BOOKMARKS_KEY, JSON.stringify(bookmarks)).catch(() => {});
+  }, [bookmarks, loaded]);
 
   return {
     loaded,
