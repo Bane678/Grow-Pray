@@ -1999,7 +1999,7 @@ function MilestoneModal({ prayer, streak, bonus, visible, onClose }: {
 
 // Main Prayer State Management Hook
 function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, boostXpMultiplier: number = 1, boostCoinBonus: number = 0, prayerConfig?: PrayerTimesConfig) {
-  const { timings, deadlines, nextPrayer, loading, detectedMethodKey, upcoming } = usePrayerTimes(prayerConfig);
+  const { timings, deadlines, nextPrayer, loading, detectedMethodKey, upcoming, locationError } = usePrayerTimes(prayerConfig);
   const [completedPrayers, setCompletedPrayers] = useState<Set<string>>(new Set());
   const [streaks, setStreaks] = useState<PrayerStreaks>({ ...DEFAULT_STREAKS });
   const [xp, setXp] = useState(0);
@@ -2630,6 +2630,7 @@ function usePrayerState(coinMultiplier: number = 1, xpMultiplier: number = 1, bo
     earnCoins,
     missedPrayers,
     stateLoaded,
+    locationError,
     resolveStreakFreeze,
     prayerHistory,
     detectedMethodKey,
@@ -5775,6 +5776,45 @@ function AppInner() {
             Ending the rest then snapped it back, and no amount of fading could
             hide a layout change. Keeping them mounted holds the height constant
             so the garden never moves; only visibility animates. */}
+        {/* Location fallback warning.
+            When permission is refused and no city has been set by hand,
+            usePrayerTimes quietly falls back to London so the app still
+            functions - but until now nothing said so, and the user was shown
+            London's times as if they were their own. In a prayer app that is
+            the worst possible silent failure, so the fallback now announces
+            itself and the fix is one tap away. Suppressed once a manual city
+            exists, because then the times are genuinely correct. */}
+        {activeTab === 'garden' && !screenshotChromeHidden && prayerState.locationError && !manualCity && (
+          <TouchableOpacity
+            onPress={() => { Haptics.selectionAsync(); setActiveTab('settings'); }}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: 'row',
+              alignItems: 'center',
+              gap: 8,
+              marginHorizontal: 12,
+              marginBottom: 8,
+              paddingVertical: 10,
+              paddingHorizontal: 12,
+              borderRadius: 12,
+              backgroundColor: 'rgba(251,191,36,0.14)',
+              borderWidth: 1,
+              borderColor: 'rgba(251,191,36,0.42)',
+            }}
+          >
+            <MaterialCommunityIcons name="map-marker-alert-outline" size={18} color="#fbbf24" />
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ color: '#fbbf24', fontSize: 12.5, fontWeight: '800' }}>
+                These are London times
+              </Text>
+              <Text style={{ color: 'rgba(251,191,36,0.75)', fontSize: 11, marginTop: 1 }}>
+                Location is off - tap to set your city
+              </Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={20} color="#fbbf24" />
+          </TouchableOpacity>
+        )}
+
         {activeTab === 'garden' && !screenshotChromeHidden && !prayerState.loading && prayerState.timings && (
           <Animated.View
             pointerEvents={isResting ? 'none' : 'auto'}

@@ -55,7 +55,6 @@ App.tsx                  # Main app (prayer UI, modals, state orchestration)
 components/
   GardenScene.tsx        # Isometric garden renderer (tiles, trees, gestures)
   ShopModal.tsx          # Shop UI (trees tab, freezes tab)
-  PrayerTimeline.tsx     # Prayer time display
   OnboardingScreen.tsx   # First-launch onboarding
 hooks/
   useGardenState.ts      # Garden data, tile states, decay, planting, inventory
