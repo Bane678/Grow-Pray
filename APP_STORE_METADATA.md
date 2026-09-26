@@ -134,7 +134,7 @@ JazakAllahu Khairan for downloading. May your garden flourish! 🤲
 - **Product ID:** `growpray_premium_monthly`
 - **Price:** $6.99/month
 - **Free Trial:** 14 days
-- **Description:** Unlimited garden, 2× coins, premium trees, priority support
+- **Description:** Unlimited garden, 2× coins, premium trees, monthly streak freezes
 
 ### Yearly Plan
 - **Reference Name:** Grow Pray Premium Yearly

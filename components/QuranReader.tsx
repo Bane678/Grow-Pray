@@ -154,6 +154,7 @@ export function QuranReader({ isSaved, toggleSave, onOpenAnnotate }: QuranReader
         windowSize={7}
         removeClippedSubviews
         contentContainerStyle={{ paddingBottom: 40 }}
+        ListFooterComponent={<Text style={styles.credit}>{TRANSLATION_CREDIT}</Text>}
       />
     );
   }
@@ -195,13 +196,29 @@ export function QuranReader({ isSaved, toggleSave, onOpenAnnotate }: QuranReader
         ListHeaderComponent={
           showBismillah ? <Text style={styles.bismillah}>{BISMILLAH}</Text> : null
         }
+        ListFooterComponent={<Text style={styles.credit}>{TRANSLATION_CREDIT}</Text>}
       />
     </View>
   );
 }
 
+// Shown at the foot of the index and of every surah. The Arabic is Tanzil's
+// Uthmani text and the English is Pickthall (1930), which is public domain -
+// crediting both is what keeps that provenance visible to a reader.
+const TRANSLATION_CREDIT =
+  'Arabic: Tanzil (Uthmani) · English translation: Marmaduke Pickthall (1930), public domain';
+
 const styles = StyleSheet.create({
   fill: { flex: 1 },
+
+  credit: {
+    fontSize: 10.5,
+    lineHeight: 15,
+    color: 'rgba(232,224,214,0.38)',
+    textAlign: 'center',
+    paddingHorizontal: 24,
+    paddingTop: 18,
+  },
 
   // ── Surah index ──
   surahRow: {

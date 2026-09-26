@@ -170,7 +170,7 @@ Files carry `// VERIFY` markers because they make religious claims to users:
   grade and citation against an authenticated printing of Nawawi's Forty
 - **`data/reflections.ts`** — curated daily pool
 - **`data/adhkar.ts`** — dhikr/dua content
-- `data/quran.json` — established dataset (Tanzil + Saheeh International); lower
+- `data/quran.json` — established dataset (Tanzil + Pickthall, public domain); lower
   risk, but confirm attribution
 
 ### 6. App Store listing metadata

@@ -1,12 +1,21 @@
 // ─── Full Qur'an (bundled, on-device) ────────────────────────────────────────
 //
-// ⚠️ OWNER VERIFICATION REQUIRED (Req 2.3):
-// Arabic text and translation are bundled from the open `quran-json` dataset
-// (npm quran-json@3.1.2): Arabic from Tanzil (Uthmani), English translation by
-// Saheeh International. Verified counts: 114 surahs / 6,236 ayat. Before
-// release, the owner must confirm the dataset's attribution requirements are
-// met and spot-check ayat against an authentic mushaf. No network requests -
-// everything ships in the bundle.
+// SOURCES:
+//   Arabic     - Tanzil (Uthmani script), via the `quran-json` dataset.
+//   Translation - "The Meaning of the Glorious Koran" by Marmaduke Pickthall
+//                 (1930), which is in the public domain.
+//
+// The translation was previously Saheeh International, which is under
+// copyright and was not licensed for this app. It was replaced wholesale
+// ahead of release - all 6,236 ayat, swapped verse-for-verse against
+// alquran.cloud's `en.pickthall` edition with the surah and ayah counts
+// asserted equal before writing. The excerpts in data/reflections.ts,
+// data/adhkar.ts, the onboarding ayah card and the win-back notification were
+// moved to Pickthall in the same pass; if you add another verse quote
+// anywhere, take it from Pickthall too.
+//
+// Verified counts: 114 surahs / 6,236 ayat. No network requests - everything
+// ships in the bundle.
 //
 // PERF: the ~2.4 MB JSON is loaded LAZILY on first access (require() inside a
 // function body), so it costs nothing at app startup - only when the Qur'an
@@ -17,7 +26,7 @@ import { Reflection } from './reflections';
 export interface QuranVerse {
   id: number;          // ayah number within the surah (1-based)
   text: string;        // Arabic (Uthmani)
-  translation: string; // English (Saheeh International)
+  translation: string; // English (Pickthall, public domain)
 }
 
 export interface QuranSurah {

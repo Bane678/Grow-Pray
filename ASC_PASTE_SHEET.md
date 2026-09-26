@@ -35,7 +35,7 @@ If the group doesn't exist: **Subscriptions → Create** → Group name `Grow Pr
 | Price | **$6.99** |
 | Free Trial | 7 Days (Introductory Offer → Free → 1 week) |
 | Display Name (en-US) | `Premium Monthly` |
-| Description (en-US) | `Unlimited garden, 2× coins, exclusive premium trees, priority support` |
+| Description (en-US) | `Unlimited garden, 2× coins, exclusive premium trees, monthly streak freezes` |
 
 ### Yearly
 | Field | Value |
