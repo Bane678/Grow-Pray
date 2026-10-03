@@ -1476,7 +1476,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
                   </View>
                 </View>
                 <Text style={nstyles.planMeta} numberOfLines={1}>
-                  {prices.yearly} billed yearly
+                  Billed yearly · {prices.yearlyPerMonth}/mo
                   {/* Spacing lives outside the struck-through span - inside it,
                       the line-through draws across the leading whitespace too
                       and visibly overshoots past the "U" of the price. */}
@@ -1490,7 +1490,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
               </View>
 
               <Text style={nstyles.planRate}>
-                {prices.yearlyPerMonth}<Text style={nstyles.planRateUnit}>/mo</Text>
+                {prices.yearly}<Text style={nstyles.planRateUnit}>/yr</Text>
               </Text>
             </TouchableOpacity>
 
@@ -1525,11 +1525,11 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           >
             <MaterialCommunityIcons name="lock-open-outline" size={17} color="#1a0f00" style={{ marginRight: 6 }} />
             <Text style={styles.premiumButtonText}>
-              {purchasing ? 'Processing…' : `Start ${trialDays} days free`}
+              {purchasing ? 'Processing…' : 'Continue'}
             </Text>
           </TouchableOpacity>
           <Text style={nstyles.trialNoteTight}>
-            {trialDays} days free · then {selectedPlan === 'yearly' ? `${prices.yearly}/year` : `${prices.monthly}/month`} · cancel in two taps
+            Then {selectedPlan === 'yearly' ? `${prices.yearly}/year` : `${prices.monthly}/month`} after a {trialDays}-day free trial · cancel in two taps
           </Text>
 
           {/* Decline - a visible ghost button, not a buried link. In this
@@ -1601,7 +1601,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
           >
             <MaterialCommunityIcons name="star-four-points" size={17} color="#1a0f00" style={{ marginRight: 6 }} />
             <Text style={styles.premiumButtonText}>
-              {purchasing ? 'Processing…' : `Try Premium free for ${trialDays} days`}
+              {purchasing ? 'Processing…' : 'Continue'}
             </Text>
           </TouchableOpacity>
           <Text style={nstyles.trialNoteTight}>

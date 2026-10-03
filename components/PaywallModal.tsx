@@ -497,7 +497,7 @@ export function PaywallModal({
               fontWeight: '800',
               color: '#0f1526',
             }}>
-              Start {PREMIUM_PLANS[selectedPlan].trialDays}-Day Free Trial
+              Continue
             </Text>
           )}
         </TouchableOpacity>
@@ -532,6 +532,16 @@ export function PaywallModal({
             {restoring ? 'Restoring...' : 'Restore Purchases'}
           </Text>
         </TouchableOpacity>
+
+        {/* Billed amount first, trial second - App Review 3.1.2(c). */}
+        <Text style={{
+          fontSize: 11,
+          color: '#94a3b8',
+          textAlign: 'center',
+          marginBottom: 8,
+        }}>
+          Then {selectedPlan === 'yearly' ? `${prices.yearly}/year` : `${prices.monthly}/month`} after a {PREMIUM_PLANS[selectedPlan].trialDays}-day free trial
+        </Text>
 
         {/* Legal text */}
         <Text style={{
