@@ -555,6 +555,7 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
   // ceremony is over - see goBack.
   const [niyyahCommitted, setNiyyahCommitted] = useState(false);
   const [firstPrayerAnswer, setFirstPrayerAnswer] = useState<'yes' | 'no' | null>(null);
+  const answerRevealing = useRef(false);
 
   const dynamicSteps = STEPS;
 
@@ -660,6 +661,28 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
     });
   };
 
+  // Answering the first-prayer question swaps the card's whole layout. That
+  // swap used to be an instant state change, so the card jumped to its new
+  // content with no transition at all. It now takes the same fade as every
+  // other step change.
+  const revealAnswer = (answer: 'yes' | 'no') => {
+    if (answerRevealing.current) return;
+    answerRevealing.current = true;
+    Animated.parallel([
+      Animated.timing(fadeAnim, { toValue: 0.02, duration: 180, useNativeDriver: true }),
+      Animated.timing(slideAnim, { toValue: -30, duration: 180, useNativeDriver: true }),
+    ]).start(() => {
+      setFirstPrayerAnswer(answer);
+      slideAnim.setValue(30);
+      requestAnimationFrame(() => {
+        Animated.parallel([
+          Animated.timing(fadeAnim, { toValue: 1, duration: 220, useNativeDriver: true }),
+          Animated.timing(slideAnim, { toValue: 0, duration: 220, useNativeDriver: true }),
+        ]).start(() => { answerRevealing.current = false; });
+      });
+    });
+  };
+
   const saveSingle = async (key: string, value: string) => {
     setSingleSelections((prev) => ({ ...prev, [key]: value }));
     await AsyncStorage.setItem(key, value);
@@ -758,6 +781,9 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
   }, [currentStep, multiSelections, name, selectedMadhab, singleSelections]);
 
   const finishOnboarding = async () => {
+    // Nothing on the garden side needs the madhab before this point, and
+    // onboarding's own prayer preview already reads selectedMadhab directly.
+    if (selectedMadhab) onMadhabChange?.(selectedMadhab);
     await AsyncStorage.setItem(ONBOARDING_KEY, 'true');
     onComplete();
   };
@@ -878,8 +904,11 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
       await AsyncStorage.setItem(USER_NAME_KEY, name.trim());
     }
     if (currentStep.kind === 'madhab' && selectedMadhab) {
+      // Saved now, but handed up to the app only in finishOnboarding. Pushing it
+      // up here re-ran the parent's prayer-time calculation in the same press
+      // that starts this card's fade, so the transition shared the JS thread
+      // with that work and could visibly stall.
       await AsyncStorage.setItem(MADHAB_KEY, selectedMadhab);
-      onMadhabChange?.(selectedMadhab);
     }
     // Continuing past the planting step commits the niyyah. Before this point
     // going back re-opens the ceremony so the intention can be changed; after
@@ -1379,13 +1408,13 @@ export function OnboardingScreen({ onComplete, onMadhabChange, onPurchaseMonthly
                 // through the real togglePrayerCompleted path (XP, coins, streak).
                 await AsyncStorage.setItem(FIRST_PRAYER_KEY, recent);
               } catch {}
-              setFirstPrayerAnswer('yes');
+              revealAnswer('yes');
             }}
             style={styles.primaryButton}
           >
             <Text style={styles.primaryButtonText}>Yes, alhamdulillah</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setFirstPrayerAnswer('no')} style={styles.secondaryButton}>
+          <TouchableOpacity onPress={() => revealAnswer('no')} style={styles.secondaryButton}>
             <Text style={styles.secondaryText}>Not yet</Text>
           </TouchableOpacity>
         </View>
