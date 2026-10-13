@@ -103,27 +103,25 @@ JazakAllahu Khairan for downloading. May your garden flourish! 🤲
 
 ---
 
-## Screenshots (Recommended 5-6 screens)
+## Screenshots
 
-### Screenshot 1 — Hero / Garden View
-**Caption:** "Your prayers bloom into a beautiful garden"
-**Content:** Main garden view with several grown trees, coin/XP display, prayer timeline visible
+Raw, unedited screenshots of real screens only. No captions, frames, mockups
+or redrawn UI, and never the words "free", "trial", "discount" or a price.
+Build 23 was rejected under 2.3.3 (designed mockups, not the app in use) and
+2.3.7 (the word "free" in two screenshots). Never capture the paywall or the
+coin shop: both show real prices.
 
-### Screenshot 2 — Prayer Timeline
-**Caption:** "Track all 5 daily prayers with perfect timing"
-**Content:** Prayer timeline showing mix of completed (green), active (blue), upcoming prayers
+Capture on the phone (side + volume up), then run
+`python scripts/store_screenshots.py <folder>` to produce the 6.5" and 6.9" sets.
 
-### Screenshot 3 — Streaks & Progress
-**Caption:** "Build unstoppable prayer streaks"
-**Content:** Streak display showing per-prayer streaks with flame icons, milestone celebration
-
-### Screenshot 4 — Garden Shop
-**Caption:** "Collect rare trees for your garden"
-**Content:** Shop modal open showing tree varieties and streak freezes
-
-### Screenshot 5 — Weekly Challenges
-**Caption:** "Complete challenges for bonus rewards"
-**Content:** Challenges modal with progress bars and coin rewards
+1. Garden, daytime, with the prayer bar visible
+2. Garden at night
+3. Logging a prayer (prayer bar mid-day, one or two prayers ticked)
+4. Challenges tab
+5. Qur'an reader with a surah open
+6. Hadith reader with a hadith open
+7. Qibla compass
+8. Dhikr counter
 
 ---
 
