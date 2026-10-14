@@ -360,6 +360,28 @@ export function useChallenges() {
     return challenge.reward;
   }, [state, persist]);
 
+  /**
+   * DEV ONLY. Tick or untick a challenge without doing the underlying prayers.
+   * Ticking sets progress to target and leaves it UNCLAIMED, so the reward is
+   * still collected through the real claim UI and claimReward path. Unticking
+   * resets progress and the claimed flag so it can be run again. Refuses to run
+   * in a release build.
+   */
+  const debugSetChallengeDone = useCallback(async (challengeId: ChallengeId, done: boolean) => {
+    if (!__DEV__ || !state) return;
+    const isWeekly = challengeId in state.weekly;
+    const bucket = isWeekly ? 'weekly' : 'daily';
+    const challenge = isWeekly
+      ? state.weekly[challengeId as WeeklyChallengeId]
+      : state.daily[challengeId as DailyChallengeId];
+    if (!challenge) return;
+    const ns = { ...state, [bucket]: { ...(state as any)[bucket] } };
+    (ns as any)[bucket][challengeId] = done
+      ? { ...challenge, progress: challenge.target }
+      : { ...challenge, progress: 0, claimed: false };
+    await persist(ns);
+  }, [state, persist]);
+
   // ─── Derived values ───────────────────────────────────────────────────────────
   const weeklyChallengesList = state ? Object.values(state.weekly) : Object.values(createFreshWeekly());
   const dailyChallengesList  = state ? Object.values(state.daily)  : Object.values(createFreshDaily());
@@ -379,5 +401,6 @@ export function useChallenges() {
     undoPrayerCompletion,
     recordTreePlanted,
     claimReward,
+    debugSetChallengeDone,
   };
 }

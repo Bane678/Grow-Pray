@@ -5462,6 +5462,52 @@ function AppInner() {
                 </Text>
               </TouchableOpacity>
 
+              {/* ── Challenge ticker (dev only) ───────────────── */}
+              <View style={{ marginTop: 8, backgroundColor: '#1f2937', borderRadius: 12, padding: 12 }}>
+                <Text style={{ color: '#fff', fontSize: 14, fontWeight: '700', marginBottom: 2 }}>
+                  ✅ Challenges
+                </Text>
+                <Text style={{ color: '#9ca3af', fontSize: 11, marginBottom: 8 }}>
+                  Tap to complete (then claim in the Challenges tab). Tap again to reset.
+                </Text>
+                {[
+                  { label: 'Daily', list: challengesHook.dailyChallengesList },
+                  { label: 'Weekly', list: challengesHook.weeklyChallengesList },
+                ].map((group) => (
+                  <View key={group.label} style={{ marginTop: 4 }}>
+                    <Text style={{ color: '#6b7280', fontSize: 10, fontWeight: '700', letterSpacing: 0.6, marginBottom: 4 }}>
+                      {group.label.toUpperCase()}
+                    </Text>
+                    {group.list.map((c) => {
+                      const done = c.progress >= c.target;
+                      return (
+                        <TouchableOpacity
+                          key={c.id}
+                          onPress={() => challengesHook.debugSetChallengeDone(c.id, !done)}
+                          style={{
+                            flexDirection: 'row',
+                            alignItems: 'center',
+                            paddingVertical: 8,
+                            paddingHorizontal: 10,
+                            marginBottom: 4,
+                            borderRadius: 8,
+                            backgroundColor: done ? '#2d5a2d' : '#2d3748',
+                          }}
+                        >
+                          <Text style={{ fontSize: 16, marginRight: 8 }}>{done ? '☑️' : '⬜'}</Text>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>{c.title}</Text>
+                            <Text style={{ color: '#9ca3af', fontSize: 10.5 }}>
+                              {c.progress}/{c.target}{c.claimed ? ' · claimed' : ''}
+                            </Text>
+                          </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                ))}
+              </View>
+
               {/* ── Prayer unlock toggle ──────────────────────── */}
               <TouchableOpacity
                 onPress={() => setDebugPrayersUnlocked(v => !v)}
