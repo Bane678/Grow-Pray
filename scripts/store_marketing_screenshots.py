@@ -21,6 +21,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SERIF = os.path.join(ROOT, 'node_modules/@expo-google-fonts/fraunces/600SemiBold/Fraunces_600SemiBold.ttf')
 SANS = 'C:/Windows/Fonts/segoeui.ttf'
 SANS_SB = 'C:/Windows/Fonts/seguisb.ttf'
+SANS_B = 'C:/Windows/Fonts/segoeuib.ttf'
 
 SIZES = {'6.9in': (1320, 2868), '6.5in': (1284, 2778)}
 
@@ -45,14 +46,38 @@ def hex_rgb(h, a=255):
     return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4)) + (a,)
 
 
-def background(W, H, seed):
-    top, bottom = (11, 17, 32), (21, 30, 58)
+def luminance(c):
+    return 0.299 * c[0] + 0.587 * c[1] + 0.114 * c[2]
+
+
+def median_colour(img, box):
+    px = list(img.crop(box).getdata())
+    return tuple(sorted(ch)[len(ch) // 2] for ch in zip(*px))
+
+
+def screen_palette(shot):
+    """Frame colours taken from the screenshot itself, so a daytime screen
+    gets a daytime frame. Top comes from just under the status bar, bottom
+    from the screen's left edge mid-height (the app background, not a card).
+    The top is darkened if needed so the white headline stays readable."""
+    w, h = shot.size
+    top = median_colour(shot, (int(w * 0.05), int(h * 0.06), int(w * 0.95), int(h * 0.075)))
+    bottom = median_colour(shot, (0, int(h * 0.40), max(2, int(w * 0.02)), int(h * 0.60)))
+    while luminance(top) > 70:
+        top = tuple(round(c * 0.9) for c in top)
+    return top, bottom
+
+
+def background(W, H, seed, top=(11, 17, 32), bottom=(21, 30, 58)):
     bg = Image.new('RGB', (W, H))
     px = ImageDraw.Draw(bg)
     for y in range(H):
         t = y / (H - 1)
         px.line([(0, y), (W, y)], fill=tuple(round(a + (b - a) * t) for a, b in zip(top, bottom)))
     bg = bg.convert('RGBA')
+    # Stars belong on a night sky only.
+    if max(luminance(top), luminance(bottom)) > 75:
+        return bg
     stars = Image.new('RGBA', (W, H))
     d = ImageDraw.Draw(stars)
     rnd = random.Random(seed)
@@ -61,6 +86,53 @@ def background(W, H, seed):
         r = rnd.choice([1.2, 1.6, 2.2, 3])
         d.ellipse([x - r, y - r, x + r, y + r], fill=(255, 255, 255, rnd.randint(40, 170)))
     return Image.alpha_composite(bg, stars)
+
+
+def full_battery(shot):
+    """Replace a low-battery icon in the status bar with a full one.
+
+    The icon is found rather than assumed: it is the cluster of pixels that
+    stand out from the status-bar background to the right of the wifi glyph.
+    It is covered with that background and redrawn as iOS draws a full
+    battery with percentage shown: white body, dark '100', faint nub."""
+    w, h = shot.size
+    x0, x1, y0, y1 = int(w * 0.835), int(w * 0.95), int(h * 0.018), int(h * 0.05)
+    region = shot.crop((x0, y0, x1, y1))
+    bg = median_colour(shot, (x0, y0, x1, y0 + 3))
+    xs, ys = [], []
+    for y in range(region.height):
+        for x in range(region.width):
+            c = region.getpixel((x, y))
+            if max(abs(c[i] - bg[i]) for i in range(3)) > 45:
+                xs.append(x)
+                ys.append(y)
+    if len(xs) < 40:
+        return shot  # nothing recognisable; leave the screenshot untouched
+    bx0, bx1, by0, by1 = x0 + min(xs), x0 + max(xs), y0 + min(ys), y0 + max(ys)
+    shot = shot.copy()
+    d = ImageDraw.Draw(shot)
+    pad = max(2, (by1 - by0) // 6)
+    # Fill row by row from the pixels just left of the icon, so a sky that
+    # shades from top to bottom carries straight through instead of showing a
+    # flat box.
+    sx = max(0, bx0 - pad - 3)
+    for yy in range(by0 - pad, by1 + pad + 1):
+        d.line([(bx0 - pad, yy), (bx1 + pad, yy)], fill=shot.getpixel((sx, yy)))
+    bh = by1 - by0
+    nub_w = max(2, round(bh * 0.12))
+    body = [bx0, by0, bx1 - nub_w - max(1, round(bh * 0.06)), by1]
+    r = round(bh * 0.3)
+    d.rounded_rectangle(body, r, fill=(255, 255, 255))
+    nub_h = round(bh * 0.36)
+    cy = (by0 + by1) / 2
+    d.rounded_rectangle([bx1 - nub_w, cy - nub_h / 2, bx1, cy + nub_h / 2], nub_w // 2,
+                        fill=(255, 255, 255, 110))
+    f = ImageFont.truetype(SANS_B, round(bh * 0.74))
+    tw = f.getlength('100')
+    tx = (body[0] + body[2]) / 2 - tw / 2
+    ty = cy - f.getbbox('100')[3] / 2 - f.getbbox('100')[1] / 2
+    d.text((tx, ty), '100', font=f, fill=(20, 20, 24))
+    return shot
 
 
 def draw_spaced(d, xy, text, font, fill, spacing):
@@ -84,7 +156,8 @@ def wrap(text, font, width):
 
 def render(shot_path, slide, W, H, seed):
     eyebrow, headline, subtitle, accent = slide
-    img = background(W, H, seed)
+    shot = full_battery(Image.open(shot_path).convert('RGB'))
+    img = background(W, H, seed, *screen_palette(shot))
     d = ImageDraw.Draw(img)
     pad = round(W * 0.075)
     text_w = W - 2 * pad
@@ -113,13 +186,12 @@ def render(shot_path, slide, W, H, seed):
     y += round(H * 0.008)
     sf = ImageFont.truetype(SANS, round(W * 0.036))
     for line in wrap(subtitle, sf, text_w):
-        d.text((pad, y), line, font=sf, fill=(170, 176, 196, 255))
+        d.text((pad, y), line, font=sf, fill=(205, 212, 228, 255))
         y += round(sf.size * 1.35)
 
     # Phone: the real screenshot, as large as the remaining space allows.
     top = y + round(H * 0.032)
     bottom = H - round(H * 0.035)
-    shot = Image.open(shot_path).convert('RGB')
     phone_h = bottom - top
     phone_w = round(phone_h * shot.width / shot.height)
     if phone_w > W * 0.84:
@@ -160,7 +232,7 @@ def main():
     if len(shots) != len(SLIDES):
         sys.exit(f'Expected {len(SLIDES)} screenshots (01..{len(SLIDES):02d}), found {len(shots)}.')
     for name, (W, H) in SIZES.items():
-        folder = os.path.join(out, f'Final-{name}')
+        folder = os.path.join(out, f'Upload-{name}')
         os.makedirs(folder, exist_ok=True)
         for i, (f, slide) in enumerate(zip(shots, SLIDES), 1):
             render(os.path.join(src, f), slide, W, H, seed=i).save(os.path.join(folder, f'{i:02d}.png'))

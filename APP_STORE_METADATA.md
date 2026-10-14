@@ -112,7 +112,7 @@ no real app screens (2.3.3) and used the word "free" (2.3.7). Captions are fine;
 the real UI must be the main element. Never use "free", "trial", "discount" or
 a price in a caption, and never capture the paywall or the coin shop.
 
-Capture on the phone (side + volume up), name them 01..08 in this order, then:
+Capture on the phone (side + volume up), name them 01..08 in this order, then (output goes to Upload-6.9in and Upload-6.5in):
 `python scripts/store_marketing_screenshots.py <folder> <out folder>`
 
 1. Garden, daytime, with the prayer bar visible
