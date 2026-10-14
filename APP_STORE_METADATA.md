@@ -105,14 +105,15 @@ JazakAllahu Khairan for downloading. May your garden flourish! 🤲
 
 ## Screenshots
 
-Raw, unedited screenshots of real screens only. No captions, frames, mockups
-or redrawn UI, and never the words "free", "trial", "discount" or a price.
-Build 23 was rejected under 2.3.3 (designed mockups, not the app in use) and
-2.3.7 (the word "free" in two screenshots). Never capture the paywall or the
-coin shop: both show real prices.
+Each image is a short caption above a REAL, unedited screenshot in a phone
+frame, built by `scripts/store_marketing_screenshots.py` (captions live in that
+file). Build 23 was rejected because the old images were redrawn mockups with
+no real app screens (2.3.3) and used the word "free" (2.3.7). Captions are fine;
+the real UI must be the main element. Never use "free", "trial", "discount" or
+a price in a caption, and never capture the paywall or the coin shop.
 
-Capture on the phone (side + volume up), then run
-`python scripts/store_screenshots.py <folder>` to produce the 6.5" and 6.9" sets.
+Capture on the phone (side + volume up), name them 01..08 in this order, then:
+`python scripts/store_marketing_screenshots.py <folder> <out folder>`
 
 1. Garden, daytime, with the prayer bar visible
 2. Garden at night
