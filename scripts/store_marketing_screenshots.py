@@ -23,7 +23,12 @@ SANS = 'C:/Windows/Fonts/segoeui.ttf'
 SANS_SB = 'C:/Windows/Fonts/seguisb.ttf'
 SANS_B = 'C:/Windows/Fonts/segoeuib.ttf'
 
-SIZES = {'6.9in': (1320, 2868), '6.5in': (1284, 2778)}
+SIZES = {
+    '6.9in': (1320, 2868),
+    '6.5in': (1284, 2778),
+    '6.3in': (1206, 2622),
+    '6.1in': (1170, 2532),
+}
 
 ORANGE, PERI, GOLD, SAGE, GREEN = '#e8a87c', '#a5b4fc', '#fbbf24', '#8fbf9f', '#4ade80'
 
