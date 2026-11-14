@@ -81,14 +81,22 @@ def sprite(kind, stage, k):
     return _cache[key]
 
 
-def island(grid, stage_weights, fill, seed):
-    """One floating garden, cropped tight to its own pixels."""
+TILE_FILES = {'dead': 'Dead_Tile', 'recovering': 'Recovering_Tile', 'recovered': 'Recovered_Tile'}
+DEAD_TREE_W_U, DEAD_TREE_H_U = 720 * 0.08, 1472 * 0.08 * TREE_SQUASH   # SCALED_DEAD_TREE_*
+
+
+def island(grid, spec):
+    """One floating garden, cropped tight to its own pixels.
+
+    spec(r, c) -> (tile_state, tree) where tree is None, 'dead', or
+    (kind, stage). Every tile sprite is stretched to the same footprint, as
+    the app does.
+    """
     k = RENDER_K
     tile_w, tile_h = round(TILE_W_U * k), round(TILE_H_U * k)
-    # The sprite the app draws. Tile_Recovered.png carries ~8% transparent
-    # padding per side, which leaves visible gaps between tiles.
-    tile = Image.open(os.path.join(ART, 'Ground Tiles', 'Recovered_Tile.png')).convert('RGBA')
-    tile = tile.resize((tile_w, tile_h), Image.LANCZOS)
+    tiles = {state: Image.open(os.path.join(ART, 'Ground Tiles', f + '.png')).convert('RGBA')
+             .resize((tile_w, tile_h), Image.LANCZOS) for state, f in TILE_FILES.items()}
+    dead_tree = Image.open(os.path.join(ART, 'Tree Types', 'Basic Trees', 'Dead_Tree.png')).convert('RGBA')         .resize((round(DEAD_TREE_W_U * k), round(DEAD_TREE_H_U * k)), Image.LANCZOS)
 
     span_w = grid * TILE_W_U * k
     span_h = grid * TILE_H_U * k
@@ -100,21 +108,79 @@ def island(grid, stage_weights, fill, seed):
         return (c - r) * STEP_X_U * k + centre_off, pad + (c + r) * STEP_Y_U * k
 
     order = sorted(((r, c) for r in range(grid) for c in range(grid)), key=lambda rc: (rc[0] + rc[1], rc[1]))
+    specs = {rc: spec(*rc) for rc in order}
     for r, c in order:
         x, y = tile_xy(r, c)
-        layer.alpha_composite(tile, (round(x), round(y)))
-
-    rnd = random.Random(seed)
-    kinds = list(TREES)
-    stages, weights = zip(*stage_weights)
+        layer.alpha_composite(tiles[specs[(r, c)][0]], (round(x), round(y)))
     for r, c in order:
-        if rnd.random() > fill:
+        tree = specs[(r, c)][1]
+        if tree is None:
             continue
-        img, dx, dy = sprite(rnd.choice(kinds), rnd.choices(stages, weights)[0], k)
+        if tree == 'dead':
+            img, dx, dy = dead_tree, 0, 0
+        else:
+            img, dx, dy = sprite(*tree, k)
         x, y = tile_xy(r, c)
         cx, cy = x + tile_w / 2, y + tile_h / 2
         layer.alpha_composite(img, (round(cx - img.width / 2 + dx), round(cy - img.height * 0.75 + dy)))
     return layer.crop(layer.getbbox())
+
+
+def mixed(grid, stage_weights, fill, seed):
+    """A fully recovered garden with trees of mixed stages."""
+    rnd = random.Random(seed)
+    stages, weights = zip(*stage_weights)
+    plan = {}
+    for r in range(grid):
+        for c in range(grid):
+            plan[(r, c)] = (rnd.choice(list(TREES)), rnd.choices(stages, weights)[0]) if rnd.random() < fill else None
+    return island(grid, lambda r, c: ('recovered', plan[(r, c)]))
+
+
+def timeline(grid, seed):
+    """The same plot at three points in time, sharing tree positions and types,
+    so each tree visibly grows from one garden to the next.
+
+    Mirrors how a real garden starts in the app: dead ground with the odd dead
+    tree, and a cross of five recovered tiles in the middle holding a sapling.
+    """
+    rnd = random.Random(seed)
+    mid = grid // 2
+    kinds = list(TREES)
+    plan = {}
+    for r in range(grid):
+        for c in range(grid):
+            plan[(r, c)] = {
+                'kind': rnd.choice(kinds),
+                'plant': rnd.random() < 0.72,
+                'dead_tree': rnd.random() < 0.18,
+                'd': abs(r - mid) + abs(c - mid),
+            }
+    plan[(mid, mid)].update(kind='Basic', plant=True)
+
+    def start(r, c):
+        t = plan[(r, c)]
+        if t['d'] == 0:
+            return 'recovered', ('Basic', 'sapling')
+        if t['d'] == 1:
+            return 'recovered', None
+        return 'dead', 'dead' if t['dead_tree'] else None
+
+    def growing(r, c):
+        t = plan[(r, c)]
+        d = t['d']
+        if d <= 3:
+            stage = 'grown' if d <= 1 else 'growing' if d == 2 else 'sapling'
+            return 'recovered', (t['kind'], stage) if t['plant'] or d == 0 else None
+        if d == 4:
+            return 'recovering', None
+        return 'dead', 'dead' if t['dead_tree'] else None
+
+    def flourishing(r, c):
+        t = plan[(r, c)]
+        return 'recovered', (t['kind'], 'flourishing') if t['plant'] or t['d'] == 0 else None
+
+    return island(grid, start), island(grid, growing), island(grid, flourishing)
 
 
 def place(canvas, isle, box, glow=True):
@@ -174,25 +240,58 @@ def title_block(img, cx, top, title_px, tag_px):
     return ty + round(tag_px * 1.3)
 
 
-# Stage mixes: a young garden, a growing one, and a mature one.
-YOUNG = (('sapling', 6), ('growing', 3), ('grown', 1))
-MID = (('growing', 3), ('grown', 5), ('flourishing', 2))
+# Stage mix for the search asset's single garden.
 MATURE = (('grown', 2), ('flourishing', 8))
+
+
+def arrow(img, x, y, size, colour=(230, 191, 129, 230)):
+    """A small chevron pointing right, marking the direction of growth."""
+    d = ImageDraw.Draw(img)
+    w = max(6, size // 5)
+    d.line([(x - size / 2, y - size), (x + size / 2, y), (x - size / 2, y + size)], fill=colour, width=w, joint='curve')
+
+
+def paste_scaled(canvas, isle, scale, cx, bottom):
+    """Paste an island at a given scale, bottom-centred on (cx, bottom)."""
+    isle = isle.resize((round(isle.width * scale), round(isle.height * scale)), Image.LANCZOS)
+    px, py = round(cx - isle.width / 2), round(bottom - isle.height)
+    halo = Image.new('RGBA', canvas.size, (74, 222, 128, 0))
+    a = Image.new('L', canvas.size, 0)
+    a.paste(isle.split()[3], (px, py))
+    halo.putalpha(a.filter(ImageFilter.GaussianBlur(isle.width * 0.04)).point(lambda v: v * 0.35))
+    canvas.alpha_composite(halo)
+    canvas.alpha_composite(isle, (px, py))
+    return (px, py, px + isle.width, py + isle.height)
 
 
 def header(out):
     W, H = 3840, 1646
     safe = (1097, 493, 1097 + 1646, 493 + 661)
     img = sky(W, H, seed=3)
-    flares(img, [(330, 230), (3560, 300), (1900, 120), (760, 1450), (3200, 1500)], 34)
+    flares(img, [(330, 200), (3560, 230), (1900, 110), (1250, 330), (2650, 360)], 34)
 
-    # Three gardens growing from left to right of centre: sprouting, growing,
-    # and the full one under the title. Side gardens are atmosphere; the title
-    # and the main garden's heart sit in the safe area.
+    # One garden at three moments: starting out, growing, flourishing, read
+    # left to right. All three share ONE scale, so the plot is visibly the
+    # same size and only its state changes. Fitting each separately shrank the
+    # flourishing one, whose tall trees made it the tallest.
     text_bottom = title_block(img, W / 2, safe[1] + 6, 170, 62)
-    place(img, island(7, YOUNG, 0.55, seed=21), (90, 640, 1130, 1560))
-    place(img, island(7, MID, 0.62, seed=22), (2710, 640, 3750, 1560))
-    place(img, island(9, MATURE, 0.70, seed=23), (1130, text_bottom + 20, 2710, H - 40))
+    gardens = timeline(7, seed=31)
+    width = 1300                                   # on-canvas width of every garden
+    scale = width / max(g.width for g in gardens)
+
+    # A gentle curve: the outer gardens rise beside the title, the middle one
+    # sits under it. Uses the side sky instead of leaving it empty, and keeps
+    # every garden whole inside the canvas.
+    side_bottom = 1330
+    mid_bottom = H - 45
+    centres = (40 + width / 2, W / 2, W - 40 - width / 2)
+    bottoms = (side_bottom, mid_bottom, side_bottom)
+    placed = [paste_scaled(img, g, scale, cx, b) for g, cx, b in zip(gardens, centres, bottoms)]
+    for left, right in zip(placed, placed[1:]):
+        ax = (left[2] + right[0]) / 2
+        ay = (left[1] + left[3] + right[1] + right[3]) / 4 + 40
+        arrow(img, ax, ay, 46)
+    assert placed[1][1] > text_bottom, 'middle garden runs into the tagline'
     return save(img, out, 'header-21x9', safe)
 
 
@@ -202,7 +301,7 @@ def search(out):
     img = sky(W, H, seed=5)
     flares(img, [(420, 320), (3420, 420), (300, 1500), (3560, 1800), (2900, 180)], 40)
     text_bottom = title_block(img, W / 2, safe[1] - 30, 250, 92)
-    place(img, island(11, MATURE, 0.66, seed=11), (240, text_bottom + 30, W - 240, H - 60))
+    place(img, mixed(11, MATURE, 0.66, seed=11), (240, text_bottom + 30, W - 240, H - 60))
     return save(img, out, 'search-3x2', safe)
 
 
