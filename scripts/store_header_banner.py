@@ -44,8 +44,8 @@ TREES = {
     'Cedar':         ('Cedar Trees/Cedar_Flourished.png',                     0.144, 2,  -13),
 }
 
-GRID = 11            # tiles per side
-UNIT = 2.45          # banner pixels per app unit
+GRID = 9             # tiles per side; fewer, larger trees read better small
+UNIT = 2.25          # banner pixels per app unit
 GARDEN_TOP = 1420    # y of the diamond's top vertex; clears the tagline
 FILL = 0.62          # share of tiles with a tree; denser reads as a wall
 
@@ -150,6 +150,19 @@ def main():
 
     img = sky()
     g = garden()
+    # Shift the garden so ALL of it lands inside the 21:9 header crop (the
+    # tighter of the two placements vertically) and below the tagline. Fails
+    # loudly rather than shipping a garden with its top or bottom cut off.
+    hh = round(W * 9 / 21)
+    crop_top, crop_bottom = (H - hh) // 2, (H + hh) // 2
+    x0, y0, x1, y1 = g.getbbox()
+    shift = (crop_bottom - 40) - y1
+    g = g.transform(g.size, Image.AFFINE, (1, 0, 0, 0, 1, -shift))
+    y0, y1 = y0 + shift, y1 + shift
+    text_bottom = SAFE[1] + 330 + 110
+    assert y0 > text_bottom, f'garden top {y0} runs into the tagline (ends {text_bottom}); lower UNIT'
+    search_w = round(H * 3 / 2)
+    assert x0 >= (W - search_w) // 2 and x1 <= (W + search_w) // 2, 'garden wider than the 3:2 crop'
     # Soft green glow under the garden so it reads as lit, not pasted on.
     alpha = g.split()[3].filter(ImageFilter.GaussianBlur(120))
     glow = Image.new('RGBA', (W, H), (74, 222, 128, 0))
