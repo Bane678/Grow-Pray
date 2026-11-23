@@ -1,5 +1,10 @@
 # 🍎 App Store Connect — Paste-Ready Sheet
 
+> **🟢 The app is live** (https://apps.apple.com/app/id6762623534) since 2026-11-23.
+> Everything below has been entered and approved. What App Store Connect actually
+> holds wins over this sheet: the trials there are **2 weeks**, not the 7 days below.
+> Keep this sheet only as a reference for future listing edits.
+
 Everything you type into App Store Connect, ready to copy. Work top to bottom.
 URLs are the live growpray.com ones (already verified loading over HTTPS).
 

@@ -1,5 +1,10 @@
 # Grow Pray — Apple Submission Checklist
 
+> **🟢 Done. The app is live** (https://apps.apple.com/app/id6762623534) since
+> 2026-11-23. This is the original pre-launch checklist, kept for history; parts of
+> it (7-day trials, github.io URLs, simulator screenshot sizes) were superseded.
+> For current state see the top of `REMAINING_BEFORE_SUBMISSION.md`.
+
 *All code is done. These are the 8 remaining steps to get the app live.*
 
 ---

@@ -1,6 +1,12 @@
 # Pending release
 
-## In flight
+> **🟢 Shipped.** Grow Pray 1.0 is live on the App Store
+> (https://apps.apple.com/app/id6762623534) since 2026-11-23. The build notes below
+> are from an earlier build; nothing here is pending any more.
+> See the top of `REMAINING_BEFORE_SUBMISSION.md` for the launch state and what's
+> still open.
+
+## In flight *(historical)*
 
 **iOS production build** `64fd249c-f79d-4020-92c0-9bf58696f4b1`
 https://expo.dev/accounts/bane678/projects/grow-pray/builds/64fd249c-f79d-4020-92c0-9bf58696f4b1

@@ -1,15 +1,51 @@
 # Grow Pray — Road to App Store Submission
 
+> ## 🟢 LIVE on the App Store since 2026-11-23
+>
+> **https://apps.apple.com/app/id6762623534**
+>
+> Version 1.0 was approved by Apple, then sat "removed from sale" only because
+> App Availability had no countries selected. On 2026-11-23 it was made available
+> in **174 countries or regions** (everything except **China mainland**, left out
+> so the China security-assessment and AIGC filing requirements don't apply).
+>
+> | | |
+> |---|---|
+> | Subscriptions | Monthly $6.99 + Yearly $44.99, both **Approved**, 2-week free trial |
+> | Coin packs | All four consumables **Approved** |
+> | App price | Free (base country United Kingdom) |
+> | Product page header | `header-universal.png` published as Header **and** Search Results |
+> | Landing page | growpray.com badges link to the listing (commit `cb1c761`) |
+> | Privacy policy | Corrected version is live on growpray.com |
+> | Content | `// VERIFY` markers cleared after checking (commit `16764ad`) |
+>
+> **Everything below this box is the pre-launch plan from 2026-08-17, kept for
+> history.** The "In progress" and "Remaining" sections are all resolved, except the
+> items in **Still open after launch**.
+>
+> ### Still open after launch
+> - [ ] **Support email mismatch**: `components/SettingsModal.tsx` still uses
+>       `sayeedali224@gmail.com` as the in-app support address, while the privacy
+>       policy and support page say `support@growpray.com`.
+> - [ ] **Age rating questions** (Location Sharing and Dating): answer in App
+>       Information before **2027-01-15**, or with the next version submitted.
+> - [ ] **Category**: the live listing shows **Lifestyle** as primary; this plan
+>       said Health & Fitness. Check this is intended.
+> - [ ] **China mainland**: only if you want it. Needs the security assessment and
+>       AIGC declaration in App Compliance first.
+> - [ ] Search results now show the banner instead of screenshots. Consider an
+>       A/B test via Product Page Optimization.
+
 *Rewritten 2026-08-17. Supersedes the 2026-07-22 version, which had gone stale in one
 important way: it claimed only one native build had ever existed and that
 `ios.buildNumber` mattered. Neither is true any more — see "Build numbers" below.*
 
-**Status: feature-complete. Blocked on screenshots, App Store Connect config, and
-content verification — not on code.**
+**Status (2026-08-17): feature-complete. Blocked on screenshots, App Store Connect
+config, and content verification — not on code.**
 
 ---
 
-## Current state at a glance
+## Current state at a glance *(as of 2026-08-17)*
 
 | | |
 |---|---|
