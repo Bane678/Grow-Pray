@@ -27,8 +27,17 @@
 > - [x] **Support email mismatch**: fixed in code 2026-11-23. Settings now
 >       mails `support@growpray.com`, matching the privacy policy and support page.
 >       Reaches users with the next OTA update or build.
-> - [ ] **Age rating questions** (Location Sharing and Dating): answer in App
->       Information before **2027-01-15**, or with the next version submitted.
+> - [ ] **Age rating questions**: two are unanswered. App Store Connect only
+>       lets you edit them while a new version is in "Prepare for Submission"; on
+>       the live 1.0 the dialog is read-only. Answer them with the next version,
+>       and before **2027-01-15**. Both answers are **No**:
+>       - *Step 1, Shared Location* ("sharing of real-world location with another
+>         person or group"): **No**. Location is only used on-device for prayer
+>         times and Qibla. The only outbound calls are Nominatim and TimeAPI,
+>         for manual city search.
+>       - *Step 2, Dating and Relationships*: **No**. There's nothing social in
+>         the app at all.
+>       Every other answer is already set and stays as is (all None or No).
 > - [ ] **Category**: the live listing shows **Lifestyle** as primary; this plan
 >       said Health & Fitness. Check this is intended.
 > - [ ] **China mainland**: only if you want it. Needs the security assessment and
