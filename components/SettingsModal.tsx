@@ -81,7 +81,7 @@ const ALL_STORAGE_KEYS = [
 ];
 
 const APP_VERSION = '1.0.0';
-const SUPPORT_EMAIL = 'sayeedali224@gmail.com';
+const SUPPORT_EMAIL = 'support@growpray.com';
 // Point straight at the canonical HTTPS host. The old github.io URL 301s to
 // http://growpray.com, downgrading the connection on the way.
 const PRIVACY_URL = 'https://growpray.com/privacy-policy.html';

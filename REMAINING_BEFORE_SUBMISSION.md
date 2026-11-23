@@ -24,9 +24,9 @@
 > items in **Still open after launch**.
 >
 > ### Still open after launch
-> - [ ] **Support email mismatch**: `components/SettingsModal.tsx` still uses
->       `sayeedali224@gmail.com` as the in-app support address, while the privacy
->       policy and support page say `support@growpray.com`.
+> - [x] **Support email mismatch**: fixed in code 2026-11-23. Settings now
+>       mails `support@growpray.com`, matching the privacy policy and support page.
+>       Reaches users with the next OTA update or build.
 > - [ ] **Age rating questions** (Location Sharing and Dating): answer in App
 >       Information before **2027-01-15**, or with the next version submitted.
 > - [ ] **Category**: the live listing shows **Lifestyle** as primary; this plan
@@ -254,9 +254,9 @@ screenshots, metadata, IAPs → **Submit for Review**. Apple typically replies i
 | Support email | `support@growpray.com` (Purelymail) |
 | Trader address (DSA) | 124 City Road, London, EC1V 2NX (Capital Office Ltd, verified) |
 
-### Known inconsistency worth resolving
-`SettingsModal.tsx` uses `sayeedali224@gmail.com` as the in-app support address,
-while the privacy policy tells users to contact `support@growpray.com`. Pick one.
+### ~~Known inconsistency worth resolving~~ (resolved 2026-11-23)
+`SettingsModal.tsx` now uses `support@growpray.com` as the in-app support address,
+matching the privacy policy.
 
 ---
 
