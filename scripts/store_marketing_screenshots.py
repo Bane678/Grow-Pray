@@ -3,14 +3,20 @@
 Usage:
     python scripts/store_marketing_screenshots.py <folder with 01..08 screenshots> <out folder>
 
-Each image is a caption (eyebrow, serif headline, one-line subtitle) above the
-actual screenshot in a phone frame, rendered natively at both slot sizes.
+Each image is a big two-line headline above the actual screenshot in a phone
+frame, rendered natively at every slot size.
 
 Why this shape: build 23 was rejected because the old images were redrawn
 mockups with no real app screens (2.3.3) and used the word "free" (2.3.7).
 Captions are fine; what Apple wants is the real UI as the main element. So the
 phone takes up most of every image, the screenshot inside it is untouched, and
 the copy avoids "free", "trial", "discount" and any price.
+
+The first three are what App Store search shows, side by side at thumbnail
+size, so the headline is large, short and bold with one highlighted word, and
+nothing else competes with it (no eyebrow or subtitle). The phone runs off the
+bottom edge so the screen can be as big as possible under the headline. Every
+slide shares one night sky so the set reads as a series.
 """
 import os
 import random
@@ -18,9 +24,7 @@ import sys
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SERIF = os.path.join(ROOT, 'node_modules/@expo-google-fonts/fraunces/600SemiBold/Fraunces_600SemiBold.ttf')
-SANS = 'C:/Windows/Fonts/segoeui.ttf'
-SANS_SB = 'C:/Windows/Fonts/seguisb.ttf'
+SERIF = os.path.join(ROOT, 'node_modules/@expo-google-fonts/fraunces/800ExtraBold/Fraunces_800ExtraBold.ttf')
 SANS_B = 'C:/Windows/Fonts/segoeuib.ttf'
 
 SIZES = {
@@ -32,18 +36,19 @@ SIZES = {
 
 ORANGE, PERI, GOLD, SAGE, GREEN = '#e8a87c', '#a5b4fc', '#fbbf24', '#8fbf9f', '#4ade80'
 
-# (eyebrow, headline, subtitle, accent) in screenshot order 01..08.
+# (headline, accent) in screenshot order 01..08. *Word* is drawn in the accent.
 # Every line must stay accurate to the shipping app, and never mention price.
 SLIDES = [
-    ('PRAYER TRACKING', 'Your prayers,\ngrowing.', 'Log each salah and watch your garden flourish.', ORANGE),
-    ('FAJR TO ISHA', 'A sky that\nmoves with you.', 'Your garden follows the real hours of your day.', PERI),
-    ('DAILY CHALLENGES', 'Small goals,\nevery day.', 'Fajr, all five, on time. Each one earns coins.', GOLD),
-    ('WEEKLY CHALLENGES', 'Consistency,\nrewarded.', 'Bigger goals that build across the week.', GOLD),
-    ("QUR'AN", 'All 114 surahs,\nArabic & English.', 'Bookmark any ayah and pick up where you left off.', ORANGE),
-    ('HADITH', "Nawawi's collection,\ngraded & cited.", 'Every hadith with its narrator and source.', SAGE),
-    ('QIBLA', 'Face the Qibla,\nwherever you are.', 'A built-in compass that points to the Kaaba.', GREEN),
-    ('DHIKR', 'Remembrance\nafter every salah.', 'A tasbih counter with duas and adhkar.', ORANGE),
+    ('Watch your\nprayers *grow*', ORANGE),
+    ('A living sky,\n*Fajr* to Isha', PERI),
+    ('Small goals,\n*every* day', GOLD),
+    ('Stay consistent,\nget *rewarded*', GOLD),
+    ("The full *Qur'an*,\nArabic & English", ORANGE),
+    ('*40 Hadith*,\ngraded & cited', SAGE),
+    ('Find the *Qibla*\nwherever you are', GREEN),
+    ('*Dhikr* after\nevery salah', ORANGE),
 ]
+NIGHT_TOP, NIGHT_BOTTOM = (10, 15, 30), (24, 34, 70)
 
 
 def hex_rgb(h, a=255):
@@ -60,17 +65,6 @@ def median_colour(img, box):
     return tuple(sorted(ch)[len(ch) // 2] for ch in zip(*px))
 
 
-def screen_palette(shot):
-    """Frame colours taken from the screenshot itself, so a daytime screen
-    gets a daytime frame. Top comes from just under the status bar, bottom
-    from the screen's left edge mid-height (the app background, not a card).
-    The top is darkened if needed so the white headline stays readable."""
-    w, h = shot.size
-    top = median_colour(shot, (int(w * 0.05), int(h * 0.06), int(w * 0.95), int(h * 0.075)))
-    bottom = median_colour(shot, (0, int(h * 0.40), max(2, int(w * 0.02)), int(h * 0.60)))
-    while luminance(top) > 70:
-        top = tuple(round(c * 0.9) for c in top)
-    return top, bottom
 
 
 def background(W, H, seed, top=(11, 17, 32), bottom=(21, 30, 58)):
@@ -140,68 +134,55 @@ def full_battery(shot):
     return shot
 
 
-def draw_spaced(d, xy, text, font, fill, spacing):
-    x, y = xy
-    for ch in text:
-        d.text((x, y), ch, font=font, fill=fill)
-        x += font.getlength(ch) + spacing
 
 
-def wrap(text, font, width):
-    lines, cur = [], ''
-    for w in text.split():
-        trial = f'{cur} {w}'.strip()
-        if font.getlength(trial) <= width or not cur:
-            cur = trial
-        else:
-            lines.append(cur)
-            cur = w
-    return lines + [cur]
 
 
-def render(shot_path, slide, W, H, seed):
-    eyebrow, headline, subtitle, accent = slide
-    shot = full_battery(Image.open(shot_path).convert('RGB'))
-    img = background(W, H, seed, *screen_palette(shot))
-    d = ImageDraw.Draw(img)
-    pad = round(W * 0.075)
-    text_w = W - 2 * pad
+def segments(line):
+    """Split 'a *b* c' into [('a ', False), ('b', True), (' c', False)]."""
+    parts = line.split('*')
+    return [(p, i % 2 == 1) for i, p in enumerate(parts) if p]
 
-    # Eyebrow: a short rule then letter-spaced caps, as in the old set.
-    y = round(H * 0.058)
-    eb = ImageFont.truetype(SANS_SB, round(W * 0.024))
-    rule = round(W * 0.05)
-    mid = y + eb.size * 0.62
-    d.line([(pad, mid), (pad + rule, mid)], fill=hex_rgb(accent), width=max(2, W // 600))
-    draw_spaced(d, (pad + rule + W * 0.022, y), eyebrow, eb, hex_rgb(accent), eb.size * 0.2)
-    y += round(eb.size * 2.0)
 
-    # Headline: shrink until the widest line fits.
-    size = round(W * 0.088)
-    while True:
-        hf = ImageFont.truetype(SERIF, size)
-        if max(hf.getlength(l) for l in headline.split('\n')) <= text_w or size < 40:
+def line_widths(headline, font):
+    return [sum(font.getlength(t) for t, _ in segments(l)) for l in headline.split('\n')]
+
+
+def headline_size(W):
+    """One size for the whole set: the largest at which every headline fits.
+    Per-slide sizing made the longer headlines visibly smaller than the rest."""
+    size = round(W * 0.118)
+    while size > 40:
+        f = ImageFont.truetype(SERIF, size)
+        if all(max(line_widths(h, f)) <= W * 0.88 for h, _ in SLIDES):
             break
         size -= 2
-    for line in headline.split('\n'):
-        d.text((pad, y), line, font=hf, fill=(247, 241, 232, 255))
-        y += round(size * 1.08)
+    return size
 
-    # Subtitle.
-    y += round(H * 0.008)
-    sf = ImageFont.truetype(SANS, round(W * 0.036))
-    for line in wrap(subtitle, sf, text_w):
-        d.text((pad, y), line, font=sf, fill=(205, 212, 228, 255))
-        y += round(sf.size * 1.35)
 
-    # Phone: the real screenshot, as large as the remaining space allows.
-    top = y + round(H * 0.032)
-    bottom = H - round(H * 0.035)
-    phone_h = bottom - top
-    phone_w = round(phone_h * shot.width / shot.height)
-    if phone_w > W * 0.84:
-        phone_w = round(W * 0.84)
-        phone_h = round(phone_w * shot.height / shot.width)
+def render(shot_path, slide, W, H, seed, size):
+    headline, accent = slide
+    shot = full_battery(Image.open(shot_path).convert('RGB'))
+    img = background(W, H, seed, NIGHT_TOP, NIGHT_BOTTOM)
+    d = ImageDraw.Draw(img)
+    lines = [segments(l) for l in headline.split('\n')]
+
+    # Headline: centred, one word in the accent colour.
+    hf = ImageFont.truetype(SERIF, size)
+    widths = line_widths(headline, hf)
+    y = round(H * 0.06)
+    for segs, lw in zip(lines, widths):
+        x = (W - lw) / 2
+        for t, hi in segs:
+            d.text((x, y), t, font=hf, fill=hex_rgb(accent) if hi else (250, 245, 236, 255))
+            x += hf.getlength(t)
+        y += round(size * 1.12)
+
+    # Phone: the real screenshot, wide, running off the bottom edge so the
+    # screen is as large as possible. Only the bottom of the phone is cut.
+    top = y + round(H * 0.035)
+    phone_w = round(W * 0.86)
+    phone_h = round(phone_w * shot.height / shot.width)
     bezel = round(phone_w * 0.022)
     left = (W - phone_w) // 2
     outer_r = round(phone_w * 0.13)
@@ -239,8 +220,10 @@ def main():
     for name, (W, H) in SIZES.items():
         folder = os.path.join(out, f'Upload-{name}')
         os.makedirs(folder, exist_ok=True)
+        size = headline_size(W)
         for i, (f, slide) in enumerate(zip(shots, SLIDES), 1):
-            render(os.path.join(src, f), slide, W, H, seed=i).save(os.path.join(folder, f'{i:02d}.png'))
+            render(os.path.join(src, f), slide, W, H, seed=i, size=size).save(
+                os.path.join(folder, f'{i:02d}.png'))
         print(f'{folder}  ({W}x{H}, {len(shots)} images)')
 
 
