@@ -42,8 +42,12 @@
 >       said Health & Fitness. Check this is intended.
 > - [ ] **China mainland**: only if you want it. Needs the security assessment and
 >       AIGC declaration in App Compliance first.
-> - [ ] Search results now show the banner instead of screenshots. Consider an
->       A/B test via Product Page Optimization.
+> - [x] Search results: the banner was used there on launch day, but one wide
+>       image looked small and blocky next to competitors' three captioned
+>       screenshots. Removed 2026-11-24, so search shows screenshots 01–03 again.
+>       The banner stays as the product page Header only.
+> - [ ] Optional: rebuild the screenshots with bigger, bolder captions so they
+>       read better at search-result size (needs Apple review of the new set).
 
 *Rewritten 2026-08-17. Supersedes the 2026-07-22 version, which had gone stale in one
 important way: it claimed only one native build had ever existed and that
