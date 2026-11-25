@@ -14,7 +14,7 @@
 > | Subscriptions | Monthly $6.99 + Yearly $44.99, both **Approved**, 2-week free trial |
 > | Coin packs | All four consumables **Approved** |
 > | App price | Free (base country United Kingdom) |
-> | Product page header | `header-universal.png` published as Header **and** Search Results |
+> | Product page header | `header-universal.png` (isometric) is the live Header; Search Results uses screenshots |
 > | Landing page | growpray.com badges link to the listing (commit `cb1c761`) |
 > | Privacy policy | Corrected version is live on growpray.com |
 > | Content | `// VERIFY` markers cleared after checking (commit `16764ad`) |
@@ -46,6 +46,11 @@
 >       image looked small and blocky next to competitors' three captioned
 >       screenshots. Removed 2026-11-24, so search shows screenshots 01–03 again.
 >       The banner stays as the product page Header only.
+> - [ ] **New header**: `header-dusk.png` (built by `scripts/store_header_banner.py`,
+>       simple dusk sky with a sapling) was uploaded and submitted for Apple review
+>       on 2026-11-25 (up to 48 hours). Once it's **Approved**, go to the version
+>       page → Header and Search Results → **Header** tab → Browse Assets → pick
+>       `header-dusk.png` → Publish. Header only: leave Search Results on the screenshots.
 > - [ ] Optional: rebuild the screenshots with bigger, bolder captions so they
 >       read better at search-result size (needs Apple review of the new set).
 
